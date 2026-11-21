@@ -16,7 +16,7 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
   const [dragStart,setDragStart]=useState<{row:number;col:number}|null>(null);
   const [dragging,setDragging]=useState(false);
   const [columnFilters,setColumnFilters]=useState<Record<number,string>>({});
-  const gridRef=useRef<HTMLDivElement>(null);
+  const gridRef=useRef<HTMLDivElement>(null);\n  const editOriginal=useRef("");
   const coords=parseAddress(activeCell)??{row:0,col:0};
   const columns=useMemo(()=>Array.from({length:Math.max(sheet.columnCount,26)},(_,i)=>i),[sheet.columnCount]);
   const allRows=useMemo(()=>Array.from({length:Math.max(sheet.rowCount,100)},(_,i)=>i),[sheet.rowCount]);
@@ -33,9 +33,9 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
     else if(e.key==="ArrowLeft"&&e.currentTarget.selectionStart===0)nc=Math.max(0,col-1);
     else if(e.key==="ArrowRight"&&e.currentTarget.selectionEnd===e.currentTarget.value.length)nc=col+1;
     else if(e.key==="Enter")nr=row+1;
-    else if(e.key==="Tab"){e.preventDefault();nc=col+(e.shiftKey?-1:1);if(nc<0){nc=0}onSelect(addressOf(nr,nc));return;}
-    else if(e.key==="Escape"){e.currentTarget.blur();return;}
-    else if(e.key==="Delete"||e.key==="Backspace"){if(e.currentTarget.value===""){setCell(addressOf(row,col),"");return;}return;}
+    else if(e.key==="Tab"){e.preventDefault();nc=Math.max(0,col+(e.shiftKey?-1:1));updateSheet(sheet.id,{rowCount:Math.max(sheet.rowCount,nr+1),columnCount:Math.max(sheet.columnCount,nc+1)});onSelect(addressOf(nr,nc));requestAnimationFrame(()=>gridRef.current?.querySelector<HTMLInputElement>(`[data-cell="${addressOf(nr,nc)}"]`)?.focus());return;}
+    else if(e.key==="Escape"){setCell(addressOf(row,col),editOriginal.current);e.currentTarget.blur();return;}
+    else if(e.key==="Delete"||e.key==="Backspace"){e.preventDefault();setCell(addressOf(row,col),"");return;}
     else return;
     e.preventDefault();updateSheet(sheet.id,{rowCount:Math.max(sheet.rowCount,nr+1),columnCount:Math.max(sheet.columnCount,nc+1)});
     onSelect(addressOf(nr,nc));
@@ -63,7 +63,7 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
               {cell?.checkbox?<div className="grid flex h-full items-center justify-center"><input type="checkbox" checked={cell.raw==="TRUE"} onChange={e=>setCell(address,e.target.checked?"TRUE":"FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]"/></div>:cell?.hyperlink?<a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value||cell.hyperlink}</span><ExternalLink size={10}/></a>:<input
                 data-cell={address}
                 aria-label={`Cell ${address}`}
-                type={cell?.datePicker?"date":"text"}
+                onFocus={()=>{editOriginal.current=cell?.raw??"";}}\n                type={cell?.datePicker?"date":"text"}
                 value={cell?.datePicker?(cell.raw||""):value}
                 onClick={e=>{if(e.shiftKey){const anchor=parseAddress(activeCell)??{row,col};onSelect(address,{startRow:anchor.row,startCol:anchor.col,endRow:row,endCol:col})}else onSelect(address,{startRow:row,startCol:col,endRow:row,endCol:col})}}
                 onMouseDown={()=>{setDragStart({row,col});setDragging(true);}}
