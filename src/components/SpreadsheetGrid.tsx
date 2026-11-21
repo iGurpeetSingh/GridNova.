@@ -16,7 +16,8 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
   const [dragStart,setDragStart]=useState<{row:number;col:number}|null>(null);
   const [dragging,setDragging]=useState(false);
   const [columnFilters,setColumnFilters]=useState<Record<number,string>>({});
-  const gridRef=useRef<HTMLDivElement>(null);\n  const editOriginal=useRef("");
+  const gridRef=useRef<HTMLDivElement>(null);
+  const editOriginal=useRef("");
   const coords=parseAddress(activeCell)??{row:0,col:0};
   const columns=useMemo(()=>Array.from({length:Math.max(sheet.columnCount,26)},(_,i)=>i),[sheet.columnCount]);
   const allRows=useMemo(()=>Array.from({length:Math.max(sheet.rowCount,100)},(_,i)=>i),[sheet.rowCount]);
@@ -63,7 +64,8 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
               {cell?.checkbox?<div className="grid flex h-full items-center justify-center"><input type="checkbox" checked={cell.raw==="TRUE"} onChange={e=>setCell(address,e.target.checked?"TRUE":"FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]"/></div>:cell?.hyperlink?<a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value||cell.hyperlink}</span><ExternalLink size={10}/></a>:<input
                 data-cell={address}
                 aria-label={`Cell ${address}`}
-                onFocus={()=>{editOriginal.current=cell?.raw??"";}}\n                type={cell?.datePicker?"date":"text"}
+                onFocus={()=>{editOriginal.current=cell?.raw??"";}}
+                type={cell?.datePicker?"date":"text"}
                 value={cell?.datePicker?(cell.raw||""):value}
                 onClick={e=>{if(e.shiftKey){const anchor=parseAddress(activeCell)??{row,col};onSelect(address,{startRow:anchor.row,startCol:anchor.col,endRow:row,endCol:col})}else onSelect(address,{startRow:row,startCol:col,endRow:row,endCol:col})}}
                 onMouseDown={()=>{setDragStart({row,col});setDragging(true);}}
