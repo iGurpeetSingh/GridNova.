@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine,
   ArrowUpToLine, Bold, Braces, CalendarDays, ChartColumn, ChartLine, Check,
@@ -31,7 +32,7 @@ function Drop({label,value,options,onPick,tone="indigo"}:{label:string;value:str
     {open&&<div className="absolute left-0 top-9 z-50 min-w-[140px] rounded-xl border border-[#e2e9e4] bg-white p-1.5 shadow-xl">{options.map(option=><button key={option} onMouseDown={e=>e.preventDefault()} onClick={()=>{onPick(option);setOpen(false)}} className={`block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-[#eff7f1] ${value===option?"font-bold text-[#107c41]":"text-[#435448]"}`}>{option}</button>)}</div>}
   </div>;
 }
-function Group({label,children}:{label:string;children:React.ReactNode}){
+function Group({label,children}:{label:string;children:ReactNode}){
   return <div className="ribbon-group"><div className="flex h-full flex-col justify-between"><div className="flex flex-1 flex-wrap content-center items-center gap-1">{children}</div><div className="ribbon-label">{label}</div></div></div>;
 }
 export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation}:Props){
