@@ -1,0 +1,21 @@
+@import "tailwindcss";
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18221d;background:#f5f8f6;font-synthesis:none;text-rendering:optimizeLegibility}
+*{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #72bf95;outline-offset:2px}
+.app-shell{min-height:100vh;background:radial-gradient(circle at 15% 0%,#edf8f1 0,transparent 34%),#f5f8f6}
+.glass{background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border:1px solid rgba(226,234,228,.95);box-shadow:0 8px 30px rgba(34,67,47,.05)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #e1e9e3;border-radius:10px;padding:8px 11px;background:#fff;color:#36443a;font-size:12px;font-weight:600;transition:.15s}
+.btn:hover{background:#f2f8f4;border-color:#cbded0}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:#107c41;border-color:#107c41;color:#fff}.btn-primary:hover{background:#0b6735;color:#fff}
+.ribbon-scroll{overflow-x:auto;scrollbar-width:thin;scrollbar-color:#d7e2da transparent}
+.ribbon-group{display:flex;align-items:center;gap:5px;padding:4px 12px;border-right:1px solid #e7ece8;min-height:68px}
+.ribbon-label{font-size:10px;color:#87948b;text-align:center;margin-top:auto}
+.ribbon-action{display:flex;align-items:center;gap:5px;min-height:30px;padding:5px 8px;border-radius:7px;background:#fff;color:#35443a;font-size:11px;white-space:nowrap}
+.ribbon-action:hover{background:#edf6f0}.ribbon-action.active{background:#e5f4ea;color:#107c41}
+.sheet-scroll{overflow:auto;flex:1;min-height:0;background:#fff}
+.cell-input{width:100%;height:100%;min-width:0;border:0;background:transparent;padding:4px 6px;color:inherit;outline:none;font-size:inherit}
+.cell-input:focus{outline:2px solid #107c41;outline-offset:-2px}
+.grid-cell{position:relative;height:27px;border-right:1px solid #e8ece9;border-bottom:1px solid #e8ece9;padding:0;min-width:65px}
+.grid-cell.selected{box-shadow:inset 0 0 0 2px #107c41;background:#f0faf3}
+.comment-mark{position:absolute;right:0;top:0;border-top:8px solid #f59e0b;border-left:8px solid transparent}
+@media(max-width:700px){.ribbon-group{padding:3px 7px}.ribbon-action{font-size:10px;padding:5px}.grid-cell{min-width:78px}.dashboard-wrap{padding:16px!important}}
+@media print{.no-print{display:none!important}.sheet-scroll{overflow:visible}.app-shell{background:#fff}}
