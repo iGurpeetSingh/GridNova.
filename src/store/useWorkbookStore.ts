@@ -31,7 +31,8 @@ const makeTemplate = (kind: TemplateId): WorkbookData => {
   } else if (kind === "sales") {
     [["Product","Units","Unit Price","Revenue","Share"],["Nova Desk","12","4500","=B2*C2","=D2/SUM(D2:D5)"],["Orbit Lamp","18","1800","=B3*C3","=D3/SUM(D2:D5)"],["Cloud Chair","7","6200","=B4*C4","=D4/SUM(D2:D5)"],["Pulse Stand","21","950","=B5*C5","=D5/SUM(D2:D5)"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:ci===4?{numberFormat:"Percentage %"}:ci===2||ci===3?{numberFormat:"Currency ₹"}:undefined)));
   } else if (kind === "project") {
-    [["Task","Owner","Start Date","Due Date","Status","Done"],["Discovery","Maya","2026-11-03","2026-11-07","Complete","TRUE"],["Wireframes","Arjun","2026-11-08","2026-11-14","In Progress","FALSE"],["Development","Sam","2026-11-15","2026-11-28","Not Started","FALSE"],["QA","Maya","2026-11-29","2026-12-04","Not Started","FALSE"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:undefined)));\n    for(let row=2;row<=5;row++){
+    [["Task","Owner","Start Date","Due Date","Status","Done"],["Discovery","Maya","2026-11-03","2026-11-07","Complete","TRUE"],["Wireframes","Arjun","2026-11-08","2026-11-14","In Progress","FALSE"],["Development","Sam","2026-11-15","2026-11-28","Not Started","FALSE"],["QA","Maya","2026-11-29","2026-12-04","Not Started","FALSE"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:undefined)));
+    for(let row=2;row<=5;row++){
       s.cells[`C${row}`]={...s.cells[`C${row}`],datePicker:true};
       s.cells[`D${row}`]={...s.cells[`D${row}`],datePicker:true};
       s.cells[`F${row}`]={...s.cells[`F${row}`],checkbox:true};
