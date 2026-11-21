@@ -1,4 +1,4 @@
-import type { CellMap } from "../types";
+import type { CellMap, CellStyle } from "../types";
 import { addressOf, parseAddress } from "../types";
 
 type Value = string | number | boolean;
