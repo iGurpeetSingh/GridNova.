@@ -182,9 +182,9 @@ export function formatCellValue(raw: string, cells: CellMap, showFormula: boolea
   const n = typeof value === "number" ? value : (String(value).trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null);
   switch (style?.numberFormat) {
     case "Percentage %":
-      return n === null ? String(value) : new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 2 }).format(n);
+      return n === null ? String(value) : new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: style?.decimalPlaces ?? 2 }).format(n);
     case "Currency ₹":
-      return n === null ? String(value) : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
+      return n === null ? String(value) : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: style?.decimalPlaces ?? 2 }).format(n);
     case "Currency $":
       return n === null ? String(value) : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
     case "Number":
