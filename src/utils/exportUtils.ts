@@ -46,7 +46,17 @@ export function exportPdf(workbook:WorkbookData){
     doc.setFontSize(15);doc.text(`${workbook.title} — ${sheet.name}`,40,36);
     const rows=sheetToRows(sheet);
     const head=rows.length?[rows[0]]:[[]],body=rows.slice(1);
-    autoTable(doc,{startY:52,head,body,styles:{fontSize:7,cellPadding:4,overflow:"linebreak"},headStyles:{fillColor:[16,124,65],textColor:255},alternateRowStyles:{fillColor:[245,249,246]},margin:{left:40,right:40}});
+    autoTable(doc,{startY:52,head,body,styles:{fontSize:7,cellPadding:4,overflow:"linebreak"},headStyles:{fillColor:[16,124,65],textColor:255},alternateRowStyles:{fillColor:[245,249,246]},margin:{left:40,right:40},
+      didParseCell:(data)=>{
+        const rowIndex=data.section==="head"?0:data.row.index+1;
+        const cell=sheet.cells[addressOf(rowIndex,data.column.index)];
+        const style=cell?.style;
+        if(!style)return;
+        if(style.color) data.cell.styles.textColor=style.color;
+        if(style.backgroundColor) data.cell.styles.fillColor=style.backgroundColor;
+        if(style.bold||style.italic) data.cell.styles.fontStyle=style.bold&&style.italic?"bolditalic":style.bold?"bold":"italic";
+        if(style.align) data.cell.styles.halign=style.align;
+      }});
   });
   doc.save(`${workbook.title.replace(/[\\/:*?"<>|]/g,"-")}.pdf`);
 }
