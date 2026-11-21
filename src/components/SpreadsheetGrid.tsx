@@ -16,6 +16,7 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
   const [dragStart,setDragStart]=useState<{row:number;col:number}|null>(null);
   const [dragging,setDragging]=useState(false);
   const [columnFilters,setColumnFilters]=useState<Record<number,string>>({});
+  const [editingAddress,setEditingAddress]=useState<string|null>(null);
   const gridRef=useRef<HTMLDivElement>(null);
   const editOriginal=useRef("");
   const coords=parseAddress(activeCell)??{row:0,col:0};
@@ -57,14 +58,15 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
         <tbody>{rows.map(row=><tr key={row}>
           {sheet.showHeadings&&<th className={`sticky left-0 z-10 h-[27px] border border-[#e5ebe7] bg-[#f4f7f5] text-[10px] font-medium text-[#86938b] ${sheet.freezeTopRow&&row===0?"sticky top-7 z-30":""}`}>{row+1}</th>}
           {columns.map(col=>{
-            const address=addressOf(row,col),cell=sheet.cells[address],value=formatCellValue(cell?.raw??"",sheet.cells,showFormulas,cell?.style);
+            const address=addressOf(row,col),cell=sheet.cells[address],display=formatCellValue(cell?.raw??"",sheet.cells,showFormulas,cell?.style),value=editingAddress===address?(cell?.raw??""):display;
             const selected=inside(row,col),style=cell?.style??{};
             if(cell?.mergedInto)return null;
             return <td key={col} colSpan={cell?.mergeCols??1} rowSpan={cell?.mergeRows??1} className={`grid-cell ${selected?"selected":""} ${sheet.freezeTopRow&&row===0?"sticky top-14 z-10":""}`} style={{borderColor:sheet.showGridlines?"#e8ece9":"transparent",borderWidth:style.border==="none"?0:1,borderStyle:"solid",background:style.backgroundColor??(selected?"#f0faf3":"#fff"),fontFamily:style.fontFamily??"Inter",fontSize:style.fontSize??11,fontWeight:style.bold?700:400,fontStyle:style.italic?"italic":"normal",color:style.color??"#26382d",textAlign:style.align??"left",textDecoration:[style.underline?"underline":"",style.strike?"line-through":""].filter(Boolean).join(" "),whiteSpace:style.wrap?"normal":"nowrap",overflow:"visible"}}>
               {cell?.checkbox?<div className="grid flex h-full items-center justify-center"><input type="checkbox" checked={cell.raw==="TRUE"} onChange={e=>setCell(address,e.target.checked?"TRUE":"FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]"/></div>:cell?.hyperlink?<a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value||cell.hyperlink}</span><ExternalLink size={10}/></a>:<input
                 data-cell={address}
                 aria-label={`Cell ${address}`}
-                onFocus={()=>{editOriginal.current=cell?.raw??"";}}
+                onFocus={()=>{editOriginal.current=cell?.raw??"";setEditingAddress(address);}}
+                onBlur={()=>setEditingAddress(current=>current===address?null:current)}
                 type={cell?.datePicker?"date":"text"}
                 value={cell?.datePicker?(cell.raw||""):value}
                 onClick={e=>{if(e.shiftKey){const anchor=parseAddress(activeCell)??{row,col};onSelect(address,{startRow:anchor.row,startCol:anchor.col,endRow:row,endCol:col})}else onSelect(address,{startRow:row,startCol:col,endRow:row,endCol:col})}}
