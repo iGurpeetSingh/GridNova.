@@ -172,7 +172,7 @@ export default function WorkbookEditor(){
       }
       case "hyperlink":{
         const url=window.prompt("Enter hyperlink URL");if(!url)break;
-        updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:url}),raw:sheet.cells[activeCell]?.raw||url,hyperlink:/^https?:\\/\\//i.test(url)?url:`https://${url}`}}});break;
+        updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:url}),raw:sheet.cells[activeCell]?.raw||url,hyperlink:(url.startsWith("http://")||url.startsWith("https://"))?url:`https://${url}`}}});break;
       }
       case "comment":{
         const comment=window.prompt("Add a note to this cell",sheet.cells[activeCell]?.comment??"");if(comment===null)break;
