@@ -1,12 +1,8 @@
-import * as XLSX from "xlsx";
-import Papa from "papaparse";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import type { WorkbookData, SheetData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { evaluate } from "./formulaEngine";
 
-export function sheetToRows(sheet:SheetData){
+export function sheetToRows(sheet:SheetData):string[][] {
   const rows:string[][]=[];
   for(let r=0;r<sheet.rowCount;r++){
     const row:string[]=[];
@@ -19,12 +15,13 @@ export function sheetToRows(sheet:SheetData){
   }
   return rows;
 }
-export function exportXlsx(workbook:WorkbookData){
+export async function exportXlsx(workbook:WorkbookData):Promise<void>{
+  const XLSX=await import("xlsx");
   const book=XLSX.utils.book_new();
   workbook.sheets.forEach(sheet=>{
     const ws=XLSX.utils.aoa_to_sheet(sheetToRows(sheet));
     Object.entries(sheet.cells).forEach(([address,cell])=>{
-      const target=ws[address] as XLSX.CellObject|undefined;
+      const target=ws[address] as {s?:unknown}|undefined;
       if(target&&cell.style){
         target.s={font:{bold:cell.style.bold,italic:cell.style.italic,underline:cell.style.underline,color:{rgb:(cell.style.color??"#202124").replace("#","")}},fill:{fgColor:{rgb:(cell.style.backgroundColor??"#ffffff").replace("#","")}},alignment:{horizontal:cell.style.align}};
       }
@@ -33,13 +30,16 @@ export function exportXlsx(workbook:WorkbookData){
   });
   XLSX.writeFile(book,`${workbook.title.replace(/[\\/:*?"<>|]/g,"-")}.xlsx`);
 }
-export function exportCsv(sheet:SheetData){
+export async function exportCsv(sheet:SheetData):Promise<void>{
+  const Papa=(await import("papaparse")).default;
   const csv=Papa.unparse(sheetToRows(sheet));
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
   const url=URL.createObjectURL(blob);const a=document.createElement("a");
   a.href=url;a.download="gridnova-sheet.csv";a.click();URL.revokeObjectURL(url);
 }
-export function exportPdf(workbook:WorkbookData){
+export async function exportPdf(workbook:WorkbookData):Promise<void>{
+  const {jsPDF}=await import("jspdf");
+  const autoTable=(await import("jspdf-autotable")).default;
   const doc=new jsPDF({orientation:workbook.orientation,unit:"pt",format:"a4"});
   workbook.sheets.forEach((sheet,index)=>{
     if(index>0)doc.addPage();
@@ -52,18 +52,20 @@ export function exportPdf(workbook:WorkbookData){
         const cell=sheet.cells[addressOf(rowIndex,data.column.index)];
         const style=cell?.style;
         if(!style)return;
-        if(style.color) data.cell.styles.textColor=style.color;
-        if(style.backgroundColor) data.cell.styles.fillColor=style.backgroundColor;
-        if(style.bold||style.italic) data.cell.styles.fontStyle=style.bold&&style.italic?"bolditalic":style.bold?"bold":"italic";
-        if(style.align) data.cell.styles.halign=style.align;
+        if(style.color)data.cell.styles.textColor=style.color;
+        if(style.backgroundColor)data.cell.styles.fillColor=style.backgroundColor;
+        if(style.bold||style.italic)data.cell.styles.fontStyle=style.bold&&style.italic?"bolditalic":style.bold?"bold":"italic";
+        if(style.align)data.cell.styles.halign=style.align;
       }});
   });
   doc.save(`${workbook.title.replace(/[\\/:*?"<>|]/g,"-")}.pdf`);
 }
-export function importCsvText(text:string):string[][]{
+export async function importCsvText(text:string):Promise<string[][]>{
+  const Papa=(await import("papaparse")).default;
   return Papa.parse<string[]>(text,{skipEmptyLines:false}).data;
 }
 export async function importExcelFile(file:File):Promise<string[][]>{
+  const XLSX=await import("xlsx");
   const buffer=await file.arrayBuffer();const book=XLSX.read(buffer,{type:"array"});
   const first=book.Sheets[book.SheetNames[0]];
   return XLSX.utils.sheet_to_json<string[]>(first,{header:1,raw:false,defval:""}) as string[][];
