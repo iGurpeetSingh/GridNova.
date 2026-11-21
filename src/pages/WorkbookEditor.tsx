@@ -73,7 +73,7 @@ export default function WorkbookEditor(){
   const exportFile=async(type:"xlsx"|"csv"|"pdf")=>{
     try {
       const tools=await import("../utils/exportUtils");
-      if(type==="xlsx")tools.exportXlsx(workbook);else if(type==="csv")tools.exportCsv(sheet);else tools.exportPdf(workbook);
+      if(type==="xlsx")await tools.exportXlsx(workbook);else if(type==="csv")await tools.exportCsv(sheet);else await tools.exportPdf(workbook);
       setShareOpen(false);setShowSaved();
     } catch(error) { window.alert(error instanceof Error?error.message:"Export failed."); }
   };
@@ -235,7 +235,7 @@ export default function WorkbookEditor(){
     try{
       const ext=file.name.split(".").pop()?.toLowerCase();
       const tools=await import("../utils/exportUtils");
-      const rows=ext==="csv"?tools.importCsvText(await file.text()):await tools.importExcelFile(file);
+      const rows=ext==="csv"?await tools.importCsvText(await file.text()):await tools.importExcelFile(file);
       updateSheet(sheet.id,{cells:tools.rowsToCells(rows),rowCount:Math.max(100,rows.length),columnCount:Math.max(26,...rows.map(r=>r.length))});
       selectCell("A1");setShowSaved();
     }catch(e){window.alert(e instanceof Error?e.message:"Unable to import this file.");}
