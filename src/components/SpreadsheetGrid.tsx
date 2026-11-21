@@ -19,7 +19,8 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
   const gridRef=useRef<HTMLDivElement>(null);
   const coords=parseAddress(activeCell)??{row:0,col:0};
   const columns=useMemo(()=>Array.from({length:Math.max(sheet.columnCount,26)},(_,i)=>i),[sheet.columnCount]);
-  const rows=useMemo(()=>Array.from({length:Math.max(sheet.rowCount,100)},(_,i)=>i).filter(row=>row===0||Object.entries(columnFilters).every(([col,value])=>!value||(sheet.cells[addressOf(row,Number(col))]?.raw??"")===value)),[sheet.rowCount,sheet.cells,columnFilters]);
+  const allRows=useMemo(()=>Array.from({length:Math.max(sheet.rowCount,100)},(_,i)=>i),[sheet.rowCount]);
+  const rows=useMemo(()=>allRows.filter(row=>row===0||Object.entries(columnFilters).every(([col,value])=>!value||(sheet.cells[addressOf(row,Number(col))]?.raw??"")===value)),[allRows,sheet.cells,columnFilters]);
   const inside=(row:number,col:number)=>{
     if(!selection)return row===coords.row&&col===coords.col;
     return row>=Math.min(selection.startRow,selection.endRow)&&row<=Math.max(selection.startRow,selection.endRow)&&col>=Math.min(selection.startCol,selection.endCol)&&col<=Math.max(selection.startCol,selection.endCol);
@@ -42,18 +43,16 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
   };
   const startResize=(e:React.MouseEvent,col:number)=>{
     e.preventDefault();e.stopPropagation();
-    setResize({col,startX:e.clientX,startWidth:sheet.columnWidths[col]??110});
-    const move=(event:MouseEvent)=>{if(!resize&&gridRef.current){const width=Math.max(55,Math.min(360,(sheet.columnWidths[col]??110)+event.clientX-e.clientX));updateSheet(sheet.id,{columnWidths:{...sheet.columnWidths,[col]:width}})}};
     const startX=e.clientX,startWidth=sheet.columnWidths[col]??110;
     const onMove=(event:MouseEvent)=>updateSheet(sheet.id,{columnWidths:{...sheet.columnWidths,[col]:Math.max(55,Math.min(360,startWidth+event.clientX-startX))}});
-    const end=()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",end);setResize(null)};
+    const end=()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",end)};
     window.addEventListener("mousemove",onMove);window.addEventListener("mouseup",end);
   };
   return <div ref={gridRef} className="sheet-scroll relative" onMouseUp={()=>setDragging(false)} onMouseLeave={()=>setDragging(false)}>
     <div style={{zoom:zoom/100, minWidth:"max-content"}}>
       <table className="border-collapse table-fixed" style={{minWidth:"100%"}}>
         <colgroup>{sheet.showHeadings&&<col style={{width:48}}/>}{columns.map(c=><col key={c} style={{width:sheet.columnWidths[c]??110}}/>)}</colgroup>
-        {sheet.showHeadings&&<thead className="sticky top-0 z-20"><tr><th className="sticky left-0 z-30 h-7 border border-[#e5ebe7] bg-[#f2f6f3]"></th>{columns.map(c=><th key={c} className="relative h-7 border border-[#e5ebe7] bg-[#f2f6f3] text-[10px] font-semibold text-[#78877e]">{columnLabel(c)}<div onMouseDown={e=>startResize(e,c)} className="absolute right-[-3px] top-0 z-40 h-full w-2 cursor-col-resize"/></th>)}<tr><th className="sticky left-0 z-30 h-7 border border-[#e5ebe7] bg-[#f8faf8]"></th>{columns.map(c=><th key={c} className="h-7 border border-[#e5ebe7] bg-[#f8faf8] px-1">{sheet.filters?<select aria-label={`Filter ${columnLabel(c)}`} value={columnFilters[c]??""} onChange={e=>setColumnFilters(v=>({...v,[c]:e.target.value}))} className="max-w-full bg-transparent text-[9px] text-[#738178] outline-none"><option value="">All</option>{Array.from(new Set(rows.map(row=>sheet.cells[addressOf(row,c)]?.raw??"").filter(Boolean))).sort().map(v=><option key={v} value={v}>{v}</option>)}</select>:null}</th>)}</tr></thead>}
+        {sheet.showHeadings&&<thead className="sticky top-0 z-20"><tr><th className="sticky left-0 z-30 h-7 border border-[#e5ebe7] bg-[#f2f6f3]"></th>{columns.map(c=><th key={c} className="relative h-7 border border-[#e5ebe7] bg-[#f2f6f3] text-[10px] font-semibold text-[#78877e]">{columnLabel(c)}<div onMouseDown={e=>startResize(e,c)} className="absolute right-[-3px] top-0 z-40 h-full w-2 cursor-col-resize"/></th>)}<tr><th className="sticky left-0 z-30 h-7 border border-[#e5ebe7] bg-[#f8faf8]"></th>{columns.map(c=><th key={c} className="h-7 border border-[#e5ebe7] bg-[#f8faf8] px-1">{sheet.filters?<select aria-label={`Filter ${columnLabel(c)}`} value={columnFilters[c]??""} onChange={e=>setColumnFilters(v=>({...v,[c]:e.target.value}))} className="max-w-full bg-transparent text-[9px] text-[#738178] outline-none"><option value="">All</option>{Array.from(new Set(allRows.slice(1).map(row=>sheet.cells[addressOf(row,c)]?.raw??"").filter(Boolean))).sort().map(v=><option key={v} value={v}>{v}</option>)}</select>:null}</th>)}</tr></thead>}
         <tbody>{rows.map(row=><tr key={row}>
           {sheet.showHeadings&&<th className={`sticky left-0 z-10 h-[27px] border border-[#e5ebe7] bg-[#f4f7f5] text-[10px] font-medium text-[#86938b] ${sheet.freezeTopRow&&row===0?"sticky top-7 z-30":""}`}>{row+1}</th>}
           {columns.map(col=>{
