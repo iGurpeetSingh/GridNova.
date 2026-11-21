@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { ExternalLink, MessageSquare } from "lucide-react";
+import type { KeyboardEvent } from "react";
+import { ExternalLink } from "lucide-react";
 import type { CellRange, SheetData } from "../types";
 import { addressOf, columnLabel, parseAddress } from "../types";
 import { displayValue } from "../utils/formulaEngine";
@@ -24,7 +25,7 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
     return row>=Math.min(selection.startRow,selection.endRow)&&row<=Math.max(selection.startRow,selection.endRow)&&col>=Math.min(selection.startCol,selection.endCol)&&col<=Math.max(selection.startCol,selection.endCol);
   };
   const moveTo=(row:number,col:number)=>onSelect(addressOf(row,col),{startRow:dragStart?.row??row,startCol:dragStart?.col??col,endRow:row,endCol:col});
-  const onKeyDown=(e:React.KeyboardEvent<HTMLInputElement>,row:number,col:number)=>{
+  const onKeyDown=(e:KeyboardEvent<HTMLInputElement>,row:number,col:number)=>{
     let nr=row,nc=col;
     if(e.key==="ArrowUp")nr=Math.max(0,row-1);
     else if(e.key==="ArrowDown")nr=row+1;
