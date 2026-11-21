@@ -174,3 +174,26 @@ export function numericValue(raw: string, cells: CellMap): number | null {
   return null;
 }
 export function recalculate(cells: CellMap): CellMap { return { ...cells }; }
+
+export function formatCellValue(raw: string, cells: CellMap, showFormula: boolean, style?: CellStyle): string {
+  if (showFormula && raw.startsWith("=")) return raw;
+  const value = raw.startsWith("=") ? evaluate(raw, cells) : raw;
+  if (typeof value === "string" && value.startsWith("#")) return value;
+  const n = typeof value === "number" ? value : (String(value).trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null);
+  switch (style?.numberFormat) {
+    case "Percentage %":
+      return n === null ? String(value) : new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 2 }).format(n);
+    case "Currency ₹":
+      return n === null ? String(value) : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
+    case "Currency $":
+      return n === null ? String(value) : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
+    case "Number":
+      return n === null ? String(value) : new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(n);
+    case "Date": {
+      const date = new Date(String(value));
+      return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+    }
+    default:
+      return String(value ?? "");
+  }
+}
