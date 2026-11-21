@@ -3,7 +3,7 @@ import type { KeyboardEvent } from "react";
 import { ExternalLink } from "lucide-react";
 import type { CellRange, SheetData } from "../types";
 import { addressOf, columnLabel, parseAddress } from "../types";
-import { displayValue } from "../utils/formulaEngine";
+import { formatCellValue } from "../utils/formulaEngine";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 
 interface Props {
@@ -57,7 +57,7 @@ export default function SpreadsheetGrid({sheet,activeCell,selection,showFormulas
         <tbody>{rows.map(row=><tr key={row}>
           {sheet.showHeadings&&<th className={`sticky left-0 z-10 h-[27px] border border-[#e5ebe7] bg-[#f4f7f5] text-[10px] font-medium text-[#86938b] ${sheet.freezeTopRow&&row===0?"sticky top-7 z-30":""}`}>{row+1}</th>}
           {columns.map(col=>{
-            const address=addressOf(row,col),cell=sheet.cells[address],value=displayValue(cell?.raw??"",sheet.cells,showFormulas);
+            const address=addressOf(row,col),cell=sheet.cells[address],value=formatCellValue(cell?.raw??"",sheet.cells,showFormulas,cell?.style);
             const selected=inside(row,col),style=cell?.style??{};
             return <td key={col} className={`grid-cell ${selected?"selected":""}`} style={{borderColor:sheet.showGridlines?"#e8ece9":"transparent",background:selected?"#f0faf3":style.backgroundColor??"#fff",fontFamily:style.fontFamily??"Inter",fontSize:style.fontSize??11,fontWeight:style.bold?700:400,fontStyle:style.italic?"italic":"normal",color:style.color??"#26382d",textAlign:style.align??"left",textDecoration:[style.underline?"underline":"",style.strike?"line-through":""].filter(Boolean).join(" "),whiteSpace:style.wrap?"normal":"nowrap",overflow:"visible"}}>
               {cell?.checkbox?<div className="grid flex h-full items-center justify-center"><input type="checkbox" checked={cell.raw==="TRUE"} onChange={e=>setCell(address,e.target.checked?"TRUE":"FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]"/></div>:cell?.hyperlink?<a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value||cell.hyperlink}</span><ExternalLink size={10}/></a>:<input
