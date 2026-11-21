@@ -27,11 +27,11 @@ const makeTemplate = (kind: TemplateId): WorkbookData => {
   const put = (address: string, raw: string, style?: CellStyle) => { s.cells[address] = { raw, style }; };
   const header: CellStyle = { bold: true, color: "#ffffff", backgroundColor: "#128451", fontSize: 11, align: "left" };
   if (kind === "budget") {
-    [["Category","Planned","Actual","Difference"],["Housing","18000","17500","=B2-C2"],["Food","8000","7600","=B3-C3"],["Travel","4000","2500","=B4-C4"],["Utilities","3000","2900","=B5-C5"],["Total","=SUM(B2:B5)","=SUM(C2:C5)","=SUM(D2:D5)"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:ri===5?{bold:true,backgroundColor:"#e8f5ee"}:undefined)));
+    [["Category","Planned","Actual","Difference"],["Housing","18000","17500","=B2-C2"],["Food","8000","7600","=B3-C3"],["Travel","4000","2500","=B4-C4"],["Utilities","3000","2900","=B5-C5"],["Total","=SUM(B2:B5)","=SUM(C2:C5)","=SUM(D2:D5)"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:ri===5?{bold:true,backgroundColor:"#e8f5ee"}:ci>0?{numberFormat:"Currency ₹"}:undefined)));
   } else if (kind === "sales") {
     [["Product","Units","Unit Price","Revenue","Share"],["Nova Desk","12","4500","=B2*C2","=D2/SUM(D2:D5)"],["Orbit Lamp","18","1800","=B3*C3","=D3/SUM(D2:D5)"],["Cloud Chair","7","6200","=B4*C4","=D4/SUM(D2:D5)"],["Pulse Stand","21","950","=B5*C5","=D5/SUM(D2:D5)"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:undefined)));
   } else if (kind === "project") {
-    [["Task","Owner","Start Date","Due Date","Status"],["Discovery","Maya","2026-11-03","2026-11-07","Complete"],["Wireframes","Arjun","2026-11-08","2026-11-14","In Progress"],["Development","Sam","2026-11-15","2026-11-28","Not Started"],["QA","Maya","2026-11-29","2026-12-04","Not Started"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:undefined)));
+    [["Task","Owner","Start Date","Due Date","Status","Done"],["Discovery","Maya","2026-11-03","2026-11-07","Complete","TRUE"],["Wireframes","Arjun","2026-11-08","2026-11-14","In Progress","FALSE"],["Development","Sam","2026-11-15","2026-11-28","Not Started","FALSE"],["QA","Maya","2026-11-29","2026-12-04","Not Started","FALSE"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:undefined)));\n    for(let row=2;row<=5;row++){s.cells[`C${row}"]={...s.cells[`C${row}`],datePicker:true};s.cells[`D${row}"]={...s.cells[`D${row}`],datePicker:true};s.cells[`F${row}"]={...s.cells[`F${row}`],checkbox:true};}
   }
   wb.modifiedAt = Date.now(); return wb;
 };
