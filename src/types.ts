@@ -42,7 +42,7 @@ export const columnLabel = (n: number): string => {
 };
 export const addressOf = (row: number, col: number): string => `${columnLabel(col)}${row + 1}`;
 export const parseAddress = (address: string): { row: number; col: number } | null => {
-  const m = address.toUpperCase().match(/^([A-Z]+)([1-9]\\d*)$/);
+  const m = address.toUpperCase().match(/^([A-Z]+)([1-9]\d*)$/);
   if (!m) return null;
   let col = 0;
   for (const c of m[1]) col = col * 26 + c.charCodeAt(0) - 64;
