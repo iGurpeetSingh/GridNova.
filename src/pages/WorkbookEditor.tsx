@@ -1,17 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Check, ChevronDown, Cloud, FileSpreadsheet } from "lucide-react";
 import Ribbon from "../components/Ribbon";
 import SpreadsheetGrid from "../components/SpreadsheetGrid";
 import FormulaBar from "../components/FormulaBar";
 import SheetBar from "../components/SheetBar";
-import FloatingChart from "../components/FloatingChart";
+const FloatingChart = lazy(() => import("../components/FloatingChart"));
 import ShareModal from "../components/ShareModal";
 import { useWorkbookStore } from "../store/useWorkbookStore";
-import type { CellRange, CellStyle, FloatingChartData } from "../types";
+import type { CellData, CellRange, CellStyle, FloatingChartData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue } from "../utils/formulaEngine";
-import { exportCsv, exportPdf, exportXlsx, getRangeAddresses, importCsvText, importExcelFile, rowsToCells } from "../utils/exportUtils";
+
 
 type Tab = "File"|"Home"|"Insert"|"Page Layout"|"Formulas"|"Data"|"View";
 export default function WorkbookEditor(){
@@ -70,7 +70,13 @@ export default function WorkbookEditor(){
 
   const selectCell=(address:string,range?:CellRange)=>setSelection(range??null,address);
   const commitTitle=()=>{renameWorkbook(workbook.id,titleValue);setRenaming(false);setShowSaved()};
-  const exportFile=(type:"xlsx"|"csv"|"pdf")=>{if(type==="xlsx")exportXlsx(workbook);else if(type==="csv")exportCsv(sheet);else exportPdf(workbook);setShareOpen(false);setShowSaved()};
+  const exportFile=async(type:"xlsx"|"csv"|"pdf")=>{
+    try {
+      const tools=await import("../utils/exportUtils");
+      if(type==="xlsx")tools.exportXlsx(workbook);else if(type==="csv")tools.exportCsv(sheet);else tools.exportPdf(workbook);
+      setShareOpen(false);setShowSaved();
+    } catch(error) { window.alert(error instanceof Error?error.message:"Export failed."); }
+  };
   const selectedRangeString=()=>{
     if(!selection)return activeCell;
     return `${addressOf(selection.startRow,selection.startCol)}:${addressOf(selection.endRow,selection.endCol)}`;
@@ -119,8 +125,13 @@ export default function WorkbookEditor(){
       case "new":{const created=useWorkbookStore.getState().createWorkbook("blank");navigate(`/workbook/${created}`);break;}
       case "back":navigate("/");break;
       case "save":setShowSaved();break;
-      case "export-xlsx":exportFile("xlsx");break;case "export-csv":exportFile("csv");break;case "export-pdf":exportFile("pdf");break;
-      case "print":window.print();break;
+      case "export-xlsx":void exportFile("xlsx");break;case "export-csv":void exportFile("csv");break;case "export-pdf":void exportFile("pdf");break;
+      case "print":{
+        const printStyle=document.createElement("style");
+        printStyle.dataset.gridnovaPrint="true";
+        printStyle.textContent=`@media print{@page{size:${workbook.orientation};margin:12mm}}`;
+        document.head.appendChild(printStyle);window.print();printStyle.remove();break;
+      }
       case "undo":undo();break;case "redo":redo();break;
       case "cut":copySelection(true);break;case "copy":copySelection(false);break;case "paste":if(clipboard)paste(activeCell);break;
       case "bold":setStyle({bold:!activeStyle.bold},selectedAddresses);break;
@@ -130,8 +141,10 @@ export default function WorkbookEditor(){
       case "align-left":setStyle({align:"left"},selectedAddresses);break;case "align-center":setStyle({align:"center"},selectedAddresses);break;case "align-right":setStyle({align:"right"},selectedAddresses);break;
       case "wrap":setStyle({wrap:!activeStyle.wrap},selectedAddresses);break;
       case "percent":setStyle({numberFormat:"Percentage %"},selectedAddresses);break;case "currency-inr":setStyle({numberFormat:"Currency ₹"},selectedAddresses);break;case "comma":setStyle({numberFormat:"Number"},selectedAddresses);break;
-      case "decimal-up":{const v=Number(activeStyle.fontSize??11);setStyle({fontSize:Math.min(36,v+1)},selectedAddresses);break;}
-      case "decimal-down":{const v=Number(activeStyle.fontSize??11);setStyle({fontSize:Math.max(10,v-1)},selectedAddresses);break;}
+      case "font-up":{const v=Number(activeStyle.fontSize??11);setStyle({fontSize:Math.min(36,v+1)},selectedAddresses);break;}
+      case "font-down":{const v=Number(activeStyle.fontSize??11);setStyle({fontSize:Math.max(10,v-1)},selectedAddresses);break;}
+      case "decimal-up":{const v=Number(activeStyle.decimalPlaces??0);setStyle({numberFormat:activeStyle.numberFormat==="General"||!activeStyle.numberFormat?"Number":activeStyle.numberFormat,decimalPlaces:Math.min(8,v+1)},selectedAddresses);break;}
+      case "decimal-down":{const v=Number(activeStyle.decimalPlaces??2);setStyle({numberFormat:activeStyle.numberFormat==="General"||!activeStyle.numberFormat?"Number":activeStyle.numberFormat,decimalPlaces:Math.max(0,v-1)},selectedAddresses);break;}
       case "autosum":case "formula-sum":{
         const p=parseAddress(activeCell);if(!p)break;
         const formula=p.row>0?`=SUM(${addressOf(0,p.col)}:${addressOf(p.row-1,p.col)})`:p.col>0?`=SUM(A1:${addressOf(p.row,p.col-1)})`:"=SUM(A1:A1)";
@@ -149,11 +162,25 @@ export default function WorkbookEditor(){
         if(replace!==null&&replace!=="")found.forEach(([a,c])=>cells[a]={...c,raw:c.raw.split(find).join(replace)});
         updateCells(cells);if(found[0])selectCell(found[0][0]);window.alert(`${found.length} matching cell(s) found.`);break;
       }
-      case "clear":selectedAddresses.forEach(a=>useWorkbookStore.getState().clearCell(a));break;
+      case "clear":{const cells={...sheet.cells};selectedAddresses.forEach(a=>cells[a]={...(cells[a]??{raw:""}),raw:""});updateCells(cells);break;}
+      case "clear-format":{selectedAddresses.forEach(a=>useWorkbookStore.getState().clearFormat(a));break;}
       case "merge":{
-        const text=selectedAddresses.map(a=>sheet.cells[a]?.raw).filter(Boolean).join(" ");
-        setCell(activeCell,text);selectedAddresses.filter(a=>a!==activeCell).forEach(a=>useWorkbookStore.getState().clearCell(a));
-        setStyle({align:"center",bold:true},[activeCell]);window.alert("Selected values were combined into the active cell. The grid keeps individual cell boundaries.");break;
+        if(selectedAddresses.length<2){window.alert("Select two or more cells before merging.");break;}
+        const startRow=Math.min(selection!.startRow,selection!.endRow),endRow=Math.max(selection!.startRow,selection!.endRow);
+        const startCol=Math.min(selection!.startCol,selection!.endCol),endCol=Math.max(selection!.startCol,selection!.endCol);
+        const anchor=addressOf(startRow,startCol),cells={...sheet.cells},backup:Record<string,CellData>={};
+        selectedAddresses.forEach(a=>{backup[a]=cells[a]?structuredClone(cells[a]):{raw:""};});
+        cells[anchor]={...(cells[anchor]??{raw:""}),mergeRows:endRow-startRow+1,mergeCols:endCol-startCol+1,mergeBackup:backup};
+        selectedAddresses.filter(a=>a!==anchor).forEach(a=>{cells[a]={raw:"",mergedInto:anchor};});
+        updateCells(cells);selectCell(anchor,{startRow,startCol,endRow,endCol});setStyle({align:"center"},[anchor]);break;
+      }
+      case "unmerge":{
+        const anchor=sheet.cells[activeCell]?.mergedInto??activeCell;
+        const merged=sheet.cells[anchor];
+        if(!merged?.mergeBackup){window.alert("The active cell is not part of a merged range.");break;}
+        const cells={...sheet.cells,...merged.mergeBackup};const restored={...cells[anchor]};
+        delete restored.mergeRows;delete restored.mergeCols;delete restored.mergeBackup;cells[anchor]=restored;
+        updateCells(cells);selectCell(anchor);break;
       }
       case "row-above":shiftRowsCols("row",parseAddress(activeCell)?.row??0,"insert");break;
       case "row-below":shiftRowsCols("row",(parseAddress(activeCell)?.row??0)+1,"insert");break;
@@ -179,14 +206,22 @@ export default function WorkbookEditor(){
         updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),comment}}});break;
       }
       case "checkbox":updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),raw:"FALSE",checkbox:true}}});break;
-      case "date":setCell(activeCell,new Date().toISOString().slice(0,10));break;
+      case "date":updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),raw:new Date().toISOString().slice(0,10),datePicker:true,style:{...(sheet.cells[activeCell]?.style??{}),numberFormat:"Date"}}}});break;
       case "orientation-portrait":setOrientation("portrait");break;case "orientation-landscape":setOrientation("landscape");break;
       case "gridlines":updateSheet(sheet.id,{showGridlines:!sheet.showGridlines});break;case "headings":updateSheet(sheet.id,{showHeadings:!sheet.showHeadings});break;
       case "toggle-formulas":setShowFormulas(!showFormulas);break;
       case "filters":updateSheet(sheet.id,{filters:!sheet.filters});break;
       case "duplicates":{
-        const p=parseAddress(activeCell);if(!p)break;const seen=new Set<string>();const cells={...sheet.cells};
-        for(let r=1;r<sheet.rowCount;r++){const a=addressOf(r,p.col),v=cells[a]?.raw??"";if(v&&seen.has(v)){for(let c=0;c<sheet.columnCount;c++)delete cells[addressOf(r,c)];}else seen.add(v);}
+        const p=parseAddress(activeCell);if(!p)break;
+        const seen=new Set<string>(),cells={...sheet.cells};let writeRow=1;
+        for(let r=1;r<sheet.rowCount;r++){
+          const value=cells[addressOf(r,p.col)]?.raw??"";
+          if(value&&seen.has(value))continue;
+          if(value)seen.add(value);
+          if(writeRow!==r){for(let c=0;c<sheet.columnCount;c++){const source=cells[addressOf(r,c)],target=addressOf(writeRow,c);if(source)cells[target]=source;else delete cells[target];}}
+          writeRow++;
+        }
+        for(let r=writeRow;r<sheet.rowCount;r++)for(let c=0;c<sheet.columnCount;c++)delete cells[addressOf(r,c)];
         updateCells(cells);break;
       }
       case "freeze":updateSheet(sheet.id,{freezeTopRow:!sheet.freezeTopRow});break;
@@ -199,8 +234,9 @@ export default function WorkbookEditor(){
   const importFile=async(file:File)=>{
     try{
       const ext=file.name.split(".").pop()?.toLowerCase();
-      const rows=ext==="csv"?importCsvText(await file.text()):await importExcelFile(file);
-      updateSheet(sheet.id,{cells:rowsToCells(rows),rowCount:Math.max(100,rows.length),columnCount:Math.max(26,...rows.map(r=>r.length))});
+      const tools=await import("../utils/exportUtils");
+      const rows=ext==="csv"?tools.importCsvText(await file.text()):await tools.importExcelFile(file);
+      updateSheet(sheet.id,{cells:tools.rowsToCells(rows),rowCount:Math.max(100,rows.length),columnCount:Math.max(26,...rows.map(r=>r.length))});
       selectCell("A1");setShowSaved();
     }catch(e){window.alert(e instanceof Error?e.message:"Unable to import this file.");}
     finally{if(fileRef.current)fileRef.current.value="";}
@@ -217,7 +253,7 @@ export default function WorkbookEditor(){
     <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} onSelect={selectCell}/>
-      {workbook.charts.map(chart=><FloatingChart key={chart.id} chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/>)}
+      {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
       <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void importFile(f)}}/>
     </div>
     <SheetBar sheets={workbook.sheets} activeId={sheet.id} onSelect={setActiveSheet} onAdd={addSheet} onRename={renameSheet} onDelete={id=>{if(window.confirm("Delete this sheet?"))deleteSheet(id)}}/>
