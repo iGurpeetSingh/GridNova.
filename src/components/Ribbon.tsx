@@ -12,14 +12,14 @@ import {
 } from "lucide-react";
 import type { CellStyle, SheetData } from "../types";
 
-type Tab = "File"|"Home"|"Insert"|"Page Layout"|"Formulas"|"Data"|"View";
+type Tab = "File"|"Home"|"Insert"|"Share"|"Page Layout"|"Formulas"|"Data"|"Review"|"View"|"Help"|"Draw"|"Shape";
 interface Props {
   activeTab:Tab; setActiveTab:(t:Tab)=>void; onAction:(action:string)=>void;
   onFormat:(style:Partial<CellStyle>)=>void; style:CellStyle; sheet:SheetData;
   showFormulas:boolean; setShowFormulas:(v:boolean)=>void; zoom:number; setZoom:(v:number)=>void;
   orientation:"portrait"|"landscape"; setOrientation:(v:"portrait"|"landscape")=>void;
 }
-const tabs:Tab[]=["File","Home","Insert","Page Layout","Formulas","Data","View"];
+const tabs:Tab[]=["File","Home","Insert","Share","Page Layout","Formulas","Data","Review","View","Help","Draw","Shape"];
 const tones:Record<string,string>={green:"#107c41",blue:"#3b82f6",indigo:"#6366f1",amber:"#e59a23",purple:"#8b5cf6",rose:"#e45a56",pink:"#e66aa8"};
 function Tool({label,icon:Icon,action,onAction,tone="blue",active=false}:any){
   return <button onMouseDown={e=>e.preventDefault()} onClick={()=>onAction(action)} title={label} className={`ribbon-action ${active?"active":""}`}>
@@ -33,7 +33,7 @@ function Drop({label,value,options,onPick,tone="indigo"}:{label:string;value:str
   </div>;
 }
 function Group({label,children}:{label:string;children:ReactNode}){
-  return <div className="ribbon-group"><div className="flex h-full flex-col justify-between"><div className="flex flex-1 flex-wrap content-center items-center gap-1">{children}</div><div className="ribbon-label">{label}</div></div></div>;
+  return <div className="ribbon-group"><div className="flex h-full flex-col justify-between"><div className="flex flex-1 flex-nowrap content-center items-center gap-1 whitespace-nowrap">{children}</div><div className="ribbon-label">{label}</div></div></div>;
 }
 export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation}:Props){
   const [colorMenu,setColorMenu]=useState<"text"|"fill"|null>(null);
@@ -71,6 +71,23 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
         <Group label="Import">{button("Import CSV / Excel",Upload,"import","green")}</Group>
         <Group label="Sort & filter">{button("Sort A–Z",SortAsc,"sort-az","blue")}{button("Sort Z–A",ArrowDownZA,"sort-za","blue")}{button(sheet.filters?"Remove filters":"Add filters",Filter,"filters","blue",sheet.filters)}{button("Remove duplicates",Eraser,"duplicates","rose")}</Group>
       </>;
+      case "Share":return <>
+        <Group label="Share workbook">{button("Share link",Link,"share","green")}{button("Export Excel",FileSpreadsheet,"export-xlsx","green")}{button("Export PDF",FileText,"export-pdf","rose")}</Group>
+      </>;
+      case "Review":return <>
+        <Group label="Notes">{button("New comment",MessageSquare,"comment","blue")}{button("Insert checkbox",SquareCheck,"checkbox","blue")}{button("Find",Search,"find","blue")}</Group>
+        <Group label="Review tools">{button("Remove duplicates",Eraser,"duplicates","rose")}{button("Clear cells",Trash2,"clear","rose")}</Group>
+      </>;
+      case "Help":return <>
+        <Group label="Help">{button("Keyboard shortcuts",FunctionSquare,"help-shortcuts","blue")}{button("About GridNova",FileSpreadsheet,"help-about","green")}</Group>
+      </>;
+      case "Draw":return <>
+        <Group label="Cell markup">{button("Highlight cell",Highlighter,"draw-highlight","amber")}{button("Pen color",Palette,"draw-color","blue")}{button("Add note",MessageSquare,"comment","blue")}</Group>
+      </>;
+      case "Shape":return <>
+        <Group label="Cell borders">{button("All borders",Grid2X2,"shape-border-all","blue")}{button("Outer border",Grid2X2,"shape-border-outer","blue")}{button("No border",Eraser,"shape-border-none","rose")}</Group>
+        <Group label="Cell fill">{colorPicker("fill")}</Group>
+      </>;
       case "View":return <>
         <Group label="Zoom"><Tool label="Zoom out" icon={ZoomOut} action="zoom-out" onAction={()=>setZoom(zoom-10)}/><span className="px-2 text-xs font-semibold text-[#526458]">{zoom}%</span><Tool label="Zoom in" icon={ZoomIn} action="zoom-in" onAction={()=>setZoom(zoom+10)}/><Drop label="Zoom" value={`${zoom}% options`} options={["50%","75%","100%","125%","150%","175%","200%"]} onPick={v=>setZoom(Number(v.replace("%","")))}/></Group>
         <Group label="Window">{button(sheet.freezeTopRow?"Unfreeze top row":"Freeze top row",Rows3,"freeze","blue",sheet.freezeTopRow)}</Group>
@@ -78,7 +95,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
     }
   };
   return <div className="no-print shrink-0 border-b border-[#e1e9e3] bg-white">
-    <div className="flex h-9 items-stretch border-b border-[#edf1ee] px-3">{tabs.map(tab=><button key={tab} onMouseDown={e=>e.preventDefault()} onClick={()=>setActiveTab(tab)} className={`relative min-w-[58px] px-3 text-xs font-semibold transition ${activeTab===tab?"bg-[#f6faf7] text-[#107c41]":"text-[#718078] hover:bg-[#f7faf8]"}`}>{tab}{activeTab===tab&&<span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-[#107c41]"/>}</button>)}</div>
-    <div className="ribbon-scroll flex min-h-[82px] items-stretch">{content()}</div>
+    <div className="flex h-9 items-stretch border-b border-[#edf1ee] px-2 overflow-x-auto">{tabs.map(tab=><button key={tab} onMouseDown={e=>e.preventDefault()} onClick={()=>setActiveTab(tab)} className={`relative shrink-0 min-w-[50px] px-2.5 text-[11px] font-medium transition ${activeTab===tab?"bg-[#f6faf7] text-[#107c41]":"text-[#718078] hover:bg-[#f7faf8]"}`}>{tab}{activeTab===tab&&<span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-[#107c41]"/>}</button>)}</div>
+    <div className="ribbon-scroll flex h-[46px] min-h-[46px] items-center overflow-x-auto">{content()}</div>
   </div>;
 }
