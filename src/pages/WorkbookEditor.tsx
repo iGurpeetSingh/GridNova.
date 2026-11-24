@@ -13,7 +13,7 @@ import { addressOf, parseAddress } from "../types";
 import { numericValue } from "../utils/formulaEngine";
 
 
-type Tab = "File"|"Home"|"Insert"|"Page Layout"|"Formulas"|"Data"|"View";
+type Tab = "File"|"Home"|"Insert"|"Share"|"Page Layout"|"Formulas"|"Data"|"Review"|"View"|"Help"|"Draw"|"Shape";
 export default function WorkbookEditor(){
   const {id=""}=useParams();const navigate=useNavigate();
   const workbooks=useWorkbookStore(s=>s.workbooks);
@@ -123,6 +123,14 @@ export default function WorkbookEditor(){
   const action=(name:string)=>{
     switch(name){
       case "new":{const created=useWorkbookStore.getState().createWorkbook("blank");navigate(`/workbook/${created}`);break;}
+      case "share":setShareOpen(true);break;
+      case "help-shortcuts":window.alert("GridNova keyboard shortcuts:\nEnter: move down\nTab: move right\nShift+Tab: move left\nArrow keys: navigate cells\nCtrl/Cmd+C: copy (use ribbon)\nCtrl/Cmd+Z: undo (use ribbon)");break;
+      case "help-about":window.alert("GridNova Excel — spreadsheet editor. Workbook data is currently stored locally in this browser.");break;
+      case "draw-highlight":setStyle({backgroundColor:"#fff2cc"},selectedAddresses);break;
+      case "draw-color":setStyle({color:"#107c41"},selectedAddresses);break;
+      case "shape-border-all":setStyle({border:"all"},selectedAddresses);break;
+      case "shape-border-outer":setStyle({border:"outer"},selectedAddresses);break;
+      case "shape-border-none":setStyle({border:"none"},selectedAddresses);break;
       case "back":navigate("/");break;
       case "save":setShowSaved();break;
       case "export-xlsx":void exportFile("xlsx");break;case "export-csv":void exportFile("csv");break;case "export-pdf":void exportFile("pdf");break;
