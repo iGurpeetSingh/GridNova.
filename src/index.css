@@ -153,3 +153,27 @@
 .insert-chart-gallery>footer>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#323130;font-weight:600}
 .insert-chart-gallery>footer button{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:6px 9px;border:1px solid #D2D0CE;border-radius:5px;background:#fff;color:#323130;font-size:10px;font-weight:600}
 .insert-chart-gallery>footer button:hover{border-color:#0F6CBD;background:#EBF3FC}
+
+
+.insert-shape-gallery{width:min(350px,calc(100vw - 18px));max-height:min(620px,calc(100dvh - 18px));overflow:auto;padding:9px;background:#fff;color:#323130;overscroll-behavior:contain}
+.insert-shape-gallery section+section{margin-top:9px}
+.insert-shape-gallery-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.insert-shape-tile{width:36px;height:36px;display:grid;place-items:center;padding:2px;border:1px solid transparent;border-radius:4px;background:#fff}
+.insert-shape-tile:hover,.insert-shape-tile:focus-visible{border-color:#0F6CBD;background:#EBF3FC;outline:none}
+.insert-shape-gallery>footer{position:sticky;bottom:-9px;margin:8px -9px -9px}
+.insert-icon-menu{width:min(310px,calc(100vw - 18px));padding:5px;border:1px solid #E1DFDD;border-radius:8px;background:#fff;opacity:1;color:#323130;box-shadow:0 14px 34px rgba(0,0,0,.19)}
+.insert-icon-menu-heading{padding:7px 9px 9px;border-bottom:1px solid #E5E5E5;color:#323130;font-size:12px;font-weight:650}
+.insert-icon-menu-section{margin-top:6px;padding:5px 9px;background:#F5F5F5;color:#605E5C;font-size:10px;font-weight:650}
+.insert-icon-menu-item{width:100%;min-height:48px;display:flex;align-items:center;gap:10px;padding:7px 9px;border:1px solid transparent;border-radius:5px;background:#fff;color:#323130;text-align:left}
+.insert-icon-menu-item:hover:not(:disabled),.insert-icon-menu-item:focus-visible{border-color:#D5E6F7;background:#EBF3FC;outline:none}
+.insert-icon-menu-item:disabled{opacity:.48;cursor:not-allowed}
+.insert-icon-menu-art{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;color:#0F6CBD}
+.insert-icon-menu-art>svg{max-width:22px;max-height:22px}
+.insert-icon-menu-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.insert-icon-menu-copy strong{font-size:11px;font-weight:600;line-height:14px}
+.insert-icon-menu-copy small{color:#797775;font-size:9px;line-height:12px;font-weight:400}
+.insert-icon-menu-soon{color:#A19F9D;font-size:9px}
+.editing-mode-menu{width:300px}
+.insert-icon-menu-item.is-selected{background:#F0F7F2}
+.insert-icon-menu-check{flex:0 0 auto;color:#107C41}
+@media(max-width:760px){.insert-chart-gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.insert-shape-gallery-grid{grid-template-columns:repeat(7,minmax(0,1fr))}.insert-command{padding-left:7px;padding-right:7px}}
