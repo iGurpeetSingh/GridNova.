@@ -9,11 +9,13 @@ const FloatingChart = lazy(() => import("../components/FloatingChart"));
 import ShareModal from "../components/ShareModal";
 import TableRangeDialog from "../components/TableRangeDialog";
 import FormulaLibraryDialog from "../components/FormulaLibraryDialog";
+import CellInsertDialog from "../components/CellInsertDialog";
+import FloatingElement from "../components/FloatingElement";
 import { useWorkbookStore } from "../store/useWorkbookStore";
-import type { CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData } from "../types";
+import type { CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue } from "../utils/formulaEngine";
-import { getTableAt, getTablePalette, normalizeTableName } from "../utils/tableUtils";
+import { getTableAt, getTableHeaderLabel, getTablePalette, normalizeTableName, tableColumnValues } from "../utils/tableUtils";
 
 
 type Tab = "File"|"Home"|"Insert"|"Share"|"Page Layout"|"Formulas"|"Data"|"Review"|"View"|"Help"|"Draw"|"Table Design";
@@ -54,6 +56,9 @@ export default function WorkbookEditor(){
   const addChart=useWorkbookStore(s=>s.addChart);
   const updateChart=useWorkbookStore(s=>s.updateChart);
   const deleteChart=useWorkbookStore(s=>s.deleteChart);
+  const addElement=useWorkbookStore(s=>s.addElement);
+  const updateElement=useWorkbookStore(s=>s.updateElement);
+  const deleteElement=useWorkbookStore(s=>s.deleteElement);
   const undo=useWorkbookStore(s=>s.undo);const redo=useWorkbookStore(s=>s.redo);
   const setShowFormulas=useWorkbookStore(s=>s.setShowFormulas);const setZoom=useWorkbookStore(s=>s.setZoom);
   const setOrientation=useWorkbookStore(s=>s.setOrientation);
@@ -63,8 +68,14 @@ export default function WorkbookEditor(){
   const [tableDialogOpen,setTableDialogOpen]=useState(false);
   const [tableDialogMode,setTableDialogMode]=useState<"create"|"resize">("create");
   const [formulaLibraryOpen,setFormulaLibraryOpen]=useState(false);
+  const [cellDialogKind,setCellDialogKind]=useState<"link"|"comment"|null>(null);
+  const [commentsPanelOpen,setCommentsPanelOpen]=useState(false);
+  const [slicerOpen,setSlicerOpen]=useState(false);
+  const [slicerColumn,setSlicerColumn]=useState("0");
+  const [slicerValues,setSlicerValues]=useState<string[]>([]);
   const [savePulse,setSavePulse]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
+  const pictureRef=useRef<HTMLInputElement>(null);
   const renameWorkbook=useWorkbookStore(s=>s.renameWorkbook);
   const setShowSaved=()=>{setSavePulse(true);window.setTimeout(()=>setSavePulse(false),1400)};
   useEffect(()=>{if(id&&activeWorkbookId!==id)setActiveWorkbook(id)},[id,activeWorkbookId,setActiveWorkbook]);
