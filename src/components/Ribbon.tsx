@@ -100,7 +100,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
           {([
             ["column","Column"],["line","Line"],["scatter","Scatter"],["pie","Pie"],
             ["bar","Bar"],["statistical","Statistical"],["combo","Combo"],["treemap","Other Charts"]
-          ] as const).map(([kind,label])=><ChartGalleryButton key={kind} kind={kind} label={label} twoWord={kind==="treemap"} onSelect={onAction}><InsertRibbonIcon name={kind==="treemap"?"other":kind}/><span className={kind==="treemap"?"insert-command-label insert-command-label--two-word":"insert-command-label"}>{label}</span><ChevronDown className="insert-command-chevron" size={10}/></ChartGalleryButton>)}
+          ] as const).map(([kind,label])=><ChartGalleryButton key={kind} kind={kind} label={label} onSelect={onAction}><InsertRibbonIcon name={kind==="treemap"?"other":kind}/><span className={kind==="treemap"?"insert-command-label insert-command-label--two-word":"insert-command-label"}>{label}</span><ChevronDown className="insert-command-chevron" size={10}/></ChartGalleryButton>)}
         </InsertGroup>
         <InsertGroup label="Filters">
           <button type="button" className="insert-command" disabled={!activeTable} title={activeTable?"Insert a table slicer":"Select a Table or PivotTable to insert a Slicer"} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("slicer")}><InsertRibbonIcon name="slicer"/><span className="insert-command-label">Slicer</span></button>
