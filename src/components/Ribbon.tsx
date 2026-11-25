@@ -4,6 +4,8 @@ import FloatingPortal from "./FloatingPortal";
 import InsertRibbonIcon from "./InsertRibbonIcon";
 import { ChartGalleryButton, EditingModeDropdown, InsertIconDropdown, ShapeGalleryButton } from "./InsertDropdownGallery";
 import HomeRibbon from "./HomeRibbon";
+import FormulaRibbon from "./FormulaRibbon";
+import type { CalculationMode } from "../types";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine,
   ArrowUpToLine, Bold, Braces, CalendarDays, ChartColumn, ChartLine, Check,
@@ -27,6 +29,8 @@ interface Props {
   showFormulas:boolean; setShowFormulas:(v:boolean)=>void; zoom:number; setZoom:(v:number)=>void;
   orientation:"portrait"|"landscape"; setOrientation:(v:"portrait"|"landscape")=>void;
   activeTable?: ExcelTableData | null;
+  calculationMode?:CalculationMode;onCalculationModeChange:(mode:CalculationMode)=>void;
+  onOpenNameManager:()=>void;
 }
 const baseTabs:Tab[]=["File","Home","Insert","Share","Page Layout","Formulas","Data","Review","View","Help","Draw"];
 const tones:Record<string,string>={green:"#107c41",blue:"#3b82f6",indigo:"#6366f1",amber:"#e59a23",purple:"#8b5cf6",rose:"#e45a56",pink:"#e66aa8"};
@@ -60,7 +64,7 @@ function Group({label,children}:{label:string;children:ReactNode}){
 function InsertGroup({label,children}:{label:string;children:ReactNode}){
   return <section aria-label={label} className="insert-ribbon-group"><div className="insert-ribbon-group-content">{children}</div><div className="insert-ribbon-caption">{label}</div></section>;
 }
-export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation,activeTable=null}:Props){
+export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation,activeTable=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager}:Props){
   const tabs = activeTable ? [...baseTabs, "Table Design" as Tab] : baseTabs;
   const [openMenu,setOpenMenu]=useState<string|null>(null);
   const [collapsed,setCollapsed]=useState(false);
@@ -142,10 +146,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
         <Group label="Page setup"><Tool label="Portrait" icon={FileText} action="orientation-portrait" onAction={onAction} tone="blue" active={orientation==="portrait"}/><Tool label="Landscape" icon={FileText} action="orientation-landscape" onAction={onAction} tone="blue" active={orientation==="landscape"}/></Group>
         <Group label="Sheet options">{button(sheet.showGridlines?"Hide gridlines":"Show gridlines",Grid2X2,"gridlines","green",!sheet.showGridlines)}{button(sheet.showHeadings?"Hide headings":"Show headings",Rows3,"headings","blue",!sheet.showHeadings)}</Group>
       </>;
-      case "Formulas":return <>
-        <Group label="Function Library">{button("Insert Function",FunctionSquare,"insert-function","green")}{button("AutoSum",Sigma,"autosum","green")}{button("SUM",Braces,"formula-sum","amber")}{button("AVERAGE",FunctionSquare,"formula-average","amber")}{button("COUNT",FunctionSquare,"formula-count","amber")}{button("MIN",Minus,"formula-min","amber")}{button("MAX",Plus,"formula-max","amber")}{button("IF",Braces,"formula-if","amber")}</Group>
-        <Group label="Formula view"><Tool label={showFormulas?"Hide formulas":"Show formulas"} icon={showFormulas?EyeOff:Eye} action="toggle-formulas" onAction={()=>setShowFormulas(!showFormulas)} tone="amber" active={showFormulas}/></Group>
-      </>;
+      case "Formulas":return <FormulaRibbon onAction={onAction} showFormulas={showFormulas} setShowFormulas={setShowFormulas} calculationMode={calculationMode} onCalculationModeChange={onCalculationModeChange} onOpenNameManager={onOpenNameManager}/>;
       case "Data":return <>
         <Group label="Import">{button("Import CSV / Excel",Upload,"import","green")}</Group>
         <Group label="Sort & filter">{button("Sort A–Z",SortAsc,"sort-az","blue")}{button("Sort Z–A",ArrowDownZA,"sort-za","blue")}{button(sheet.filters?"Remove filters":"Add filters",Filter,"filters","blue",sheet.filters)}{button("Remove duplicates",Eraser,"duplicates","rose")}</Group>
