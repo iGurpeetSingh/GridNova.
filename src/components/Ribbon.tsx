@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import FloatingPortal from "./FloatingPortal";
+import InsertRibbonIcon from "./InsertRibbonIcon";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine,
   ArrowUpToLine, Bold, Braces, CalendarDays, ChartColumn, ChartLine, Check,
@@ -10,7 +11,7 @@ import {
   Strikethrough, Table2, Text, Trash2, Underline, Undo2, Upload, WrapText,
   X, ZoomIn, ZoomOut, Eye, EyeOff, Rows3, Columns3, SquareCheck, MessageSquare,
   CalendarClock, AlignJustify, Palette, ArrowLeft, Save,
-  ChevronDown, ChevronUp, ChevronRight, IndentDecrease, IndentIncrease,
+  ChevronDown, ChevronUp, ChevronRight, IndentDecrease, IndentIncrease, MessageSquare, Pencil,
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   Replace, Paintbrush2, Share2, Link2, Users, ShieldCheck, TableProperties, FilterX, ListChecks,
 } from "lucide-react";
@@ -54,9 +55,14 @@ function ActionMenu({id,label,className,children,items,open,onToggle,onClose,onA
 function Group({label,children}:{label:string;children:ReactNode}){
   return <section aria-label={label} className="ribbon-group"><div className="ribbon-group-content">{children}</div><div className="ribbon-label">{label}</div></section>;
 }
+function InsertGroup({label,children}:{label:string;children:ReactNode}){
+  return <section aria-label={label} className="insert-ribbon-group"><div className="insert-ribbon-group-content">{children}</div><div className="insert-ribbon-caption">{label}</div></section>;
+}
 export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation,activeTable=null}:Props){
   const tabs = activeTable ? [...baseTabs, "Table Design" as Tab] : baseTabs;
   const [openMenu,setOpenMenu]=useState<string|null>(null);
+  const [collapsed,setCollapsed]=useState(false);
+  const [editingMode,setEditingMode]=useState<"Editing"|"Reviewing"|"Viewing">("Editing");
   const toggleMenu=(key:string)=>setOpenMenu(current=>current===key?null:key);
   const closeMenu=()=>setOpenMenu(null);
   useEffect(()=>{setOpenMenu(null);},[activeTab]);
@@ -77,10 +83,36 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
         <Group label="Editing"><div className="ribbon-stack"><ActionMenu id="autosum" label="AutoSum" className="ribbon-action" items={[{label:"Sum",action:"autosum"},{label:"Average",action:"formula-average"},{label:"Count",action:"formula-count"},{label:"Maximum",action:"formula-max"},{label:"Minimum",action:"formula-min"}]} open={openMenu==="autosum"} onToggle={()=>toggleMenu("autosum")} onClose={closeMenu} onAction={onAction}><Sigma size={16} strokeWidth={1.7} style={{color:"#107c41"}}/></ActionMenu><ActionMenu id="clear-menu" label="Clear" className="ribbon-labeled" items={[{label:"Clear contents",action:"clear"},{label:"Clear formatting",action:"clear-format"}]} open={openMenu==="clear-menu"} onToggle={()=>toggleMenu("clear-menu")} onClose={closeMenu} onAction={onAction}><Eraser size={15}/>Clear <ChevronDown size={9}/></ActionMenu></div><ActionMenu id="sort-menu" label="Sort & Filter" className="ribbon-large-action" items={[{label:"Sort A to Z",action:"sort-az"},{label:"Sort Z to A",action:"sort-za"},{label:"Toggle filters",action:"filters"}]} open={openMenu==="sort-menu"} onToggle={()=>toggleMenu("sort-menu")} onClose={closeMenu} onAction={onAction}><ArrowDownAZ size={19}/><span>Sort &amp; Filter</span><ChevronDown size={9}/></ActionMenu><ActionMenu id="find-menu" label="Find & Select" className="ribbon-large-action" items={[{label:"Find",action:"find"},{label:"Find and replace",action:"find"}]} open={openMenu==="find-menu"} onToggle={()=>toggleMenu("find-menu")} onClose={closeMenu} onAction={onAction}><Search size={19}/><span>Find &amp; Select</span><ChevronDown size={9}/></ActionMenu></Group>
       </>;
       case "Insert":return <>
-        <Group label="Cells">{button("Row above",ArrowUpToLine,"row-above","green")}{button("Row below",ArrowDownToLine,"row-below","green")}{button("Delete row",Rows3,"delete-row","rose")}{button("Column left",Columns3,"col-left","green")}{button("Column right",Plus,"col-right","green")}{button("Delete column",Trash2,"delete-col","rose")}</Group>
-        <Group label="Tables">{button("Format as Table",Table2,"format-table","green")}</Group>
-        <Group label="Charts">{button("Bar chart",ChartColumn,"chart-bar","purple")}{button("Line chart",ChartLine,"chart-line","purple")}{button("Pie chart",Braces,"chart-pie","purple")}</Group>
-        <Group label="Elements">{button("Hyperlink",Link,"hyperlink","pink")}{button("Comment",MessageSquare,"comment","pink")}{button("Checkbox",SquareCheck,"checkbox","pink")}{button("Date",CalendarDays,"date","pink")}</Group>
+        <InsertGroup label="Tables">
+          <ActionMenu id="insert-pivot" label="PivotTable options" className="insert-command" items={[{label:"PivotTable from Selection",action:"pivot-table"},{label:"Recommended PivotTables",action:"pivot-table"},{label:"From Table or Range",action:"pivot-table"}]} open={openMenu==="insert-pivot"} onToggle={()=>toggleMenu("insert-pivot")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="pivot"/><span>PivotTable</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>
+          <button type="button" className="insert-command" title="Create a formatted Excel Table" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("format-table")}><InsertRibbonIcon name="table"/><span>Table</span></button>
+          <ActionMenu id="insert-forms" label="Forms options" className="insert-command" items={[{label:"Create New Form",action:"forms-new"},{label:"Insert Form Field",action:"forms-field"},{label:"Open Forms",action:"forms-open"}]} open={openMenu==="insert-forms"} onToggle={()=>toggleMenu("insert-forms")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="forms"/><span>Forms</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>
+        </InsertGroup>
+        <InsertGroup label="Illustrations">
+          <ActionMenu id="insert-pictures" label="Pictures options" className="insert-command" items={[{label:"This Device",action:"picture-device"},{label:"Stock Images",action:"picture-stock"},{label:"Online Pictures",action:"picture-online"}]} open={openMenu==="insert-pictures"} onToggle={()=>toggleMenu("insert-pictures")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="pictures"/><span>Pictures</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>
+          <ActionMenu id="insert-shapes" label="Shapes options" className="insert-command" items={[{label:"Rectangle",action:"shape-rectangle"},{label:"Oval",action:"shape-ellipse"},{label:"Line",action:"shape-line"},{label:"Arrow",action:"shape-arrow"}]} open={openMenu==="insert-shapes"} onToggle={()=>toggleMenu("insert-shapes")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="shapes"/><span>Shapes</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>
+        </InsertGroup>
+        <InsertGroup label="Controls">
+          <button type="button" className="insert-command" title="Insert an interactive checkbox into the selected cells" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("checkbox")}><InsertRibbonIcon name="checkbox"/><span>Checkbox</span></button>
+        </InsertGroup>
+        <InsertGroup label="Charts">
+          {([
+            ["column","Column"],["line","Line"],["scatter","Scatter"],["pie","Pie"],
+            ["bar","Bar"],["statistical","Statistical"],["combo","Combo"],["treemap","Other Charts"]
+          ] as const).map(([kind,label])=><ActionMenu key={kind} id={`insert-chart-${kind}`} label={`${label} chart types`} className="insert-command" items={(kind==="column"?["Clustered Column","Stacked Column","100% Stacked Column"]:kind==="line"?["Line","Line with Markers","Stacked Line"]:kind==="scatter"?["Scatter","Smooth Lines and Markers","Straight Lines and Markers"]:kind==="pie"?["2-D Pie","Doughnut","Pie of Pie"]:kind==="bar"?["Clustered Bar","Stacked Bar","100% Stacked Bar"]:kind==="statistical"?["Histogram","Pareto","Box & Whisker"]:kind==="combo"?["Clustered Column and Line","Stacked Column and Line"]:["Treemap","Sunburst","Waterfall"]).map((variant,index)=>({label:variant,action:`chart-insert-${kind}-${index}`}))} open={openMenu===`insert-chart-${kind}`} onToggle={()=>toggleMenu(`insert-chart-${kind}`)} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name={kind==="treemap"?"other":kind}/><span>{label}</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>)}
+        </InsertGroup>
+        <InsertGroup label="Filters">
+          <button type="button" className="insert-command" disabled={!activeTable} title={activeTable?"Insert a table slicer":"Select a Table or PivotTable to insert a Slicer"} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("slicer")}><InsertRibbonIcon name="slicer"/><span>Slicer</span></button>
+        </InsertGroup>
+        <InsertGroup label="Links">
+          <button type="button" className="insert-command" title="Insert a hyperlink into the active cell" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("hyperlink")}><InsertRibbonIcon name="link"/><span>Link</span></button>
+        </InsertGroup>
+        <InsertGroup label="Comments">
+          <button type="button" className="insert-command" title="Add a comment to the active cell" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("comment")}><InsertRibbonIcon name="comment"/><span>New Comment</span></button>
+        </InsertGroup>
+        <InsertGroup label="Text">
+          <button type="button" className="insert-command" title="Insert a text box over the grid" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("text-box")}><InsertRibbonIcon name="text"/><span>Text Box</span></button>
+        </InsertGroup>
       </>;
       case "Share":return <>
         <Group label="Share Workbook">{button("Share workbook",Share2,"share-open","green")}{button("Copy workbook link",Link2,"share-copy-link","blue")}</Group>
@@ -128,10 +160,17 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
       </>;
     }
   };
-  return <div className="no-print ribbon-shell relative z-40 shrink-0 bg-[#f3f2f1] px-2 pt-1" onMouseDown={event=>{if((event.target as HTMLElement).closest("button"))event.preventDefault();}}>
-    <div className="overflow-visible rounded-t-lg border border-[#e1dfdd] bg-white shadow-[0_1px_3px_rgba(50,49,48,0.08)]">
-      <div className="flex h-[32px] items-stretch border-b border-[#e1dfdd] px-3">{tabs.map(tab=><button key={tab} onMouseDown={e=>e.preventDefault()} onClick={()=>setActiveTab(tab)} className={`relative min-w-[54px] px-3 text-[13px] font-normal transition hover:bg-[#f3f2f1] ${activeTab===tab?"font-semibold text-[#107c41]":"text-[#605e5c]"}`}>{tab}{activeTab===tab&&<span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#107c41]"/>}</button>)}</div>
-      <div className="ribbon-scroll flex items-stretch">{content()}</div>
+  return <div className="no-print ribbon-shell relative z-40 shrink-0 bg-[#F5F5F5] px-2 pt-1" onMouseDown={event=>{if((event.target as HTMLElement).closest("button"))event.preventDefault();}}>
+    <div className="ribbon-card overflow-visible">
+      <div className="ribbon-tabbar">
+        <nav className="ribbon-tabs" aria-label="Workbook tabs">{tabs.map(tab=><button key={tab} onMouseDown={e=>e.preventDefault()} onClick={()=>setActiveTab(tab)} className={`ribbon-tab ${activeTab===tab?"is-active":""}`}>{tab}{activeTab===tab&&<span className="ribbon-tab-indicator"/>}</button>)}</nav>
+        <div className="ribbon-utilities">
+          <button type="button" className="ribbon-utility-button" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("comments-panel")}><MessageSquare size={15}/>Comments</button>
+          <ActionMenu id="editing-mode" label="Editing mode" className="ribbon-utility-button" items={([{label:"Editing",onSelect:()=>setEditingMode("Editing")},{label:"Reviewing",onSelect:()=>setEditingMode("Reviewing")},{label:"Viewing",onSelect:()=>setEditingMode("Viewing")}] )} open={openMenu==="editing-mode"} onToggle={()=>toggleMenu("editing-mode")} onClose={closeMenu} onAction={onAction}><Pencil size={14}/>{editingMode}<ChevronDown size={12}/></ActionMenu>
+        </div>
+      </div>
+      {!collapsed&&<div className="ribbon-scroll flex items-stretch">{content()}</div>}
+      <button type="button" className="ribbon-collapse-button" aria-label={collapsed?"Expand ribbon":"Collapse ribbon"} title={collapsed?"Expand ribbon":"Collapse ribbon"} onMouseDown={e=>e.preventDefault()} onClick={()=>setCollapsed(value=>!value)}>{collapsed?<ChevronDown size={13}/>:<ChevronDown size={13}/>}</button>
     </div>
   </div>;
 }
