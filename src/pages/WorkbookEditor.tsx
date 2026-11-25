@@ -7,13 +7,28 @@ import FormulaBar from "../components/FormulaBar";
 import SheetBar from "../components/SheetBar";
 const FloatingChart = lazy(() => import("../components/FloatingChart"));
 import ShareModal from "../components/ShareModal";
+import TableRangeDialog from "../components/TableRangeDialog";
+import FormulaLibraryDialog from "../components/FormulaLibraryDialog";
 import { useWorkbookStore } from "../store/useWorkbookStore";
-import type { CellData, CellRange, CellStyle, FloatingChartData } from "../types";
+import type { CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue } from "../utils/formulaEngine";
+import { getTableAt, getTablePalette, normalizeTableName } from "../utils/tableUtils";
 
 
-type Tab = "File"|"Home"|"Insert"|"Page Layout"|"Formulas"|"Data"|"View";
+type Tab = "File"|"Home"|"Insert"|"Share"|"Page Layout"|"Formulas"|"Data"|"Review"|"View"|"Help"|"Draw"|"Table Design";
+const parseRangeLabel = (value: string): CellRange | null => {
+  const match = value.trim().toUpperCase().match(/^\$?([A-Z]+)\$?([1-9]\d*)\s*:\s*\$?([A-Z]+)\$?([1-9]\d*)$/);
+  if (!match) return null;
+  const start = parseAddress(`${match[1]}${match[2]}`), end = parseAddress(`${match[3]}${match[4]}`);
+  if (!start || !end) return null;
+  return { startRow: Math.min(start.row, end.row), startCol: Math.min(start.col, end.col), endRow: Math.max(start.row, end.row), endCol: Math.max(start.col, end.col) };
+};
+const rangeLabel = (range: CellRange) => `${addressOf(range.startRow, range.startCol)}:${addressOf(range.endRow, range.endCol)}`;
+const shiftFormulaRowRefs = (raw: string, startRow: number) => raw.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g, (match, colLock: string, letters: string, rowLock: string, digits: string) => {
+  const row = Number(digits) - 1;
+  return row >= startRow ? `${colLock}${letters}${rowLock}${row + 2}` : match;
+});
 export default function WorkbookEditor(){
   const {id=""}=useParams();const navigate=useNavigate();
   const workbooks=useWorkbookStore(s=>s.workbooks);
@@ -45,6 +60,9 @@ export default function WorkbookEditor(){
   const [tab,setTab]=useState<Tab>("Home");const [formulaValue,setFormulaValue]=useState("");
   const [formulaBarFocused,setFormulaBarFocused]=useState(false);
   const [shareOpen,setShareOpen]=useState(false);const [renaming,setRenaming]=useState(false);const [titleValue,setTitleValue]=useState("");
+  const [tableDialogOpen,setTableDialogOpen]=useState(false);
+  const [tableDialogMode,setTableDialogMode]=useState<"create"|"resize">("create");
+  const [formulaLibraryOpen,setFormulaLibraryOpen]=useState(false);
   const [savePulse,setSavePulse]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
   const renameWorkbook=useWorkbookStore(s=>s.renameWorkbook);
@@ -64,9 +82,25 @@ export default function WorkbookEditor(){
   },[selection,activeCell]);
   const stats=useMemo(()=>{
     if(!sheet)return {count:0,sum:0,average:0};
-    const vals=selectedAddresses.map(a=>numericValue(sheet.cells[a]?.raw??"",sheet.cells)).filter((v):v is number=>v!==null);
+    const vals=selectedAddresses.map(a=>numericValue(sheet.cells[a]?.raw??"",sheet.cells,sheet.tables??[],a)).filter((v):v is number=>v!==null);
     return {count:vals.length,sum:vals.reduce((a,b)=>a+b,0),average:vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0};
   },[sheet,selectedAddresses]);
+  const activePosition = parseAddress(activeCell);
+  const activeTable = activePosition && sheet ? getTableAt(sheet.tables, activePosition.row, activePosition.col) ?? null : null;
+  const suggestedTableRange = useMemo(() => {
+    if (!sheet) return "A1:D10";
+    if (selection) return rangeLabel({ startRow: Math.min(selection.startRow, selection.endRow), startCol: Math.min(selection.startCol, selection.endCol), endRow: Math.max(selection.startRow, selection.endRow), endCol: Math.max(selection.startCol, selection.endCol) });
+    const used = Object.entries(sheet.cells).map(([address, cell]) => ({ position: parseAddress(address), cell })).filter(item => item.position && (item.cell.raw !== "" || item.cell.checkbox || item.cell.datePicker));
+    if (!used.length) return "A1:D10";
+    const positions = used.map(item => item.position!).filter(Boolean);
+    return rangeLabel({ startRow: Math.min(...positions.map(item => item.row)), startCol: Math.min(...positions.map(item => item.col)), endRow: Math.max(...positions.map(item => item.row)), endCol: Math.max(...positions.map(item => item.col)) });
+  }, [sheet, selection]);
+  useEffect(() => { if (tab === "Table Design" && !activeTable) setTab("Home"); }, [tab, activeTable]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const range = parseRangeLabel(params.get("range") ?? "");
+    if (range && params.get("sheet") === sheet?.id) setSelection(range, addressOf(range.startRow, range.startCol));
+  }, [workbook?.id, sheet?.id, setSelection]);
   if(!workbook||!sheet)return <main className="app-shell grid min-h-screen place-items-center p-6"><div className="glass max-w-md rounded-3xl p-8 text-center"><FileSpreadsheet className="mx-auto mb-3 text-[#149052]" size={36}/><h1 className="text-lg font-bold text-[#284331]">Workbook not found</h1><p className="mt-2 text-sm text-[#86948b]">This workbook may have been deleted or is not saved in this browser.</p><button onClick={()=>navigate("/")} className="btn btn-primary mt-5"><ArrowLeft size={14}/> Back to dashboard</button></div></main>;
 
   const selectCell=(address:string,range?:CellRange)=>setSelection(range??null,address);
