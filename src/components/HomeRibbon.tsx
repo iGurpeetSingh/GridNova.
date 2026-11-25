@@ -15,7 +15,7 @@ import { parseAddress } from "../types";
 interface Props { onAction:(action:string)=>void; onFormat:(style:Partial<CellStyle>)=>void; style:CellStyle; sheet:SheetData; }
 function Group({label,children}:{label:string;children:ReactNode}){return <section className="home-ribbon-group" aria-label={label}><div className="home-ribbon-group-content">{children}</div><div className="home-ribbon-caption">{label}</div></section>}
 function IconAction({label,icon,action,onAction,active=false}:{label:string;icon:ReactNode;action:string;onAction:(a:string)=>void;active?:boolean}){return <button type="button" title={label} aria-label={label} className={`home-icon-action ${active?"is-active":""}`} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction(action)}>{icon}</button>}
-export default function HomeRibbon({onAction,onFormat,style}:Props){
+export default function HomeRibbon({onAction,onFormat,style,sheet}:Props){
  const [open,setOpen]=useState<string|null>(null),toggle=(k:string)=>setOpen(v=>v===k?null:k),close=()=>setOpen(null),fmt=(s:Partial<CellStyle>)=>onFormat(s);
  const runAction=(action:string)=>{
   if(action==="addin-store"){window.open("https://appsource.microsoft.com/","_blank","noopener,noreferrer");return;}
