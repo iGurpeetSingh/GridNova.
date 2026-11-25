@@ -13,11 +13,12 @@ function resolveStructuredReference(name: string | null, inner: string, cells: C
     : current ? getTableAt(tables, current.row, current.col) : undefined;
   if (!table) throw new Error("#NAME?");
   const terms = [...inner.matchAll(/\[([^\]]+)\]/g)].map(match => match[1].trim());
-  const selector = terms.find(term => term.startsWith("#"));
+  const selector = terms.find(term => term.startsWith("#")) ?? (inner.trim().startsWith("#") ? inner.trim() : undefined);
   const thisRow = inner.trim().startsWith("@") || selector?.toLowerCase() === "#this row";
-  const columnName = terms.filter(term => !term.startsWith("#")).at(-1) ?? (terms.length ? "" : inner.replace(/^@/, "").trim());
+  const columnName = terms.filter(term => !term.startsWith("#")).at(-1) ?? (terms.length || inner.trim().startsWith("#") ? "" : inner.replace(/^@/, "").trim());
   if (thisRow) {
-    if (!current || current.row <= table.range.startRow || current.row > table.range.endRow) throw new Error("#VALUE!");
+    const firstDataRow = table.range.startRow + (table.hasHeaders ? 1 : 0);
+    if (!current || current.row < firstDataRow || current.row > table.range.endRow) throw new Error("#VALUE!");
     if (!columnName) return addressOf(current.row, current.col);
     const column = getTableColumnIndex(table, columnName, cells);
     if (column < 0) throw new Error("#REF!");
