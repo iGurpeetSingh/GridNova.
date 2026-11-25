@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { KeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 import { ExternalLink, Filter, Plus } from "lucide-react";
 import type { CellRange, SheetData } from "../types";
@@ -47,7 +48,22 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const gridRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const editOriginal = useRef("");
-  useEffect(() => { if (menu) requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus()); }, [menu]);
+  useEffect(() => {
+    if (!menu) return;
+    requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus());
+    const dismissOutside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenu(null); };
+    const dismissEscape = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") setMenu(null); };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissEscape);
+    return () => { document.removeEventListener("pointerdown", dismissOutside); document.removeEventListener("keydown", dismissEscape); };
+  }, [menu]);
+  useLayoutEffect(() => {
+    const panel = menuRef.current; if (!menu || !panel) return;
+    const rect = panel.getBoundingClientRect(), margin = 8;
+    const x = Math.max(margin, Math.min(menu.x, window.innerWidth - rect.width - margin));
+    const y = Math.max(margin, Math.min(menu.y, window.innerHeight - rect.height - margin));
+    if (x !== menu.x || y !== menu.y) setMenu(current => current ? { ...current, x, y } : null);
+  }, [menu]);
   const active = parseAddress(activeCell) ?? { row: 0, col: 0 };
   const columns = useMemo(() => Array.from({ length: Math.max(sheet.columnCount, 26) }, (_, i) => i), [sheet.columnCount]);
   const rows = useMemo(() => Array.from({ length: Math.max(sheet.rowCount, 100) }, (_, i) => i).filter(row => row === 0 || Object.entries(columnFilters).every(([col, value]) => !value || (sheet.cells[addressOf(row, Number(col))]?.raw ?? "") === value)), [sheet.rowCount, sheet.cells, columnFilters]);
@@ -325,7 +341,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       <table className="border-collapse table-fixed" style={{ minWidth: "100%" }}>
         <colgroup>{sheet.showHeadings && <col style={{ width: 48 }} />}{columns.map(col => <col key={col} style={{ width: resizePreview?.axis === "column" && resizePreview.index === col ? resizePreview.value : sheet.columnWidths[col] ?? 110 }} />)}</colgroup>
         {sheet.showHeadings && <thead className="sticky top-0 z-20"><tr>
-          <th className="grid-corner sticky left-0 z-40" title="Select all cells"><button aria-label="Select all cells" onClick={() => { setRange({ startRow: 0, startCol: 0, endRow: Math.max(99, sheet.rowCount - 1), endCol: Math.max(25, sheet.columnCount - 1) }, "A1"); focusCell(0, 0); }}>◢</button></th>
+          <th className="grid-corner sticky left-0 z-20" title="Select all cells"><button aria-label="Select all cells" onClick={() => { setRange({ startRow: 0, startCol: 0, endRow: Math.max(99, sheet.rowCount - 1), endCol: Math.max(25, sheet.columnCount - 1) }, "A1"); focusCell(0, 0); }}>◢</button></th>
           {columns.map(col => <th key={col} className={`grid-column-heading ${col >= bounds.startCol && col <= bounds.endCol ? "is-selected" : ""}`} onClick={event => { const first = event.shiftKey ? active.col : col; setRange({ startRow: 0, endRow: Math.max(99, sheet.rowCount - 1), startCol: Math.min(first, col), endCol: Math.max(first, col) }, addressOf(0, col)); focusCell(0, col); }} onContextMenu={event => showContextMenu(event, "column", col)}>
             {sheet.filters ? <div className="grid-filter-heading"><span>{columnLabel(col)}</span><select aria-label={`Filter ${columnLabel(col)}`} value={columnFilters[col] ?? ""} onChange={event => setColumnFilters(value => ({ ...value, [col]: event.target.value }))}><option value="">All</option>{Array.from(new Set(rows.map(row => sheet.cells[addressOf(row, col)]?.raw ?? "").filter(Boolean))).sort().map(value => <option key={value} value={value}>{value}</option>)}</select><Filter size={10}/></div> : columnLabel(col)}
             <span className="grid-column-resize" role="separator" aria-label={`Resize column ${columnLabel(col)}`} onMouseDown={event => beginResize(event, "column", col)} onDoubleClick={() => autoFitColumn(col)} />
@@ -347,7 +363,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       </table>
       <button className="grid-add-rows" onClick={() => updateSheet(sheet.id, { rowCount: sheet.rowCount + 100 })}><Plus size={13} /> Add 100 more rows at bottom</button>
     </div>
-    {menu && <div ref={menuRef} role="menu" aria-label="Spreadsheet context menu" className="grid-context-menu" style={{ left: menu.x, top: menu.y }} onClick={event => event.stopPropagation()} onKeyDown={event => {
+    {menu && createPortal(<div ref={menuRef} role="menu" aria-label="Spreadsheet context menu" className="grid-context-menu" style={{ left: menu.x, top: menu.y }} onClick={event => event.stopPropagation()} onKeyDown={event => {
       const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=menuitem]")), index = items.indexOf(document.activeElement as HTMLButtonElement);
       if (event.key === "Escape") { event.preventDefault(); setMenu(null); focusCell(active.row, active.col); }
       else if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus(); }
@@ -360,6 +376,6 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       <div className="grid-context-divider" />{menuItem("Clear contents", "clear", "Delete")}{menuItem("Clear formatting", "clear-format", "Ctrl+\\")}
       {menu.kind === "cell" && <>{menuItem("Sort range A → Z", "sort-asc")}{menuItem("Sort range Z → A", "sort-desc")}{menuItem("Merge cells", "merge")}{menuItem("Unmerge cells", "unmerge")}</>}
       {menu.kind === "row" && <>{menuItem("Resize row…", "resize-row")}{menuItem("Fit row to data", "autofit-row")}</>}{menu.kind === "column" && <>{menuItem("Resize column…", "resize-column")}{menuItem("Fit column to data", "autofit-column")}</>}
-    </div>}
+    </div>, document.body)}
   </div>;
 }
