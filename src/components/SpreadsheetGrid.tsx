@@ -39,7 +39,6 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const undo = useWorkbookStore(s => s.undo);
   const redo = useWorkbookStore(s => s.redo);
   const [dragStart, setDragStart] = useState<{ row: number; col: number } | null>(null);
-  const [dragging, setDragging] = useState(false);
   const [columnFilters, setColumnFilters] = useState<Record<number, string>>({});
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [interactionState, setInteractionState] = useState<InteractionState>("READY");
@@ -153,7 +152,9 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       }
     }
     updateSheet(sheet.id, { cells: next, rowCount: Math.max(sheet.rowCount, destination.endRow + 1), columnCount: Math.max(sheet.columnCount, destination.endCol + 1) });
-    setRange(destination, addressOf(destination.endRow, destination.endCol));
+    const anchor = parseAddress(activeCell);
+    const keepAnchor = anchor && anchor.row >= destination.startRow && anchor.row <= destination.endRow && anchor.col >= destination.startCol && anchor.col <= destination.endCol;
+    setRange(destination, keepAnchor ? activeCell : addressOf(destination.startRow, destination.startCol));
   };
   const focusCell = (row: number, col: number) => requestAnimationFrame(() => gridRef.current?.querySelector<HTMLInputElement>(`input[data-cell="${addressOf(row, col)}"]`)?.focus());
   const previewFillValue = (source: CellRange, target: CellRange, axis: FillAxis) => {
@@ -239,7 +240,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     setEditingAddress(null); setInteractionState("SELECTING");
     pointerPosition.current = { x: event.clientX, y: event.clientY };
     lastDragAddress.current = addressOf(row, col);
-    setDragStart(anchor); setDragging(true);
+    setDragStart(anchor);
     setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, addressOf(anchor.row, anchor.col));
   };
   const updatePointerTarget = (x: number, y: number) => {
@@ -288,7 +289,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       if (interactionState === "FILLING") {
         const current = fillDragRef.current; finishFill(current?.target, current?.axis ?? undefined);
       } else if (interactionState === "SELECTING") {
-        setDragging(false); setDragStart(null); lastDragAddress.current = null;
+        setDragStart(null); lastDragAddress.current = null;
         setInteractionState(formulaBarFocused ? "EDITING" : "READY");
         focusCell(active.row, active.col);
       }
@@ -562,7 +563,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       if (populated(position)) { while (nextPosition + step >= 0 && nextPosition + step <= limit && populated(nextPosition + step)) nextPosition += step; }
       else { let candidate = nextPosition + step; while (candidate >= 0 && candidate <= limit && !populated(candidate)) candidate += step; nextPosition = candidate >= 0 && candidate <= limit ? candidate : step > 0 ? limit : 0; }
       const nr = vertical ? nextPosition : row, nc = vertical ? col : nextPosition; updateDimensions(nr, nc);
-      if (event.shiftKey) setRange({ startRow: bounds.startRow, startCol: bounds.startCol, endRow: nr, endCol: nc }, addressOf(nr, nc));
+      if (event.shiftKey) setRange({ startRow: bounds.startRow, startCol: bounds.startCol, endRow: nr, endCol: nc }, activeCell);
       else onSelect(addressOf(nr, nc), { startRow: nr, startCol: nc, endRow: nr, endCol: nc });
       focusCell(nr, nc); return;
     }
@@ -581,7 +582,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     else if (event.key === "PageUp") nextRow = Math.max(0, nextRow - 20);
     else return;
     event.preventDefault(); updateDimensions(nextRow, nextCol);
-    if (event.shiftKey) setRange({ startRow: bounds.startRow, startCol: bounds.startCol, endRow: nextRow, endCol: nextCol }, addressOf(nextRow, nextCol));
+    if (event.shiftKey) setRange({ startRow: bounds.startRow, startCol: bounds.startCol, endRow: nextRow, endCol: nextCol }, activeCell);
     else onSelect(addressOf(nextRow, nextCol), { startRow: nextRow, startCol: nextCol, endRow: nextRow, endCol: nextCol });
     focusCell(nextRow, nextCol);
   };
