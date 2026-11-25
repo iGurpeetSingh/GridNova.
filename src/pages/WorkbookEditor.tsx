@@ -451,8 +451,17 @@ export default function WorkbookEditor(){
       }
       case "autosum":case "formula-sum":{
         const p=parseAddress(activeCell);if(!p)break;
-        const formula=p.row>0?`=SUM(${addressOf(0,p.col)}:${addressOf(p.row-1,p.col)})`:p.col>0?`=SUM(A1:${addressOf(p.row,p.col-1)})`:"=SUM(A1:A1)";
-        setCell(activeCell,formula);break;
+        if(selection){
+          const top=Math.min(selection.startRow,selection.endRow),bottom=Math.max(selection.startRow,selection.endRow);
+          const left=Math.min(selection.startCol,selection.endCol),right=Math.max(selection.startCol,selection.endCol);
+          const target=addressOf(Math.min(bottom+1,sheet.rowCount-1),left);
+          const formula=`=SUM(${addressOf(top,left)}:${addressOf(bottom,right)})`;
+          setCell(target,formula);setFormulaValue(formula);setFormulaBarFocused(true);selectCell(target);
+        }else{
+          const formula=p.row>0?`=SUM(${addressOf(0,p.col)}:${addressOf(p.row-1,p.col)})`:p.col>0?`=SUM(A1:${addressOf(p.row,p.col-1)})`:"=SUM(A1:A1)";
+          setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true);
+        }
+        break;
       }
       case "formula-average":case "formula-count":case "formula-min":case "formula-max":case "formula-if":{
         const fn:Record<string,string>={"formula-average":"AVERAGE","formula-count":"COUNT","formula-min":"MIN","formula-max":"MAX","formula-if":"IF"};
