@@ -2,9 +2,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { ExternalLink, Filter, Plus } from "lucide-react";
-import type { CellRange, CellStyle, SheetData } from "../types";
+import type { CellRange, CellStyle, SheetData, TableFilterState } from "../types";
 import { addressOf, columnLabel, parseAddress } from "../types";
 import { formatCellValue } from "../utils/formulaEngine";
+import { getTableAt, getTablePalette, tableColumnValues, tableFilterPasses } from "../utils/tableUtils";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 
 interface Props {
@@ -17,6 +18,8 @@ type InteractionState = "READY" | "SELECTING" | "FILLING" | "EDITING";
 type FillAxis = "vertical" | "horizontal";
 type OverlayRect = { left: number; top: number; width: number; height: number };
 type FillDragState = { source: CellRange; target: CellRange; axis: FillAxis | null; startX: number; startY: number; clientX: number; clientY: number; previewValue: string };
+type TableFilterMenuState = { tableId: string; col: number; x: number; y: number } | null;
+type TableFilterOperator = NonNullable<TableFilterState["condition"]>["operator"];
 const clampRange = (range: CellRange) => ({ startRow: Math.min(range.startRow, range.endRow), endRow: Math.max(range.startRow, range.endRow), startCol: Math.min(range.startCol, range.endCol), endCol: Math.max(range.startCol, range.endCol) });
 const shiftFormulaReferences = (raw: string, rowDelta: number, colDelta: number) => raw.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g, (match, colLock: string, letters: string, rowLock: string, digits: string) => {
   const position = parseAddress(`${letters}${digits}`); if (!position) return match;
@@ -52,6 +55,12 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const [formatDialogOpen, setFormatDialogOpen] = useState(false);
   const [formatDraft, setFormatDraft] = useState<CellStyle>({});
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [tableFilterMenu, setTableFilterMenu] = useState<TableFilterMenuState>(null);
+  const [tableFilterSearch, setTableFilterSearch] = useState("");
+  const [tableFilterValues, setTableFilterValues] = useState<string[]>([]);
+  const [tableFilterOperator, setTableFilterOperator] = useState<TableFilterOperator>("contains");
+  const [tableFilterConditionValue, setTableFilterConditionValue] = useState("");
+  const [tableFilterConditionSecond, setTableFilterConditionSecond] = useState("");
   const resizeValue = useRef<{ axis: "row" | "column"; index: number; value: number } | null>(null);
   const fillSource = useRef<CellRange | null>(null);
   const fillModifier = useRef(false);
@@ -84,10 +93,61 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const hiddenRows = sheet.hiddenRows ?? [];
   const hiddenColumns = sheet.hiddenColumns ?? [];
   const columns = useMemo(() => Array.from({ length: Math.max(sheet.columnCount, 26) }, (_, i) => i).filter(col => !hiddenColumns.includes(col)), [sheet.columnCount, hiddenColumns]);
-  const rows = useMemo(() => Array.from({ length: Math.max(sheet.rowCount, 100) }, (_, i) => i).filter(row => !hiddenRows.includes(row) && (row === 0 || Object.entries(columnFilters).every(([col, value]) => !value || (sheet.cells[addressOf(row, Number(col))]?.raw ?? "") === value))), [sheet.rowCount, sheet.cells, columnFilters, hiddenRows]);
+  const rows = useMemo(() => Array.from({ length: Math.max(sheet.rowCount + 1, 100) }, (_, i) => i).filter(row =>
+    !hiddenRows.includes(row) &&
+    (row === 0 || Object.entries(columnFilters).every(([col, value]) => !value || (sheet.cells[addressOf(row, Number(col))]?.raw ?? "") === value)) &&
+    (sheet.tables ?? []).every(table => tableFilterPasses(table, row, sheet.cells))
+  ), [sheet.rowCount, sheet.cells, sheet.tables, columnFilters, hiddenRows]);
   const bounds = selection ? clampRange(selection) : { startRow: active.row, endRow: active.row, startCol: active.col, endCol: active.col };
   const selected = (row: number, col: number) => row >= bounds.startRow && row <= bounds.endRow && col >= bounds.startCol && col <= bounds.endCol;
   const setRange = (range: CellRange, address = addressOf(range.endRow, range.endCol)) => onSelect(address, range);
+  const openTableFilter = (event: ReactMouseEvent<HTMLButtonElement>, tableId: string, col: number) => {
+    event.preventDefault(); event.stopPropagation();
+    const table = sheet.tables?.find(item => item.id === tableId);
+    if (!table) return;
+    const values = tableColumnValues(table, col, sheet.cells);
+    const current = table.filters?.[col];
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTableFilterSearch("");
+    setTableFilterValues(current?.selectedValues ?? values);
+    setTableFilterOperator(current?.condition?.operator ?? "contains");
+    setTableFilterConditionValue(current?.condition?.value ?? "");
+    setTableFilterConditionSecond(current?.condition?.secondValue ?? "");
+    setTableFilterMenu({ tableId, col, x: Math.min(rect.left, window.innerWidth - 300), y: Math.min(rect.bottom + 4, window.innerHeight - 420) });
+  };
+  const applyTableFilter = () => {
+    if (!tableFilterMenu) return;
+    const table = sheet.tables?.find(item => item.id === tableFilterMenu.tableId);
+    if (!table) return;
+    const allValues = tableColumnValues(table, tableFilterMenu.col, sheet.cells);
+    const filter: TableFilterState = {};
+    if (tableFilterValues.length !== allValues.length) filter.selectedValues = tableFilterValues;
+    if (tableFilterConditionValue.trim()) filter.condition = { operator: tableFilterOperator, value: tableFilterConditionValue.trim(), ...(tableFilterOperator === "between" ? { secondValue: tableFilterConditionSecond.trim() } : {}) };
+    const filters = { ...(table.filters ?? {}) };
+    if (filter.selectedValues || filter.condition) filters[tableFilterMenu.col] = filter;
+    else delete filters[tableFilterMenu.col];
+    updateSheet(sheet.id, { tables: (sheet.tables ?? []).map(item => item.id === table.id ? { ...item, filters } : item) });
+    setTableFilterMenu(null);
+  };
+  const sortTableColumn = (tableId: string, col: number, descending: boolean) => {
+    const table = sheet.tables?.find(item => item.id === tableId);
+    if (!table) return;
+    const orderedRows = Array.from({ length: Math.max(0, table.range.endRow - table.range.startRow) }, (_, i) => table.range.startRow + i + 1);
+    orderedRows.sort((a, b) => {
+      const left = sheet.cells[addressOf(a, col)]?.raw ?? "", right = sheet.cells[addressOf(b, col)]?.raw ?? "";
+      const ln = left.trim() === "" ? null : Number(left), rn = right.trim() === "" ? null : Number(right);
+      const compare = ln !== null && rn !== null && Number.isFinite(ln) && Number.isFinite(rn) ? ln - rn : left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+      return descending ? -compare : compare;
+    });
+    const source = orderedRows.map(row => Array.from({ length: table.range.endCol - table.range.startCol + 1 }, (_, offset) => sheet.cells[addressOf(row, table.range.startCol + offset)]));
+    const next = { ...sheet.cells };
+    orderedRows.forEach((row, index) => source[index].forEach((cell, offset) => {
+      const key = addressOf(row, table.range.startCol + offset);
+      if (cell) next[key] = cell; else delete next[key];
+    }));
+    updateSheet(sheet.id, { cells: next });
+    setTableFilterMenu(null);
+  };
   const finishFill = (preview?: CellRange, requestedAxis?: FillAxis) => {
     const source = fillSource.current, target = preview ?? fillPreview;
     const axis = requestedAxis ?? fillAxis.current ?? "vertical";
