@@ -559,7 +559,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     else if (action === "table-delete-column" && contextTable) shiftColumns(menu.col, 1, false);
     else if (action === "table-clear-filters" && contextTable) updateSheet(sheet.id, { tables: (sheet.tables ?? []).map(table => table.id === contextTable.id ? { ...table, filters: {} } : table) });
     else if (action === "table-remove-duplicates" && contextTable) {
-      const seen = new Set<string>(), keep: CellMap[] = [];
+      const seen = new Set<string>(), keep: Array<Record<string, SheetData["cells"][string]>> = [];
       for (let row = contextTable.range.startRow + 1; row <= contextTable.range.endRow; row++) {
         const signature = Array.from({ length: contextTable.range.endCol - contextTable.range.startCol + 1 }, (_, offset) => sheet.cells[addressOf(row, contextTable.range.startCol + offset)]?.raw ?? "").join("\u001f");
         if (seen.has(signature)) continue;
