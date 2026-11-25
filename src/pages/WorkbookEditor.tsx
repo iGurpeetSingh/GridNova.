@@ -212,7 +212,7 @@ export default function WorkbookEditor(){
     }
     const tables=[...(sheet.tables??[])];
     if(resizing&&activeTable){
-      updateSheet(sheet.id,{cells,tables:tables.map(table=>table.id===activeTable.id?{...table,range,hasHeaders:true}:table),rowCount:Math.max(sheet.rowCount,range.endRow+1),columnCount:Math.max(sheet.columnCount,range.endCol+1)});
+      updateSheet(sheet.id,{cells,tables:tables.map(table=>table.id===activeTable.id?{...table,range,hasHeaders}:table),rowCount:Math.max(sheet.rowCount,range.endRow+1),columnCount:Math.max(sheet.columnCount,range.endCol+1)});
     }else{
       const tableName=normalizeTableName("Table"+(tables.length+1));
       const table:ExcelTableData={id:crypto.randomUUID(),name:tableName,range,hasHeaders:true,showTotalRow:false,firstColumn:false,lastColumn:false,bandedRows:true,bandedColumns:false,showFilterButtons:true,styleId:"TableStyleMedium16",filters:{}};
