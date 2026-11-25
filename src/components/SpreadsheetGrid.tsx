@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { ExternalLink, Filter, Plus, Search } from "lucide-react";
-import type { CellRange, CellStyle, SheetData, TableFilterState } from "../types";
+import type { CalculationMode, CellRange, CellStyle, SheetData, TableFilterState } from "../types";
 import { addressOf, columnLabel, parseAddress } from "../types";
 import { formatCellValue } from "../utils/formulaEngine";
 import { getTableAt, getTablePalette, tableColumnValues, tableFilterPasses } from "../utils/tableUtils";
@@ -10,7 +10,7 @@ import { useWorkbookStore } from "../store/useWorkbookStore";
 
 interface Props {
   sheet: SheetData; activeCell: string; selection: CellRange | null; showFormulas: boolean; zoom: number;
-  namedRanges?:Record<string,string>; formulaBarFocused?: boolean;
+  namedRanges?:Record<string,string>; calculationMode?:CalculationMode; formulaBarFocused?: boolean;
   onSelect: (address: string, range?: CellRange) => void;
 }
 type ContextMenuState = { x: number; y: number; kind: "cell" | "row" | "column"; index: number; col: number } | null;
@@ -34,7 +34,7 @@ const adjustReferences = (raw: string, axis: "row" | "column", index: number, co
   return axis === "row" ? `${colLock}${letters}${rowLock}${updated + 1}` : `${colLock}${columnLabel(updated)}${rowLock}${digits}`;
 });
 
-export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, namedRanges={}, formulaBarFocused = false, onSelect }: Props) {
+export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, namedRanges={}, calculationMode="Automatic", formulaBarFocused = false, onSelect }: Props) {
   const setCell = useWorkbookStore(s => s.setCell);
   const updateSheet = useWorkbookStore(s => s.updateSheet);
   const setClipboard = useWorkbookStore(s => s.setClipboard);
@@ -300,7 +300,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const autoFitRow = (row: number) => {
     const height = columns.reduce((max, col) => {
       const cell = sheet.cells[addressOf(row, col)], style = cell?.style ?? {};
-      const text = formatCellValue(cell?.raw ?? "", sheet.cells, false, style, sheet.tables ?? [], addressOf(row, col)), width = sheet.columnWidths[col] ?? 110;
+      const text = formatCellValue(cell?.raw ?? "", sheet.cells, false, style, sheet.tables ?? [], addressOf(row, col), namedRanges), width = sheet.columnWidths[col] ?? 110;
       const canvas = document.createElement("canvas"), context = canvas.getContext("2d");
       if (context) context.font = `${style.italic ? "italic " : ""}${style.bold ? "700 " : ""}${style.fontSize ?? 11}px ${style.fontFamily ?? "Inter"}`;
       const lines = text.split("\n").reduce((sum, line) => sum + (style.wrap ? Math.max(1, Math.ceil((context?.measureText(line).width ?? line.length * 7.2) / Math.max(24, width - 12))) : 1), 0);
@@ -780,7 +780,12 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
         <tbody>{rows.map(row => <tr key={row}>
           {sheet.showHeadings && <th className={`grid-row-heading ${row >= bounds.startRow && row <= bounds.endRow ? "is-selected" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27 }} onClick={event => { const first = event.shiftKey ? active.row : row; setRange({ startRow: Math.min(first, row), endRow: Math.max(first, row), startCol: 0, endCol: Math.max(25, sheet.columnCount - 1) }, addressOf(row, 0)); focusCell(row, 0); }} onContextMenu={event => showContextMenu(event, "row", row)}>{row + 1}<span className="grid-row-resize" role="separator" aria-label={`Resize row ${row + 1}`} onMouseDown={event => beginResize(event, "row", row)} onDoubleClick={() => autoFitRow(row)} /></th>}
           {columns.map(col => {
-            const address = addressOf(row, col), cell = sheet.cells[address], display = formatCellValue(cell?.raw ?? "", sheet.cells, showFormulas, cell?.style, sheet.tables ?? [], address, namedRanges), value = editingAddress === address ? (cell?.raw ?? "") : display;
+            const address = addressOf(row, col), cell = sheet.cells[address];
+             const rawDisplay = formatCellValue(cell?.raw ?? "", sheet.cells, showFormulas, cell?.style, sheet.tables ?? [], address, namedRanges);
+             const display = !showFormulas && calculationMode==="Manual" && cell?.raw.startsWith("=") && cell.cachedValue!==undefined
+               ? formatCellValue(cell.cachedValue,sheet.cells,false,cell.style,sheet.tables??[],address,namedRanges)
+               : rawDisplay;
+             const value = editingAddress === address ? (cell?.raw ?? "") : display;
             const isSelected = selected(row, col), isActive = address === activeCell, style = cell?.style ?? {};
             const table = getTableAt(sheet.tables, row, col), palette = table ? getTablePalette(table.styleId) : null;
             const tableHeader = !!table && table.hasHeaders && row === table.range.startRow;
