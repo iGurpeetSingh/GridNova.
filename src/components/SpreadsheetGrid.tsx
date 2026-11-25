@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { KeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { ExternalLink, Filter, Plus } from "lucide-react";
 import type { CellRange, CellStyle, SheetData } from "../types";
 import { addressOf, columnLabel, parseAddress } from "../types";
@@ -9,9 +9,14 @@ import { useWorkbookStore } from "../store/useWorkbookStore";
 
 interface Props {
   sheet: SheetData; activeCell: string; selection: CellRange | null; showFormulas: boolean; zoom: number;
+  formulaBarFocused?: boolean;
   onSelect: (address: string, range?: CellRange) => void;
 }
 type ContextMenuState = { x: number; y: number; kind: "cell" | "row" | "column"; index: number; col: number } | null;
+type InteractionState = "READY" | "SELECTING" | "FILLING" | "EDITING";
+type FillAxis = "vertical" | "horizontal";
+type OverlayRect = { left: number; top: number; width: number; height: number };
+type FillDragState = { source: CellRange; target: CellRange; axis: FillAxis | null; startX: number; startY: number; clientX: number; clientY: number; previewValue: string };
 const clampRange = (range: CellRange) => ({ startRow: Math.min(range.startRow, range.endRow), endRow: Math.max(range.startRow, range.endRow), startCol: Math.min(range.startCol, range.endCol), endCol: Math.max(range.startCol, range.endCol) });
 const shiftFormulaReferences = (raw: string, rowDelta: number, colDelta: number) => raw.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g, (match, colLock: string, letters: string, rowLock: string, digits: string) => {
   const position = parseAddress(`${letters}${digits}`); if (!position) return match;
@@ -26,7 +31,7 @@ const adjustReferences = (raw: string, axis: "row" | "column", index: number, co
   return axis === "row" ? `${colLock}${letters}${rowLock}${updated + 1}` : `${colLock}${columnLabel(updated)}${rowLock}${digits}`;
 });
 
-export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, onSelect }: Props) {
+export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, formulaBarFocused = false, onSelect }: Props) {
   const setCell = useWorkbookStore(s => s.setCell);
   const updateSheet = useWorkbookStore(s => s.updateSheet);
   const setClipboard = useWorkbookStore(s => s.setClipboard);
@@ -37,10 +42,13 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const [dragging, setDragging] = useState(false);
   const [columnFilters, setColumnFilters] = useState<Record<number, string>>({});
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
+  const [interactionState, setInteractionState] = useState<InteractionState>("READY");
   const [menu, setMenu] = useState<ContextMenuState>(null);
   const rowHeights = sheet.rowHeights ?? {};
   const [fillPreview, setFillPreview] = useState<CellRange | null>(null);
+  const [fillDrag, setFillDrag] = useState<FillDragState | null>(null);
   const [copyRange, setCopyRange] = useState<CellRange | null>(null);
+  const [overlayRects, setOverlayRects] = useState<{ selection: OverlayRect | null; fill: OverlayRect | null; copy: OverlayRect | null }>({ selection: null, fill: null, copy: null });
   const [resizePreview, setResizePreview] = useState<{ axis: "row" | "column"; index: number; value: number } | null>(null);
   const [formatDialogOpen, setFormatDialogOpen] = useState(false);
   const [formatDraft, setFormatDraft] = useState<CellStyle>({});
@@ -48,9 +56,15 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const resizeValue = useRef<{ axis: "row" | "column"; index: number; value: number } | null>(null);
   const fillSource = useRef<CellRange | null>(null);
   const fillModifier = useRef(false);
+  const fillAxis = useRef<FillAxis | null>(null);
+  const fillDragRef = useRef<FillDragState | null>(null);
+  const pointerPosition = useRef({ x: 0, y: 0 });
+  const lastDragAddress = useRef<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const editOriginal = useRef("");
+  const interactionHandlersRef = useRef<{ update: (x: number, y: number) => void; finish: () => void }>({ update: () => undefined, finish: () => undefined });
   useEffect(() => {
     if (!menu) return;
     requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus());
@@ -75,46 +89,105 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const bounds = selection ? clampRange(selection) : { startRow: active.row, endRow: active.row, startCol: active.col, endCol: active.col };
   const selected = (row: number, col: number) => row >= bounds.startRow && row <= bounds.endRow && col >= bounds.startCol && col <= bounds.endCol;
   const setRange = (range: CellRange, address = addressOf(range.endRow, range.endCol)) => onSelect(address, range);
-  const finishFill = (preview?: CellRange) => {
+  const finishFill = (preview?: CellRange, requestedAxis?: FillAxis) => {
     const source = fillSource.current, target = preview ?? fillPreview;
-    fillSource.current = null; fillModifier.current = false; setFillPreview(null);
+    const axis = requestedAxis ?? fillAxis.current ?? "vertical";
+    fillSource.current = null; fillAxis.current = null; fillModifier.current = false; fillDragRef.current = null;
+    setFillPreview(null); setFillDrag(null); setInteractionState(formulaBarFocused ? "EDITING" : "READY");
     if (!source || !target) return;
     const original = clampRange(source), destination = clampRange(target), next = { ...sheet.cells };
-    const fillDown = destination.endRow > original.endRow, fillUp = destination.startRow < original.startRow;
-    const fillRight = destination.endCol > original.endCol, fillLeft = destination.startCol < original.startCol;
-    const axis = fillDown || fillUp ? "row" : "column";
-    const sourceLength = axis === "row" ? original.endRow - original.startRow + 1 : original.endCol - original.startCol + 1;
-    const sequence = Array.from({ length: sourceLength }, (_, i) => {
-      const row = axis === "row" ? (fillUp ? original.startRow + i : original.endRow - sourceLength + 1 + i) : original.startRow;
-      const col = axis === "column" ? (fillLeft ? original.startCol + i : original.endCol - sourceLength + 1 + i) : original.startCol;
-      return sheet.cells[addressOf(row, col)]?.raw ?? "";
-    });
-    const numbers = sequence.map(Number);
-    let step = sourceLength > 1 && numbers.every(Number.isFinite) ? numbers[numbers.length - 1] - numbers[numbers.length - 2] : 1;
-    const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
-    const weekNames = ["sun","mon","tue","wed","thu","fri","sat"];
-    const series = sourceLength > 1 && monthNames.includes(sequence.at(-1)?.toLowerCase().slice(0, 3) ?? "") ? monthNames : sourceLength > 1 && weekNames.includes(sequence.at(-1)?.toLowerCase().slice(0, 3) ?? "") ? weekNames : null;
-    for (let row = destination.startRow; row <= destination.endRow; row++) for (let col = destination.startCol; col <= destination.endCol; col++) {
-      if (row >= original.startRow && row <= original.endRow && col >= original.startCol && col <= original.endCol) continue;
-      const rowDelta = row - (fillDown ? original.endRow : original.startRow), colDelta = col - (fillRight ? original.endCol : original.startCol);
-      const sourceRow = Math.max(original.startRow, Math.min(original.endRow, row)), sourceCol = Math.max(original.startCol, Math.min(original.endCol, col));
-      const template = sheet.cells[addressOf(sourceRow, sourceCol)] ?? sheet.cells[addressOf(original.startRow, original.startCol)] ?? { raw: "" };
-      let raw = template.raw;
-      if (raw.startsWith("=")) raw = shiftFormulaReferences(raw, rowDelta, colDelta);
-      else if ((sourceLength > 1 || /\D+\d+$/.test(raw) || fillModifier.current && numbers.every(Number.isFinite) || /^\d{4}-\d{2}-\d{2}$/.test(raw)) && (fillDown || fillUp || fillRight || fillLeft)) {
-        const offset = fillDown ? row - original.endRow - 1 : fillUp ? original.startRow - row - 1 : fillRight ? col - original.endCol - 1 : original.startCol - col - 1;
-        const backwards = fillUp || fillLeft;
-        if (numbers.every(Number.isFinite) && (sourceLength > 1 || fillModifier.current)) raw = String(Number(backwards ? sequence[0] : sequence.at(-1)) + step * (backwards ? -1 : 1) * (offset + 1));
-        else if (series) { const base = backwards ? sequence[0] : sequence.at(-1)!; const last = series.indexOf(base.toLowerCase().slice(0, 3)); const item = series[((last + (backwards ? -1 : 1) * (offset + 1)) % series.length + series.length) % series.length]; raw = base.replace(/^([A-Za-z]{3})/i, item[0].toUpperCase() + item.slice(1)); }
-        else if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) { const date = new Date(`${backwards ? sequence[0] : raw}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + (backwards ? -1 : 1) * (offset + 1)); raw = date.toISOString().slice(0, 10); }
-        else { const base = backwards ? sequence[0] : raw; const match = base.match(/^(.*?)(\d+)$/); if (match) raw = `${match[1]}${Number(match[2]) + (backwards ? -1 : 1) * (offset + 1)}`; }
+    const vertical = axis === "vertical";
+    const sourceLength = vertical ? original.endRow - original.startRow + 1 : original.endCol - original.startCol + 1;
+    const before = vertical ? destination.startRow < original.startRow : destination.startCol < original.startCol;
+    const after = vertical ? destination.endRow > original.endRow : destination.endCol > original.endCol;
+    const extendsRange = before || after;
+    if (vertical) {
+      for (let row = original.startRow; row <= original.endRow; row++) {
+        if (row >= destination.startRow && row <= destination.endRow) continue;
+        for (let col = original.startCol; col <= original.endCol; col++) {
+          const key = addressOf(row, col); next[key] = { ...(next[key] ?? { raw: "" }), raw: "" };
+        }
       }
-      next[addressOf(row, col)] = { ...template, raw };
+    } else {
+      for (let col = original.startCol; col <= original.endCol; col++) {
+        if (col >= destination.startCol && col <= destination.endCol) continue;
+        for (let row = original.startRow; row <= original.endRow; row++) {
+          const key = addressOf(row, col); next[key] = { ...(next[key] ?? { raw: "" }), raw: "" };
+        }
+      }
+    }
+    if (extendsRange) {
+      const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+      const weekNames = ["sun","mon","tue","wed","thu","fri","sat"];
+      for (let row = destination.startRow; row <= destination.endRow; row++) {
+        for (let col = destination.startCol; col <= destination.endCol; col++) {
+          if (row >= original.startRow && row <= original.endRow && col >= original.startCol && col <= original.endCol) continue;
+          const coordinate = vertical ? row : col, orthogonal = vertical ? col : row, baseIndex = before ? 0 : sourceLength - 1;
+          const sourceRow = vertical ? original.startRow + baseIndex : orthogonal;
+          const sourceCol = vertical ? orthogonal : original.startCol + baseIndex;
+          const sequence = Array.from({ length: sourceLength }, (_, i) => {
+            const sr = vertical ? original.startRow + i : orthogonal, sc = vertical ? orthogonal : original.startCol + i;
+            return sheet.cells[addressOf(sr, sc)]?.raw ?? "";
+          });
+          const template = sheet.cells[addressOf(sourceRow, sourceCol)] ?? { raw: "" };
+          let raw = template.raw;
+          const boundary = vertical ? (before ? original.startRow : original.endRow) : (before ? original.startCol : original.endCol);
+          const offset = Math.max(0, before ? boundary - coordinate - 1 : coordinate - boundary - 1), sign = before ? -1 : 1;
+          const numbers = sequence.map(Number), numeric = sequence.every(value => value.trim() !== "" && Number.isFinite(Number(value)));
+          const step = sourceLength > 1 && numeric ? numbers[numbers.length - 1] - numbers[numbers.length - 2] : 1;
+          const base = sequence[baseIndex] ?? raw, suffix = base.match(/^(.*?)(\d+)$/);
+          const monthSeries = sourceLength > 1 && monthNames.includes(sequence.at(-1)?.toLowerCase().slice(0, 3) ?? "") ? monthNames : null;
+          const weekSeries = sourceLength > 1 && weekNames.includes(sequence.at(-1)?.toLowerCase().slice(0, 3) ?? "") ? weekNames : null;
+          if (raw.startsWith("=")) raw = shiftFormulaReferences(raw, row - sourceRow, col - sourceCol);
+          else if (numeric && (sourceLength > 1 || fillModifier.current)) raw = String(Number(base) + step * sign * (offset + 1));
+          else if (monthSeries || weekSeries) {
+            const series = monthSeries ?? weekSeries!, index = series.indexOf(base.toLowerCase().slice(0, 3));
+            const item = series[((index + sign * (offset + 1)) % series.length + series.length) % series.length];
+            raw = base.replace(/^([A-Za-z]{3})/i, item[0].toUpperCase() + item.slice(1));
+          } else if (/^\d{4}-\d{2}-\d{2}$/.test(base)) {
+            const date = new Date(`${base}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + sign * (offset + 1)); raw = date.toISOString().slice(0, 10);
+          } else if (suffix) raw = `${suffix[1]}${Number(suffix[2]) + sign * (offset + 1)}`;
+          next[addressOf(row, col)] = { ...template, raw };
+        }
+      }
     }
     updateSheet(sheet.id, { cells: next, rowCount: Math.max(sheet.rowCount, destination.endRow + 1), columnCount: Math.max(sheet.columnCount, destination.endCol + 1) });
     setRange(destination, addressOf(destination.endRow, destination.endCol));
   };
-  const focusCell = (row: number, col: number) => requestAnimationFrame(() => gridRef.current?.querySelector<HTMLInputElement>(`[data-cell="${addressOf(row, col)}"]`)?.focus());
+  const focusCell = (row: number, col: number) => requestAnimationFrame(() => gridRef.current?.querySelector<HTMLInputElement>(`input[data-cell="${addressOf(row, col)}"]`)?.focus());
+  const previewFillValue = (source: CellRange, target: CellRange, axis: FillAxis) => {
+    const original = clampRange(source), destination = clampRange(target), vertical = axis === "vertical";
+    const before = vertical ? destination.startRow < original.startRow : destination.startCol < original.startCol;
+    const sourceLength = vertical ? original.endRow - original.startRow + 1 : original.endCol - original.startCol + 1;
+    const index = before ? 0 : sourceLength - 1, orthogonal = vertical ? original.startCol : original.startRow;
+    const sequence = Array.from({ length: sourceLength }, (_, i) => sheet.cells[addressOf(vertical ? original.startRow + i : orthogonal, vertical ? orthogonal : original.startCol + i)]?.raw ?? "");
+    const base = sequence[index] ?? "";
+    const coordinate = vertical ? (before ? destination.startRow : destination.endRow) : (before ? destination.startCol : destination.endCol);
+    const boundary = vertical ? (before ? original.startRow : original.endRow) : (before ? original.startCol : original.endCol);
+    const offset = Math.max(0, Math.abs(coordinate - boundary) - 1), numbers = sequence.map(Number);
+    if (sequence.every(value => value.trim() !== "" && Number.isFinite(Number(value))) && (sourceLength > 1 || fillModifier.current)) {
+      const step = sourceLength > 1 ? numbers.at(-1)! - numbers.at(-2)! : 1;
+      return String(Number(base) + step * (before ? -1 : 1) * (offset + 1));
+    }
+    const suffix = base.match(/^(.*?)(\d+)$/);
+    return suffix ? `${suffix[1]}${Number(suffix[2]) + (before ? -1 : 1) * (offset + 1)}` : base;
+  };
+  const measureRange = (range: CellRange | null): OverlayRect | null => {
+    const canvas = canvasRef.current; if (!canvas || !range) return null;
+    const normalized = clampRange(range), visibleRows = rows.filter(row => row >= normalized.startRow && row <= normalized.endRow), visibleColumns = columns.filter(col => col >= normalized.startCol && col <= normalized.endCol);
+    if (!visibleRows.length || !visibleColumns.length) return null;
+    const firstAddress = addressOf(visibleRows[0], visibleColumns[0]), lastAddress = addressOf(visibleRows.at(-1)!, visibleColumns.at(-1)!);
+    const firstCell = canvas.querySelector<HTMLElement>(`td[data-cell="${firstAddress}"]`) ?? canvas.querySelector<HTMLElement>(`input[data-cell="${firstAddress}"]`)?.closest("td");
+    const lastCell = canvas.querySelector<HTMLElement>(`td[data-cell="${lastAddress}"]`) ?? canvas.querySelector<HTMLElement>(`input[data-cell="${lastAddress}"]`)?.closest("td");
+    if (!firstCell || !lastCell) return null;
+    const parentRect = canvas.getBoundingClientRect(), firstRect = firstCell.getBoundingClientRect(), lastRect = lastCell.getBoundingClientRect(), scale = Math.max(0.01, zoom / 100);
+    return { left: (firstRect.left - parentRect.left) / scale, top: (firstRect.top - parentRect.top) / scale, width: (lastRect.right - firstRect.left) / scale, height: (lastRect.bottom - firstRect.top) / scale };
+  };
+  const updateOverlayRects = () => setOverlayRects({ selection: measureRange(bounds), fill: measureRange(fillPreview), copy: measureRange(copyRange) });
+  useLayoutEffect(() => {
+    const frame = requestAnimationFrame(updateOverlayRects);
+    return () => cancelAnimationFrame(frame);
+  }, [bounds.startRow, bounds.endRow, bounds.startCol, bounds.endCol, fillPreview, copyRange, rows, columns, sheet.columnWidths, rowHeights, zoom, sheet.showHeadings]);
   const updateDimensions = (row: number, col: number) => updateSheet(sheet.id, { rowCount: Math.max(sheet.rowCount, row + 1), columnCount: Math.max(sheet.columnCount, col + 1) });
   const updateRowHeight = (row: number, height: number) => updateSheet(sheet.id, { rowHeights: { ...(sheet.rowHeights ?? {}), [row]: Math.max(18, Math.min(120, height)) } });
 
@@ -159,11 +232,72 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     }, 27);
     updateRowHeight(row, Math.min(409, Math.ceil(height)));
   };
-  const beginRange = (row: number, col: number, event: ReactMouseEvent) => {
+  const beginRange = (row: number, col: number, event: ReactPointerEvent<HTMLInputElement>) => {
+    event.preventDefault();
     const anchor = event.shiftKey ? active : { row, col };
+    setEditingAddress(null); setInteractionState("SELECTING");
+    pointerPosition.current = { x: event.clientX, y: event.clientY };
+    lastDragAddress.current = addressOf(row, col);
     setDragStart(anchor); setDragging(true);
     setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, addressOf(row, col));
   };
+  const updatePointerTarget = (x: number, y: number) => {
+    pointerPosition.current = { x, y };
+    if (interactionState === "FILLING") {
+      const current = fillDragRef.current; if (!current) return;
+      let axis = current.axis;
+      if (!axis) {
+        const dx = Math.abs(x - current.startX), dy = Math.abs(y - current.startY);
+        if (Math.max(dx, dy) < 4) return;
+        axis = dy >= dx ? "vertical" : "horizontal"; fillAxis.current = axis;
+      }
+      const element = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-cell]");
+      const position = element ? parseAddress(element.dataset.cell ?? "") : null;
+      if (!position) return;
+      const source = clampRange(current.source);
+      const target: CellRange = axis === "vertical"
+        ? { startRow: position.row < source.startRow ? position.row : source.startRow, endRow: position.row < source.startRow ? source.endRow : position.row, startCol: source.startCol, endCol: source.endCol }
+        : { startRow: source.startRow, endRow: source.endRow, startCol: position.col < source.startCol ? position.col : source.startCol, endCol: position.col < source.startCol ? source.endCol : position.col };
+      const next: FillDragState = { ...current, axis, target, clientX: x, clientY: y, previewValue: previewFillValue(current.source, target, axis) };
+      fillDragRef.current = next; setFillDrag(next); setFillPreview(target); return;
+    }
+    if (interactionState === "SELECTING" && dragStart) {
+      const element = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-cell]");
+      const position = element ? parseAddress(element.dataset.cell ?? "") : null;
+      if (!position) return;
+      const address = addressOf(position.row, position.col);
+      if (lastDragAddress.current === address) return;
+      lastDragAddress.current = address;
+      setRange({ startRow: dragStart.row, startCol: dragStart.col, endRow: position.row, endCol: position.col }, address);
+    }
+  };
+  const beginFillDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault(); event.stopPropagation();
+    setEditingAddress(null); setInteractionState("FILLING");
+    const source = clampRange(bounds);
+    fillSource.current = source; fillAxis.current = null; fillModifier.current = event.ctrlKey || event.altKey;
+    pointerPosition.current = { x: event.clientX, y: event.clientY };
+    const initial: FillDragState = { source, target: source, axis: null, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY, previewValue: sheet.cells[addressOf(source.endRow, source.endCol)]?.raw ?? "" };
+    fillDragRef.current = initial; setFillDrag(initial); setFillPreview(null);
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Window pointer listeners also track the drag. */ }
+  };
+  interactionHandlersRef.current = {
+    update: updatePointerTarget,
+    finish: () => {
+      if (interactionState === "FILLING") {
+        const current = fillDragRef.current; finishFill(current?.target, current?.axis ?? undefined);
+      } else if (interactionState === "SELECTING") {
+        setDragging(false); setDragStart(null); lastDragAddress.current = null;
+        setInteractionState(formulaBarFocused ? "EDITING" : "READY");
+        focusCell(active.row, active.col);
+      }
+    }
+  };
+  useEffect(() => {
+    if (formulaBarFocused) {
+      setEditingAddress(null); setInteractionState("EDITING");
+    } else if (!editingAddress && interactionState === "EDITING") setInteractionState("READY");
+  }, [formulaBarFocused, editingAddress]);
   const showContextMenu = (event: ReactMouseEvent, kind: NonNullable<ContextMenuState>["kind"], index: number, col = active.col) => {
     event.preventDefault(); event.stopPropagation();
     if (kind === "cell" && !selected(index, col)) onSelect(addressOf(index, col), { startRow: index, startCol: col, endRow: index, endCol: col });
@@ -366,9 +500,28 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>, row: number, col: number) => {
     const mod = event.ctrlKey || event.metaKey, address = addressOf(row, col), isEditing = editingAddress === address;
+    const hasMultiCellSelection = bounds.startRow !== bounds.endRow || bounds.startCol !== bounds.endCol;
+    if (hasMultiCellSelection && (event.key === "Enter" || event.key === "Tab")) {
+      event.preventDefault();
+      let nextRow = row, nextCol = col;
+      if (event.key === "Enter") {
+        nextRow += event.shiftKey ? -1 : 1;
+        if (nextRow > bounds.endRow) nextRow = bounds.startRow;
+        if (nextRow < bounds.startRow) nextRow = bounds.endRow;
+      } else {
+        nextCol += event.shiftKey ? -1 : 1;
+        if (nextCol > bounds.endCol) { nextCol = bounds.startCol; nextRow = row + 1 > bounds.endRow ? bounds.startRow : row + 1; }
+        if (nextCol < bounds.startCol) { nextCol = bounds.endCol; nextRow = row - 1 < bounds.startRow ? bounds.endRow : row - 1; }
+      }
+      if (isEditing) setEditingAddress(null);
+      setInteractionState("READY");
+      onSelect(addressOf(nextRow, nextCol), bounds);
+      focusCell(nextRow, nextCol);
+      return;
+    }
     if (!isEditing && (event.key === "F10" && event.shiftKey || event.key === "ContextMenu")) { event.preventDefault(); openKeyboardContextMenu(row, col); return; }
-    if (!isEditing && event.key === "F2") { event.preventDefault(); editOriginal.current = sheet.cells[address]?.raw ?? ""; setEditingAddress(address); requestAnimationFrame(() => gridRef.current?.querySelector<HTMLInputElement>(`[data-cell="${address}"]`)?.focus()); return; }
-    if (!isEditing && !mod && !event.altKey && event.key.length === 1) { event.preventDefault(); editOriginal.current = sheet.cells[address]?.raw ?? ""; setCell(address, event.key); setEditingAddress(address); return; }
+    if (!isEditing && event.key === "F2") { event.preventDefault(); editOriginal.current = sheet.cells[address]?.raw ?? ""; setInteractionState("EDITING"); setEditingAddress(address); requestAnimationFrame(() => gridRef.current?.querySelector<HTMLInputElement>(`input[data-cell="${address}"]`)?.focus()); return; }
+    if (!isEditing && !mod && !event.altKey && event.key.length === 1) { event.preventDefault(); editOriginal.current = sheet.cells[address]?.raw ?? ""; setCell(address, event.key); setInteractionState("EDITING"); setEditingAddress(address); return; }
     if (mod && event.key === "1") { event.preventDefault(); setFormatDraft({ ...(sheet.cells[address]?.style ?? {}) }); setFormatDialogOpen(true); return; }
     if (event.key === "F10" && event.shiftKey) { event.preventDefault(); openKeyboardContextMenu(row, col); return; }
     if (mod && event.key.toLowerCase() === "c") { event.preventDefault(); void copySystem(); return; }
@@ -413,7 +566,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       focusCell(nr, nc); return;
     }
     if ((event.key === "Delete" || event.key === "Backspace") && (row !== active.row || col !== active.col || selection)) { event.preventDefault(); clearSelection(); return; }
-    if (event.key === "Escape") { setCopyRange(null); if (isEditing) setCell(address, editOriginal.current); setEditingAddress(null); event.currentTarget.blur(); return; }
+    if (event.key === "Escape") { setCopyRange(null); if (isEditing) setCell(address, editOriginal.current); setEditingAddress(null); setInteractionState("READY"); event.currentTarget.blur(); return; }
     let nextRow = row, nextCol = col;
     if (event.key === "ArrowUp") nextRow = Math.max(0, row - 1);
     else if (event.key === "ArrowDown" || (event.key === "Enter" && !event.shiftKey)) nextRow = row + 1;
@@ -441,8 +594,28 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const formatDialog = formatDialogOpen && <div className="grid-dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setFormatDialogOpen(false); }}><section className="grid-dialog" role="dialog" aria-modal="true" aria-labelledby="grid-format-title"><header><div><span>FORMAT CELLS</span><h2 id="grid-format-title">Format Cells</h2></div><button type="button" onClick={() => setFormatDialogOpen(false)} aria-label="Close Format Cells">×</button></header><div className="grid-format-fields"><label>Number format<select value={formatDraft.numberFormat ?? "General"} onChange={event => setFormatDraft(current => ({ ...current, numberFormat: event.target.value as CellStyle["numberFormat"] }))}><option>General</option><option>Number</option><option>Currency ₹</option><option>Currency $</option><option>Percentage %</option><option>Date</option></select></label><label>Font family<select value={formatDraft.fontFamily ?? "Inter"} onChange={event => setFormatDraft(current => ({ ...current, fontFamily: event.target.value }))}><option>Inter</option><option>Arial</option><option>Calibri</option><option>Georgia</option><option>Courier New</option></select></label><label>Font size<input type="number" min="8" max="72" value={formatDraft.fontSize ?? 11} onChange={event => setFormatDraft(current => ({ ...current, fontSize: Math.max(8, Math.min(72, Number(event.target.value) || 11)) }))}/></label><label>Alignment<select value={formatDraft.align ?? "left"} onChange={event => setFormatDraft(current => ({ ...current, align: event.target.value as CellStyle["align"] }))}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Font color<input type="color" value={formatDraft.color ?? "#26382d"} onChange={event => setFormatDraft(current => ({ ...current, color: event.target.value }))}/></label><label>Fill color<input type="color" value={formatDraft.backgroundColor ?? "#ffffff"} onChange={event => setFormatDraft(current => ({ ...current, backgroundColor: event.target.value }))}/></label><label>Decimal places<input type="number" min="0" max="8" value={formatDraft.decimalPlaces ?? 2} onChange={event => setFormatDraft(current => ({ ...current, decimalPlaces: Math.max(0, Math.min(8, Number(event.target.value) || 0)) }))}/></label><div className="grid-format-toggles"><label><input type="checkbox" checked={!!formatDraft.bold} onChange={event => setFormatDraft(current => ({ ...current, bold: event.target.checked }))}/> Bold</label><label><input type="checkbox" checked={!!formatDraft.italic} onChange={event => setFormatDraft(current => ({ ...current, italic: event.target.checked }))}/> Italic</label><label><input type="checkbox" checked={!!formatDraft.underline} onChange={event => setFormatDraft(current => ({ ...current, underline: event.target.checked }))}/> Underline</label><label><input type="checkbox" checked={!!formatDraft.strike} onChange={event => setFormatDraft(current => ({ ...current, strike: event.target.checked }))}/> Strikethrough</label><label><input type="checkbox" checked={!!formatDraft.wrap} onChange={event => setFormatDraft(current => ({ ...current, wrap: event.target.checked }))}/> Wrap text</label></div></div><footer><button type="button" className="grid-dialog-secondary" onClick={() => setFormatDialogOpen(false)}>Cancel</button><button type="button" onClick={applyFormatDialog}>Apply to selection</button></footer></section></div>;
   const shortcutsDialog = shortcutsOpen && <div className="grid-dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setShortcutsOpen(false); }}><section className="grid-dialog grid-shortcuts-dialog" role="dialog" aria-modal="true" aria-labelledby="grid-shortcuts-title"><header><div><span>GRIDNOVA</span><h2 id="grid-shortcuts-title">Keyboard shortcuts</h2></div><button type="button" onClick={() => setShortcutsOpen(false)} aria-label="Close shortcuts">×</button></header><div className="grid-shortcut-grid">{[["F2","Edit selected cell"],["Shift + F10 / Menu","Open context menu"],["Ctrl + C / X / V","Copy / Cut / Paste"],["Ctrl + Shift + V","Paste values"],["Ctrl + Z / Y","Undo / Redo"],["Ctrl + 1","Format Cells"],["Ctrl + Arrow","Jump across data"],["Ctrl + Home / End","First / last used cell"],["Shift + Space","Select entire row"],["Ctrl + Space","Select entire column"],["Ctrl + D / R","Fill down / right"],["Ctrl + ;","Insert current date"],["Tab / Shift + Tab","Move right / left"],["Enter / Shift + Enter","Move down / up"]].map(([key,label]) => <div key={key}><kbd>{key}</kbd><span>{label}</span></div>)}</div><footer><button type="button" onClick={() => setShortcutsOpen(false)}>Close</button></footer></section></div>;
 
-  return <div ref={gridRef} className="sheet-scroll relative" onMouseUp={() => { setDragging(false); finishFill(); }} onContextMenu={event => showContextMenu(event, "cell", active.row, active.col)} onClick={() => menu && setMenu(null)}>
-    <div style={{ zoom: zoom / 100, minWidth: "max-content" }}>
+  useEffect(() => {
+    if (interactionState !== "SELECTING" && interactionState !== "FILLING") return;
+    const onMove = (event: globalThis.PointerEvent) => interactionHandlersRef.current.update(event.clientX, event.clientY);
+    const onUp = () => interactionHandlersRef.current.finish();
+    window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
+    let frame = 0;
+    const autoScroll = () => {
+      const viewport = gridRef.current;
+      if (viewport) {
+        const rect = viewport.getBoundingClientRect(), point = pointerPosition.current, edge = 34;
+        const velocity = (value: number, low: number, high: number) => value < low + edge ? -Math.min(22, (low + edge - value) * 0.55) : value > high - edge ? Math.min(22, (value - (high - edge)) * 0.55) : 0;
+        const dx = velocity(point.x, rect.left, rect.right), dy = velocity(point.y, rect.top, rect.bottom);
+        if (dx || dy) { viewport.scrollLeft += dx; viewport.scrollTop += dy; interactionHandlersRef.current.update(point.x, point.y); }
+      }
+      frame = requestAnimationFrame(autoScroll);
+    };
+    frame = requestAnimationFrame(autoScroll);
+    return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); cancelAnimationFrame(frame); };
+  }, [interactionState]);
+
+  return <div ref={gridRef} className={`sheet-scroll relative ${interactionState === "EDITING" ? "grid-editing" : "grid-not-editing select-none"}`} onContextMenu={event => showContextMenu(event, "cell", active.row, active.col)} onClick={() => menu && setMenu(null)}>
+    <div ref={canvasRef} className="grid-canvas" style={{ zoom: zoom / 100, minWidth: "max-content" }}>
       <table className="border-collapse table-fixed" style={{ minWidth: "100%" }}>
         <colgroup>{sheet.showHeadings && <col style={{ width: 48 }} />}{columns.map(col => <col key={col} style={{ width: resizePreview?.axis === "column" && resizePreview.index === col ? resizePreview.value : sheet.columnWidths[col] ?? 110 }} />)}</colgroup>
         {sheet.showHeadings && <thead className="sticky top-0 z-20"><tr>
@@ -458,7 +631,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
             const address = addressOf(row, col), cell = sheet.cells[address], display = formatCellValue(cell?.raw ?? "", sheet.cells, showFormulas, cell?.style), value = editingAddress === address ? (cell?.raw ?? "") : display;
             const isSelected = selected(row, col), isActive = address === activeCell, style = cell?.style ?? {};
             if (cell?.mergedInto) return null;
-            const gridBorder = sheet.showGridlines && !style.backgroundColor ? "1px solid #e8ece9" : "none";
+            const gridBorder = sheet.showGridlines ? "1px solid #E2E5E9" : "none";
             const edge = (side: "Top" | "Right" | "Bottom" | "Left") => {
               const explicit = style[`border${side}` as "borderTop" | "borderRight" | "borderBottom" | "borderLeft"];
               if (explicit) return explicit;
@@ -470,14 +643,21 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
               }
               return gridBorder;
             };
-            return <td key={col} colSpan={cell?.mergeCols ?? 1} rowSpan={cell?.mergeRows ?? 1} className={`grid-cell ${isSelected ? "selected" : ""} ${isActive ? "active-cell" : ""} ${isSelected && row === bounds.startRow ? "range-top" : ""} ${isSelected && row === bounds.endRow ? "range-bottom" : ""} ${isSelected && col === bounds.startCol ? "range-left" : ""} ${isSelected && col === bounds.endCol ? "range-right" : ""} ${copyRange && row >= copyRange.startRow && row <= copyRange.endRow && col >= copyRange.startCol && col <= copyRange.endCol ? "copy-outline" : ""} ${fillPreview && row >= fillPreview.startRow && row <= fillPreview.endRow && col >= fillPreview.startCol && col <= fillPreview.endCol ? "fill-preview" : ""} ${sheet.freezeTopRow && row === 0 ? "sticky top-7 z-10" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27, borderTop: edge("Top"), borderRight: edge("Right"), borderBottom: edge("Bottom"), borderLeft: edge("Left"), background: style.backgroundColor ?? (isActive ? "#f0faf3" : isSelected ? "rgba(16,124,65,.08)" : "#fff"), fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textAlign: style.align ?? "left", textDecoration: [style.underline ? "underline" : "", style.strike ? "line-through" : ""].filter(Boolean).join(" "), whiteSpace: style.wrap ? "normal" : "nowrap", overflow: "visible" }} onContextMenu={event => showContextMenu(event, "cell", row, col)}>
-              {cell?.checkbox ? <div className="grid h-full place-items-center"><input type="checkbox" checked={cell.raw === "TRUE"} onChange={event => setCell(address, event.target.checked ? "TRUE" : "FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]" /></div> : cell?.hyperlink ? <a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value || cell.hyperlink}</span><ExternalLink size={10} /></a> : <input data-cell={address} aria-label={`Cell ${address}`} readOnly={editingAddress !== address && !cell?.datePicker} onFocus={() => { editOriginal.current = cell?.raw ?? ""; }} onDoubleClick={() => { editOriginal.current = cell?.raw ?? ""; setEditingAddress(address); }} onBlur={() => setEditingAddress(current => current === address ? null : current)} type={cell?.datePicker ? "date" : "text"} value={cell?.datePicker ? (cell.raw || "") : value} onClick={event => { if (event.shiftKey) { const anchor = parseAddress(activeCell) ?? { row, col }; setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, address); } else onSelect(address, { startRow: row, startCol: col, endRow: row, endCol: col }); }} onMouseDown={event => beginRange(row, col, event)} onMouseEnter={() => { if (fillSource.current) { const source = clampRange(fillSource.current); setFillPreview({ startRow: Math.min(source.startRow, row), startCol: Math.min(source.startCol, col), endRow: Math.max(source.endRow, row), endCol: Math.max(source.endCol, col) }); } else if (dragging && dragStart) setRange({ startRow: dragStart.row, startCol: dragStart.col, endRow: row, endCol: col }, address); }} onChange={event => setCell(address, event.target.value)} onKeyDown={event => onKeyDown(event, row, col)} className="cell-input" style={{ textAlign: style.align ?? "left", fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textDecoration: style.underline ? "underline" : "none", whiteSpace: style.wrap ? "normal" : "nowrap" }} title={cell?.comment ?? ""} />}
-              {row === bounds.endRow && col === bounds.endCol && <button type="button" className="grid-fill-handle" aria-label="Drag to fill cells" title="Drag to fill" onMouseDown={event => { event.preventDefault(); event.stopPropagation(); fillSource.current = bounds; fillModifier.current = event.ctrlKey || event.altKey; setFillPreview(null); }} onDoubleClick={() => { const occupied = rows.filter(candidate => candidate > row && sheet.cells[addressOf(candidate, col + 1)]?.raw); const last = occupied.at(-1) ?? row; const target = { ...bounds, endRow: Math.max(row, last) }; fillSource.current = bounds; setFillPreview(target); requestAnimationFrame(() => finishFill(target)); }} />}
+            return <td key={col} data-cell={address} colSpan={cell?.mergeCols ?? 1} rowSpan={cell?.mergeRows ?? 1} className={`grid-cell ${sheet.freezeTopRow && row === 0 ? "sticky top-7 z-10" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27, borderTop: edge("Top"), borderRight: edge("Right"), borderBottom: edge("Bottom"), borderLeft: edge("Left"), background: style.backgroundColor ?? (isActive ? "#ffffff" : isSelected ? "rgba(16, 124, 65, 0.08)" : "#ffffff"), fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textAlign: style.align ?? "left", textDecoration: [style.underline ? "underline" : "", style.strike ? "line-through" : ""].filter(Boolean).join(" "), whiteSpace: style.wrap ? "normal" : "nowrap", overflow: "visible" }} onContextMenu={event => showContextMenu(event, "cell", row, col)}>
+              {cell?.checkbox ? <div className="grid h-full place-items-center"><input type="checkbox" checked={cell.raw === "TRUE"} onChange={event => setCell(address, event.target.checked ? "TRUE" : "FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]" /></div> : cell?.hyperlink ? <a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value || cell.hyperlink}</span><ExternalLink size={10} /></a> : <input data-cell={address} aria-label={`Cell ${address}`} readOnly={editingAddress !== address && !cell?.datePicker} onFocus={() => { editOriginal.current = cell?.raw ?? ""; }} onDoubleClick={(event) => { event.preventDefault(); editOriginal.current = cell?.raw ?? ""; setInteractionState("EDITING"); setEditingAddress(address); }} onBlur={() => { setEditingAddress(current => current === address ? null : current); if (!formulaBarFocused) setInteractionState("READY"); }} type={cell?.datePicker ? "date" : "text"} value={cell?.datePicker ? (cell.raw || "") : value} onClick={event => { if (event.shiftKey) { const anchor = parseAddress(activeCell) ?? { row, col }; setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, address); } else onSelect(address, { startRow: row, startCol: col, endRow: row, endCol: col }); focusCell(row, col); }} onPointerDown={event => beginRange(row, col, event)} onChange={event => setCell(address, event.target.value)} onKeyDown={event => onKeyDown(event, row, col)} className="cell-input" style={{ textAlign: style.align ?? "left", fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textDecoration: style.underline ? "underline" : "none", whiteSpace: style.wrap ? "normal" : "nowrap", caretColor: editingAddress === address ? "auto" : "transparent" }} title={cell?.comment ?? ""} />}
               {cell?.comment && <span className="comment-mark" title={cell.comment} />}
-            </td>;
           })}
         </tr>)}</tbody>
       </table>
+      <div className="grid-selection-overlay" style={overlayRects.selection ? { left: overlayRects.selection.left, top: overlayRects.selection.top, width: overlayRects.selection.width, height: overlayRects.selection.height } : { display: "none" }} aria-hidden="true" />
+      {overlayRects.copy && <div className="grid-range-overlay grid-copy-overlay" style={overlayRects.copy} aria-hidden="true" />}
+      {overlayRects.fill && <div className="grid-range-overlay grid-fill-preview-overlay" style={overlayRects.fill} aria-hidden="true" />}
+      {overlayRects.selection && <button type="button" className="grid-fill-handle-overlay" aria-label="Drag to fill cells" title="Drag to fill" style={{ left: overlayRects.selection.left + overlayRects.selection.width - 3, top: overlayRects.selection.top + overlayRects.selection.height - 3 }} onPointerDown={beginFillDrag} onDoubleClick={() => {
+        const occupied = rows.filter(candidate => candidate > bounds.endRow && sheet.cells[addressOf(candidate, bounds.endCol + 1)]?.raw);
+        const target = { ...bounds, endRow: Math.max(bounds.endRow, occupied.at(-1) ?? bounds.endRow) };
+        fillSource.current = bounds; fillAxis.current = "vertical"; fillModifier.current = false; finishFill(target, "vertical");
+      }} />}
+      {fillDrag && fillDrag.axis && <div className="grid-fill-tooltip" style={{ left: fillDrag.clientX + 12, top: fillDrag.clientY + 12 }}>{fillDrag.previewValue || " "}</div>}
       <button className="grid-add-rows" onClick={() => updateSheet(sheet.id, { rowCount: sheet.rowCount + 100 })}><Plus size={13} /> Add 100 more rows at bottom</button>
     </div>
     {menu && createPortal(<div ref={menuRef} role="menu" aria-label="Spreadsheet context menu" className="grid-context-menu" style={{ left: menu.x, top: menu.y }} onClick={event => event.stopPropagation()} onKeyDown={event => {
