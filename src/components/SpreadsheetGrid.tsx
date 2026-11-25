@@ -92,6 +92,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const finishFill = (preview?: CellRange, requestedAxis?: FillAxis) => {
     const source = fillSource.current, target = preview ?? fillPreview;
     const axis = requestedAxis ?? fillAxis.current ?? "vertical";
+    const useSeriesModifier = fillModifier.current;
     fillSource.current = null; fillAxis.current = null; fillModifier.current = false; fillDragRef.current = null;
     setFillPreview(null); setFillDrag(null); setInteractionState(formulaBarFocused ? "EDITING" : "READY");
     if (!source || !target) return;
@@ -139,7 +140,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
           const monthSeries = sourceLength > 1 && monthNames.includes(sequence.at(-1)?.toLowerCase().slice(0, 3) ?? "") ? monthNames : null;
           const weekSeries = sourceLength > 1 && weekNames.includes(sequence.at(-1)?.toLowerCase().slice(0, 3) ?? "") ? weekNames : null;
           if (raw.startsWith("=")) raw = shiftFormulaReferences(raw, row - sourceRow, col - sourceCol);
-          else if (numeric && (sourceLength > 1 || fillModifier.current)) raw = String(Number(base) + step * sign * (offset + 1));
+          else if (numeric && (sourceLength > 1 || useSeriesModifier)) raw = String(Number(base) + step * sign * (offset + 1));
           else if (monthSeries || weekSeries) {
             const series = monthSeries ?? weekSeries!, index = series.indexOf(base.toLowerCase().slice(0, 3));
             const item = series[((index + sign * (offset + 1)) % series.length + series.length) % series.length];
@@ -239,7 +240,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     pointerPosition.current = { x: event.clientX, y: event.clientY };
     lastDragAddress.current = addressOf(row, col);
     setDragStart(anchor); setDragging(true);
-    setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, addressOf(row, col));
+    setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, addressOf(anchor.row, anchor.col));
   };
   const updatePointerTarget = (x: number, y: number) => {
     pointerPosition.current = { x, y };
@@ -268,7 +269,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       const address = addressOf(position.row, position.col);
       if (lastDragAddress.current === address) return;
       lastDragAddress.current = address;
-      setRange({ startRow: dragStart.row, startCol: dragStart.col, endRow: position.row, endCol: position.col }, address);
+      setRange({ startRow: dragStart.row, startCol: dragStart.col, endRow: position.row, endCol: position.col }, addressOf(dragStart.row, dragStart.col));
     }
   };
   const beginFillDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -644,7 +645,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
               return gridBorder;
             };
             return <td key={col} data-cell={address} colSpan={cell?.mergeCols ?? 1} rowSpan={cell?.mergeRows ?? 1} className={`grid-cell ${sheet.freezeTopRow && row === 0 ? "sticky top-7 z-10" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27, borderTop: edge("Top"), borderRight: edge("Right"), borderBottom: edge("Bottom"), borderLeft: edge("Left"), background: style.backgroundColor ?? (isActive ? "#ffffff" : isSelected ? "rgba(16, 124, 65, 0.08)" : "#ffffff"), fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textAlign: style.align ?? "left", textDecoration: [style.underline ? "underline" : "", style.strike ? "line-through" : ""].filter(Boolean).join(" "), whiteSpace: style.wrap ? "normal" : "nowrap", overflow: "visible" }} onContextMenu={event => showContextMenu(event, "cell", row, col)}>
-              {cell?.checkbox ? <div className="grid h-full place-items-center"><input type="checkbox" checked={cell.raw === "TRUE"} onChange={event => setCell(address, event.target.checked ? "TRUE" : "FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]" /></div> : cell?.hyperlink ? <a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value || cell.hyperlink}</span><ExternalLink size={10} /></a> : <input data-cell={address} aria-label={`Cell ${address}`} readOnly={editingAddress !== address && !cell?.datePicker} onFocus={() => { editOriginal.current = cell?.raw ?? ""; }} onDoubleClick={(event) => { event.preventDefault(); editOriginal.current = cell?.raw ?? ""; setInteractionState("EDITING"); setEditingAddress(address); }} onBlur={() => { setEditingAddress(current => current === address ? null : current); if (!formulaBarFocused) setInteractionState("READY"); }} type={cell?.datePicker ? "date" : "text"} value={cell?.datePicker ? (cell.raw || "") : value} onClick={event => { if (event.shiftKey) { const anchor = parseAddress(activeCell) ?? { row, col }; setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, address); } else onSelect(address, { startRow: row, startCol: col, endRow: row, endCol: col }); focusCell(row, col); }} onPointerDown={event => beginRange(row, col, event)} onChange={event => setCell(address, event.target.value)} onKeyDown={event => onKeyDown(event, row, col)} className="cell-input" style={{ textAlign: style.align ?? "left", fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textDecoration: style.underline ? "underline" : "none", whiteSpace: style.wrap ? "normal" : "nowrap", caretColor: editingAddress === address ? "auto" : "transparent" }} title={cell?.comment ?? ""} />}
+              {cell?.checkbox ? <div className="grid h-full place-items-center"><input type="checkbox" checked={cell.raw === "TRUE"} onChange={event => setCell(address, event.target.checked ? "TRUE" : "FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]" /></div> : cell?.hyperlink ? <a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value || cell.hyperlink}</span><ExternalLink size={10} /></a> : <input data-cell={address} aria-label={`Cell ${address}`} readOnly={editingAddress !== address && !cell?.datePicker} onFocus={() => { editOriginal.current = cell?.raw ?? ""; }} onDoubleClick={(event) => { event.preventDefault(); editOriginal.current = cell?.raw ?? ""; setInteractionState("EDITING"); setEditingAddress(address); }} onBlur={() => { setEditingAddress(current => current === address ? null : current); if (!formulaBarFocused) setInteractionState("READY"); }} type={cell?.datePicker ? "date" : "text"} value={cell?.datePicker ? (cell.raw || "") : value} onClick={event => { if (event.shiftKey) { const anchor = parseAddress(activeCell) ?? { row, col }; setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, activeCell); } else onSelect(address, { startRow: row, startCol: col, endRow: row, endCol: col }); focusCell(row, col); }} onPointerDown={event => beginRange(row, col, event)} onChange={event => setCell(address, event.target.value)} onKeyDown={event => onKeyDown(event, row, col)} className="cell-input" style={{ textAlign: style.align ?? "left", fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textDecoration: style.underline ? "underline" : "none", whiteSpace: style.wrap ? "normal" : "nowrap", caretColor: editingAddress === address ? "auto" : "transparent" }} title={cell?.comment ?? ""} />}
               {cell?.comment && <span className="comment-mark" title={cell.comment} />}
           })}
         </tr>)}</tbody>
