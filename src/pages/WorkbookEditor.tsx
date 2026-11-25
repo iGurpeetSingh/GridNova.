@@ -287,6 +287,54 @@ export default function WorkbookEditor(){
     }
     updateSheet(sheet.id,{cells,tables:(sheet.tables??[]).map(table=>table.id===activeTable.id?{...table,range:{...table.range,endRow}}:table)});
   };
+  const insertFloatingElement=(element:Partial<FloatingElementData>)=>{
+    addElement({id:crypto.randomUUID(),type:"shape",x:145,y:90,width:element.type==="text"?280:element.type==="image"?320:170,height:element.type==="text"?120:element.type==="image"?210:110,...element});
+    setShowSaved();
+  };
+  const openSlicer=()=>{
+    if(!activeTable)return;
+    const first=activeTable.range.startCol;
+    setSlicerColumn(String(first));
+    setSlicerValues(tableColumnValues(activeTable,first,sheet.cells));
+    setSlicerOpen(true);
+  };
+  const applySlicer=()=>{
+    if(!activeTable)return;
+    const column=Number(slicerColumn),allValues=tableColumnValues(activeTable,column,sheet.cells);
+    const filters={...(activeTable.filters??{})};
+    if(slicerValues.length===allValues.length)delete filters[column];
+    else filters[column]={...(filters[column]??{}),selectedValues:slicerValues};
+    updateSheet(sheet.id,{tables:(sheet.tables??[]).map(table=>table.id===activeTable.id?{...table,filters}:table)});
+    setSlicerOpen(false);setShowSaved();
+  };
+  const importPicture=(file:File)=>{
+    if(!file.type.startsWith("image/")){window.alert("Choose an image file.");return;}
+    if(file.size>6*1024*1024){window.alert("Choose an image smaller than 6 MB.");return;}
+    const reader=new FileReader();
+    reader.onload=()=>{if(typeof reader.result==="string")insertFloatingElement({type:"image",src:reader.result,text:file.name,width:320,height:210,fill:"#ffffff",stroke:"#0F6CBD"});};
+    reader.onerror=()=>window.alert("Unable to read this picture.");
+    reader.readAsDataURL(file);
+  };
+  const createPivotTable=()=>{
+    if(!selection||selectedAddresses.length<4){window.alert("Select a source range with a category column and at least one data row to insert a PivotTable.");return;}
+    const source={startRow:Math.min(selection.startRow,selection.endRow),endRow:Math.max(selection.startRow,selection.endRow),startCol:Math.min(selection.startCol,selection.endCol),endCol:Math.max(selection.startCol,selection.endCol)};
+    if(source.endCol===source.startCol){window.alert("A PivotTable needs a category column and at least one value column.");return;}
+    const groups=new Map<string,{count:number;total:number}>();
+    for(let row=source.startRow+1;row<=source.endRow;row++){
+      const key=sheet.cells[addressOf(row,source.startCol)]?.raw?.trim()||"(blank)";
+      const raw=sheet.cells[addressOf(row,source.startCol+1)]?.raw??"";
+      const numeric=numericValue(raw,sheet.cells,sheet.tables??[],addressOf(row,source.startCol+1))??0;
+      const existing=groups.get(key)??{count:0,total:0};
+      existing.count+=1;existing.total+=numeric;groups.set(key,existing);
+    }
+    const startRow=source.startRow,startCol=source.endCol+2,endRow=startRow+groups.size+1;
+    const cells={...sheet.cells};
+    [["Row Labels","Count","Sum"],...Array.from(groups.entries()).map(([name,value])=>[name,String(value.count),String(value.total)])].forEach((row,index)=>row.forEach((raw,offset)=>{cells[addressOf(startRow+index,startCol+offset)]={raw,style:index===0?{bold:true,color:"#ffffff",backgroundColor:"#0F6CBD"}:undefined};}));
+    const name=normalizeTableName("PivotTable"+((sheet.tables?.length??0)+1));
+    const table:ExcelTableData={id:crypto.randomUUID(),name,range:{startRow,startCol,endRow,endCol:startCol+2},hasHeaders:true,showTotalRow:false,firstColumn:false,lastColumn:false,bandedRows:true,bandedColumns:false,showFilterButtons:true,styleId:"TableStyleMedium9",filters:{}};
+    updateSheet(sheet.id,{cells,tables:[...(sheet.tables??[]),table],rowCount:Math.max(sheet.rowCount,endRow+1),columnCount:Math.max(sheet.columnCount,startCol+3)});
+    selectCell(addressOf(startRow,startCol),table.range);setTab("Table Design");setShowSaved();
+  };
   const copyShareLink=async(kind:"workbook"|"range"|"table")=>{
     let section="";
     if(kind!=="workbook"){
