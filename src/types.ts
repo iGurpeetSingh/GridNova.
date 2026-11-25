@@ -47,9 +47,13 @@ export interface FloatingElementData {
   text?: string; fill?: string; stroke?: string; src?: string;
   fontSize?: number; color?: string;
 }
+export type CalculationMode = "Automatic" | "Manual";
+export type NamedRanges = Record<string,string>;
 export interface WorkbookData {
   id: string; title: string; sheets: SheetData[]; charts: FloatingChartData[];
   elements?: FloatingElementData[];
+  namedRanges?: NamedRanges;
+  calculationMode?: CalculationMode;
   createdAt: number; modifiedAt: number; orientation: "portrait" | "landscape";
 }
 export type TemplateId = "blank" | "budget" | "sales" | "project";
