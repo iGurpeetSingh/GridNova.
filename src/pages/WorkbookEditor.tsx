@@ -456,19 +456,28 @@ export default function WorkbookEditor(){
       case "share-copy-link":copyShareLink("workbook");break;
       case "share-section-link":copyShareLink("range");break;
       case "share-table-link":copyShareLink("table");break;
+      case "pivot-table":createPivotTable();break;
+      case "forms-new":window.open("https://forms.office.com", "_blank", "noopener,noreferrer");break;
+      case "forms-open":window.open("https://forms.office.com", "_blank", "noopener,noreferrer");break;
+      case "forms-field":insertFloatingElement({type:"text",text:"Form response",fontSize:14,width:240,height:64,fill:"#ffffff",stroke:"#038387"});break;
+      case "picture-device":pictureRef.current?.click();break;
+      case "picture-stock":case "picture-online":window.alert("Online and stock picture providers are not connected. Choose This Device to insert a local picture.");break;
+      case "shape-rectangle":case "shape-ellipse":case "shape-line":case "shape-arrow":insertFloatingElement({type:"shape",shape:name.slice("shape-".length) as FloatingElementData["shape"]});break;
+      case "text-box":insertFloatingElement({type:"text",text:"Type text here",fontSize:16,color:"#323130",width:280,height:110,fill:"#ffffff",stroke:"#0F6CBD"});break;
+      case "slicer":openSlicer();break;
+      case "comments-panel":setCommentsPanelOpen(true);break;
       case "chart-bar":case "chart-line":case "chart-pie":{
-        const range=selectedRangeString();const chart:FloatingChartData={id:crypto.randomUUID(),type:name.replace("chart-","") as FloatingChartData["type"],title:name==="chart-bar"?"Sales by category":name==="chart-line"?"Trend":"Distribution",range,x:Math.max(20,window.innerWidth-570),y:175,width:420,height:290};
-        addChart(chart);break;
+        const type=name.replace("chart-","") as FloatingChartData["type"];
+        const title=type==="bar"?"Sales by category":type==="line"?"Trend":"Distribution";
+        addChart({id:crypto.randomUUID(),type,title,range:selectedRangeString(),x:Math.max(20,window.innerWidth-570),y:90,width:420,height:290});break;
       }
-      case "hyperlink":{
-        const url=window.prompt("Enter hyperlink URL");if(!url)break;
-        updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:url}),raw:sheet.cells[activeCell]?.raw||url,hyperlink:(url.startsWith("http://")||url.startsWith("https://"))?url:`https://${url}`}}});break;
+      case "hyperlink":setCellDialogKind("link");break;
+      case "comment":setCellDialogKind("comment");break;
+      case "checkbox":{
+        const cells={...sheet.cells},checked=!selectedAddresses.every(address=>cells[address]?.checkbox&&cells[address]?.raw==="TRUE");
+        selectedAddresses.forEach(address=>{const old=cells[address]??{raw:""};cells[address]={...old,raw:checked?"TRUE":"FALSE",checkbox:true};});
+        updateSheet(sheet.id,{cells});break;
       }
-      case "comment":{
-        const comment=window.prompt("Add a note to this cell",sheet.cells[activeCell]?.comment??"");if(comment===null)break;
-        updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),comment}}});break;
-      }
-      case "checkbox":updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),raw:"FALSE",checkbox:true}}});break;
       case "date":updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),raw:new Date().toISOString().slice(0,10),datePicker:true,style:{...(sheet.cells[activeCell]?.style??{}),numberFormat:"Date"}}}});break;
       case "orientation-portrait":setOrientation("portrait");break;case "orientation-landscape":setOrientation("landscape");break;
       case "gridlines":updateSheet(sheet.id,{showGridlines:!sheet.showGridlines});break;case "headings":updateSheet(sheet.id,{showHeadings:!sheet.showHeadings});break;
@@ -492,6 +501,14 @@ export default function WorkbookEditor(){
       case "import":fileRef.current?.click();break;
       default:
         if(name.startsWith("table-style-")&&activeTable)updateActiveTable({styleId:name.slice("table-style-".length)});
+        else if(name.startsWith("chart-insert-")){
+          const payload=name.slice("chart-insert-"),split=payload.lastIndexOf("-"),type=payload.slice(0,split) as FloatingChartData["type"],variantIndex=Number(payload.slice(split+1));
+          const variants:Record<string,string[]>={column:["Clustered Column","Stacked Column","100% Stacked Column"],line:["Line","Line with Markers","Stacked Line"],scatter:["Scatter","Smooth Lines and Markers","Straight Lines and Markers"],pie:["2-D Pie","Doughnut","Pie of Pie"],bar:["Clustered Bar","Stacked Bar","100% Stacked Bar"],statistical:["Histogram","Pareto","Box & Whisker"],combo:["Clustered Column and Line","Stacked Column and Line"],treemap:["Treemap","Sunburst","Waterfall"]};
+          const variant=variants[type]?.[variantIndex]??"";
+          const title=type==="treemap"?variant:variant||type.charAt(0).toUpperCase()+type.slice(1);
+          const chart:FloatingChartData={id:crypto.randomUUID(),type,title,variant,range:selectedRangeString(),x:Math.max(20,window.innerWidth-570),y:90,width:440,height:300};
+          addChart(chart);
+        }
         break;
     }
     setShowSaved();
