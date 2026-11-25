@@ -70,7 +70,7 @@ function expandStructuredReferences(source: string, cells: CellMap, tables: Exce
   return output;
 }
 
-function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string, ignoreFiltered = false): Value[] {
+function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string, ignoreFiltered = false, namedRanges:Record<string,string>={}): Value[] {
   const a = parseAddress(start), b = parseAddress(end);
   if (!a || !b) throw new Error("#REF!");
   const values: Value[] = [];
@@ -78,19 +78,19 @@ function rangeValues(start: string, end: string, cells: CellMap, seen: Set<strin
     for (let c = Math.min(a.col, b.col); c <= Math.max(a.col, b.col); c++) {
       const table = ignoreFiltered ? getTableAt(tables, r, c) : undefined;
       if (table && !tableFilterPasses(table, r, cells)) continue;
-      values.push(resolve(addressOf(r, c), cells, seen, tables));
+      values.push(resolve(addressOf(r, c), cells, seen, tables, namedRanges));
     }
   }
   return values;
 }
 
-function resolve(address: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[]): Value {
+function resolve(address: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], namedRanges:Record<string,string>={}): Value {
   const key = address.toUpperCase(), cell = cells[key];
   if (!cell) return "";
   if (seen.has(key)) throw new Error("#CIRCULAR!");
   if (cell.raw.startsWith("=")) {
     const next = new Set(seen); next.add(key);
-    return evaluate(cell.raw, cells, next, tables, key);
+    return evaluate(cell.raw, cells, next, tables, key, namedRanges);
   }
   const n = Number(cell.raw);
   return cell.raw.trim() !== "" && Number.isFinite(n) ? n : cell.raw;
@@ -129,7 +129,7 @@ const criteriaMatches = (value: Value, criteria: Value): boolean => {
 
 class Parser {
   private i = 0;
-  constructor(private readonly tokens: string[], private readonly cells: CellMap, private readonly seen: Set<string>, private readonly tables: ExcelTableData[]) {}
+  constructor(private readonly tokens: string[], private readonly cells: CellMap, private readonly seen: Set<string>, private readonly tables: ExcelTableData[], private readonly namedRanges:Record<string,string>={}) {}
   private peek(): string | undefined { return this.tokens[this.i]; }
   private take(): string | undefined { return this.tokens[this.i++]; }
   private match(v: string): boolean { if (this.peek() === v) { this.i++; return true; } return false; }
@@ -167,7 +167,7 @@ class Parser {
     if (first && refPattern.test(first.toUpperCase()) && second === ":") {
       const start = this.take()!.toUpperCase(); this.take(); const end = this.take()?.toUpperCase();
       if (!end || !refPattern.test(end)) throw new Error("#REF!");
-      return rangeValues(start, end, this.cells, this.seen, this.tables, undefined, forFunction === "SUBTOTAL");
+      return rangeValues(start, end, this.cells, this.seen, this.tables, undefined, forFunction === "SUBTOTAL", this.namedRanges);
     }
     return [this.compare()];
   }
@@ -184,7 +184,7 @@ class Parser {
       if (!this.match(")")) { do { args.push(this.argument(token.toUpperCase())); } while (this.match(",")); if (!this.match(")")) throw new Error("#PARSE!"); }
       return this.call(token.toUpperCase(), args);
     }
-    if (refPattern.test(token.toUpperCase())) return resolve(token.toUpperCase(), this.cells, this.seen, this.tables);
+    if (refPattern.test(token.toUpperCase())) return resolve(token.toUpperCase(), this.cells, this.seen, this.tables, this.namedRanges);
     throw new Error("#NAME?");
   }
   private call(fn: string, args: Value[][]): Value {
@@ -268,29 +268,30 @@ function roundDirected(value: number, digits: number, direction: "up" | "down"):
   return (direction === "up" ? (scaled >= 0 ? Math.ceil(scaled) : Math.floor(scaled)) : (scaled >= 0 ? Math.floor(scaled) : Math.ceil(scaled))) / factor;
 }
 
-export function evaluate(formula: string, cells: CellMap, seen = new Set<string>(), tables: ExcelTableData[] = [], currentAddress?: string): Value {
+export function evaluate(formula: string, cells: CellMap, seen = new Set<string>(), tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): Value {
   try {
     const source = formula.startsWith("=") ? formula.slice(1) : formula;
-    const expanded = expandStructuredReferences(source, cells, tables, currentAddress);
-    return new Parser(tokenize(expanded), cells, seen, tables).parse();
+    const structured = expandStructuredReferences(source, cells, tables, currentAddress);
+    const expanded = expandNamedRanges(structured,namedRanges);
+    return new Parser(tokenize(expanded), cells, seen, tables, namedRanges).parse();
   } catch (error) {
     return error instanceof Error ? error.message : "#ERROR!";
   }
 }
-export function displayValue(raw: string, cells: CellMap, showFormula = false, tables: ExcelTableData[] = [], currentAddress?: string): string {
+export function displayValue(raw: string, cells: CellMap, showFormula = false, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): string {
   if (!raw.startsWith("=")) return raw;
-  return showFormula ? raw : String(evaluate(raw, cells, new Set(), tables, currentAddress));
+  return showFormula ? raw : String(evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges));
 }
-export function numericValue(raw: string, cells: CellMap, tables: ExcelTableData[] = [], currentAddress?: string): number | null {
-  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress) : raw;
+export function numericValue(raw: string, cells: CellMap, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): number | null {
+  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges) : raw;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
   return null;
 }
 export function recalculate(cells: CellMap): CellMap { return { ...cells }; }
-export function formatCellValue(raw: string, cells: CellMap, showFormula: boolean, style?: CellStyle, tables: ExcelTableData[] = [], currentAddress?: string): string {
+export function formatCellValue(raw: string, cells: CellMap, showFormula: boolean, style?: CellStyle, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): string {
   if (showFormula && raw.startsWith("=")) return raw;
-  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress) : raw;
+  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges) : raw;
   if (typeof value === "string" && value.startsWith("#")) return value;
   const n = typeof value === "number" ? value : (String(value).trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null);
   switch (style?.numberFormat) {
