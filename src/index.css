@@ -177,3 +177,5 @@
 .insert-icon-menu-item.is-selected{background:#F0F7F2}
 .insert-icon-menu-check{flex:0 0 auto;color:#107C41}
 @media(max-width:760px){.insert-chart-gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.insert-shape-gallery-grid{grid-template-columns:repeat(7,minmax(0,1fr))}.insert-command{padding-left:7px;padding-right:7px}}
+
+.grid-cell-image{position:absolute;inset:2px;z-index:3;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;pointer-events:none;background:transparent}
