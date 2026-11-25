@@ -84,13 +84,13 @@ export default function WorkbookEditor(){
   const updateCells=(cells:typeof sheet.cells)=>updateSheet(sheet.id,{cells});
   const copySelection=(remove=false)=>{
     const matrix:string[][]=[];const styles:(CellStyle|undefined)[][]=[];
-    if(!selection){const cell=sheet.cells[activeCell];setClipboard({cells:[[{raw:cell?.raw??"",style:cell?.style}]]});if(remove)setCell(activeCell,"");return;}
+    if(!selection){const cell=sheet.cells[activeCell];setClipboard({cells:[[{raw:cell?.raw??"",style:cell?.style}]],source:activeCell});if(remove)setCell(activeCell,"");return;}
     for(let r=Math.min(selection.startRow,selection.endRow);r<=Math.max(selection.startRow,selection.endRow);r++){
       const row:string[]=[],styleRow:(CellStyle|undefined)[]=[];
       for(let c=Math.min(selection.startCol,selection.endCol);c<=Math.max(selection.startCol,selection.endCol);c++){const cell=sheet.cells[addressOf(r,c)];row.push(cell?.raw??"");styleRow.push(cell?.style);}
       matrix.push(row);styles.push(styleRow);
     }
-    setClipboard({cells:matrix.map((row,r)=>row.map((raw,c)=>({raw,style:styles[r][c]})))});
+    setClipboard({cells:matrix.map((row,r)=>row.map((raw,c)=>({raw,style:styles[r][c]}))),source:addressOf(Math.min(selection.startRow,selection.endRow),Math.min(selection.startCol,selection.endCol))});
     if(remove){const cells={...sheet.cells};selectedAddresses.forEach(a=>{cells[a]={raw:""}});updateCells(cells);}
   };
   const shiftRowsCols=(axis:"row"|"column",index:number,mode:"insert"|"delete")=>{
