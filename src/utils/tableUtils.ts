@@ -40,7 +40,7 @@ export function getTableColumnIndex(table: ExcelTableData, label: string, cells:
   return -1;
 }
 export function tableFilterPasses(table: ExcelTableData, row: number, cells: CellMap): boolean {
-  if (row <= table.range.startRow || row > table.range.endRow) return true;
+  if ((table.hasHeaders ? row <= table.range.startRow : row < table.range.startRow) || row > table.range.endRow) return true;
   for (const [columnKey, filter] of Object.entries(table.filters ?? {})) {
     const col = Number(columnKey), raw = cells[addressOf(row, col)]?.raw ?? "";
     if (filter.selectedValues && !filter.selectedValues.includes(raw)) return false;
@@ -69,7 +69,7 @@ function matchesCondition(raw: string, condition: NonNullable<TableFilterState["
 }
 export function tableColumnValues(table: ExcelTableData, column: number, cells: CellMap): string[] {
   const values = new Set<string>();
-  for (let row = table.range.startRow + 1; row <= table.range.endRow; row++) {
+  for (let row = table.range.startRow + (table.hasHeaders ? 1 : 0); row <= table.range.endRow; row++) {
     values.add(cells[addressOf(row, column)]?.raw ?? "");
   }
   return [...values].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
@@ -81,7 +81,7 @@ export function tableReferenceRange(table: ExcelTableData, selector: string | un
     const total = endRow + (table.showTotalRow ? 1 : 0);
     return { startRow: total, endRow: total, startCol: table.range.startCol, endCol: table.range.endCol };
   }
-  if (selector === "#Data") return { startRow: startRow + 1, endRow, startCol: table.range.startCol, endCol: table.range.endCol };
+  if (selector === "#Data") return { startRow: startRow + (table.hasHeaders ? 1 : 0), endRow, startCol: table.range.startCol, endCol: table.range.endCol };
   return { startRow: startRow, endRow: endRow + (table.showTotalRow ? 1 : 0), startCol: table.range.startCol, endCol: table.range.endCol };
 }
 export function normalizeTableName(value: string): string {
