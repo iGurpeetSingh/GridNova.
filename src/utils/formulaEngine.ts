@@ -70,6 +70,35 @@ function expandStructuredReferences(source: string, cells: CellMap, tables: Exce
   return output;
 }
 
+function expandNamedRanges(source:string,namedRanges:Record<string,string>={}):string {
+  const lookup=new Map(Object.entries(namedRanges).map(([name,ref])=>[name.toUpperCase(),ref]));
+  if(!lookup.size)return source;
+  let output="",i=0;
+  while(i<source.length){
+    if(source[i]==='"'){
+      const start=i++;
+      while(i<source.length){
+        if(source[i]==='"'&&source[i+1]==='"'){i+=2;continue;}
+        if(source[i++]==='"')break;
+      }
+      output+=source.slice(start,i);
+      continue;
+    }
+    const match=source.slice(i).match(/^[A-Za-z_][A-Za-z0-9_.]*/);
+    if(match){
+      const replacement=lookup.get(match[0].toUpperCase());
+      if(replacement){
+        const localRef=replacement.trim().replace(/^=/,"").split("!").pop()?.replace(/\$/g,"")??"";
+        output+=/^[A-Z]{1,3}[1-9]\d*(?::[A-Z]{1,3}[1-9]\d*)?$/i.test(localRef)?localRef.toUpperCase():match[0];
+      }else output+=match[0];
+      i+=match[0].length;
+      continue;
+    }
+    output+=source[i++];
+  }
+  return output;
+}
+
 function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string, ignoreFiltered = false, namedRanges:Record<string,string>={}): Value[] {
   const a = parseAddress(start), b = parseAddress(end);
   if (!a || !b) throw new Error("#REF!");
