@@ -9,6 +9,7 @@ interface Store {
   showFormulas: boolean; zoom: number; undoStack: WorkbookData[][]; redoStack: WorkbookData[][];
   createWorkbook: (template?: TemplateId) => string; deleteWorkbook: (id: string) => void;
   duplicateWorkbook: (id: string) => string | null; renameWorkbook: (id: string, title: string) => void;
+  updateWorkbook: (id: string, changes: Partial<WorkbookData>) => void;
   setActiveWorkbook: (id: string | null) => void; setActiveSheet: (id: string) => void;
   addSheet: () => void; renameSheet: (id: string, name: string) => void; deleteSheet: (id: string) => void;
   setCell: (address: string, raw: string) => void; setStyle: (style: Partial<CellStyle>, addresses?: string[]) => void;
@@ -69,6 +70,7 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
     set(s => ({ workbooks: [copy, ...s.workbooks] })); return copy.id;
   },
   renameWorkbook: (id,title) => set(s => ({ workbooks: s.workbooks.map(w => w.id === id ? { ...w,title: title.trim() || w.title,modifiedAt:Date.now() } : w) })),
+  updateWorkbook: (id,changes) => set(s => ({ workbooks:s.workbooks.map(w=>w.id===id?{...w,...changes,modifiedAt:Date.now()}:w) })),
   setActiveWorkbook: id => set(s => { const w = s.workbooks.find(x => x.id === id); return { activeWorkbookId:id, activeSheetId:w?.sheets[0]?.id ?? null, activeCell:"A1",selection:null }; }),
   setActiveSheet: id => set({ activeSheetId:id,activeCell:"A1",selection:null }),
   addSheet: () => set(s => {
