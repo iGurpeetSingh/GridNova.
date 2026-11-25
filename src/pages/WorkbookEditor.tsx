@@ -502,7 +502,7 @@ export default function WorkbookEditor(){
       default:
         if(name.startsWith("table-style-")&&activeTable)updateActiveTable({styleId:name.slice("table-style-".length)});
         else if(name.startsWith("chart-insert-")){
-          const payload=name.slice("chart-insert-"),split=payload.lastIndexOf("-"),type=payload.slice(0,split) as FloatingChartData["type"],variantIndex=Number(payload.slice(split+1));
+          const payload=name.slice("chart-insert-".length),split=payload.lastIndexOf("-"),type=payload.slice(0,split) as FloatingChartData["type"],variantIndex=Number(payload.slice(split+1));
           const variants:Record<string,string[]>={column:["Clustered Column","Stacked Column","100% Stacked Column"],line:["Line","Line with Markers","Stacked Line"],scatter:["Scatter","Smooth Lines and Markers","Straight Lines and Markers"],pie:["2-D Pie","Doughnut","Pie of Pie"],bar:["Clustered Bar","Stacked Bar","100% Stacked Bar"],statistical:["Histogram","Pareto","Box & Whisker"],combo:["Clustered Column and Line","Stacked Column and Line"],treemap:["Treemap","Sunburst","Waterfall"]};
           const variant=variants[type]?.[variantIndex]??"";
           const title=type==="treemap"?variant:variant||type.charAt(0).toUpperCase()+type.slice(1);
