@@ -136,8 +136,8 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
           const numbers = sequence.map(Number), numeric = sequence.every(value => value.trim() !== "" && Number.isFinite(Number(value)));
           const step = sourceLength > 1 && numeric ? numbers[numbers.length - 1] - numbers[numbers.length - 2] : 1;
           const base = sequence[baseIndex] ?? raw, suffix = base.match(/^(.*?)(\d+)$/);
-          const monthSeries = sourceLength > 1 && monthNames.includes(sequence.at(-1)?.toLowerCase().slice(0, 3) ?? "") ? monthNames : null;
-          const weekSeries = sourceLength > 1 && weekNames.includes(sequence.at(-1)?.toLowerCase().slice(0, 3) ?? "") ? weekNames : null;
+          const monthSeries = monthNames.includes(base.toLowerCase().slice(0, 3)) ? monthNames : null;
+          const weekSeries = weekNames.includes(base.toLowerCase().slice(0, 3)) ? weekNames : null;
           if (raw.startsWith("=")) raw = shiftFormulaReferences(raw, row - sourceRow, col - sourceCol);
           else if (numeric && (sourceLength > 1 || useSeriesModifier)) raw = String(Number(base) + step * sign * (offset + 1));
           else if (monthSeries || weekSeries) {
@@ -167,9 +167,23 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     const coordinate = vertical ? (before ? destination.startRow : destination.endRow) : (before ? destination.startCol : destination.endCol);
     const boundary = vertical ? (before ? original.startRow : original.endRow) : (before ? original.startCol : original.endCol);
     const offset = Math.max(0, Math.abs(coordinate - boundary) - 1), numbers = sequence.map(Number);
+    const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+    const weekdays = ["sun","mon","tue","wed","thu","fri","sat"];
+    const monthSeries = months.includes(base.toLowerCase().slice(0, 3)) ? months : null;
+    const weekSeries = weekdays.includes(base.toLowerCase().slice(0, 3)) ? weekdays : null;
     if (sequence.every(value => value.trim() !== "" && Number.isFinite(Number(value))) && (sourceLength > 1 || fillModifier.current)) {
       const step = sourceLength > 1 ? numbers.at(-1)! - numbers.at(-2)! : 1;
       return String(Number(base) + step * (before ? -1 : 1) * (offset + 1));
+    }
+    if (monthSeries || weekSeries) {
+      const series = monthSeries ?? weekSeries!, index = series.indexOf(base.toLowerCase().slice(0, 3));
+      const item = series[((index + (before ? -1 : 1) * (offset + 1)) % series.length + series.length) % series.length];
+      return base.replace(/^([A-Za-z]{3})/i, item[0].toUpperCase() + item.slice(1));
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(base)) {
+      const date = new Date(`${base}T00:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + (before ? -1 : 1) * (offset + 1));
+      return date.toISOString().slice(0, 10);
     }
     const suffix = base.match(/^(.*?)(\d+)$/);
     return suffix ? `${suffix[1]}${Number(suffix[2]) + (before ? -1 : 1) * (offset + 1)}` : base;
