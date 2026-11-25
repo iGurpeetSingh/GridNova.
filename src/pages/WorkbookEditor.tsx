@@ -62,7 +62,7 @@ export default function WorkbookEditor(){
   const undo=useWorkbookStore(s=>s.undo);const redo=useWorkbookStore(s=>s.redo);
   const setShowFormulas=useWorkbookStore(s=>s.setShowFormulas);const setZoom=useWorkbookStore(s=>s.setZoom);
   const setOrientation=useWorkbookStore(s=>s.setOrientation);
-  const [tab,setTab]=useState<Tab>("Home");const [formulaValue,setFormulaValue]=useState("");
+  const [tab,setTab]=useState<Tab>("Insert");const [formulaValue,setFormulaValue]=useState("");
   const [formulaBarFocused,setFormulaBarFocused]=useState(false);
   const [shareOpen,setShareOpen]=useState(false);const [renaming,setRenaming]=useState(false);const [titleValue,setTitleValue]=useState("");
   const [tableDialogOpen,setTableDialogOpen]=useState(false);
