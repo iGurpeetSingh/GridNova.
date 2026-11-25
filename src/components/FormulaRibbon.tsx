@@ -1,7 +1,7 @@
 import { useState,type ReactNode } from "react";
 import {
-  Calculator,CalendarClock,Check,ChevronDown,Ellipsis,Eye,FileSpreadsheet,FunctionSquare,Hash, Info,
-  Search,Sheet, Sigma,Tag,Text, X
+  Calculator,CalendarClock,Check,ChevronDown,Ellipsis,Eye,FileSpreadsheet,
+  Search,Sigma,Tag
 } from "lucide-react";
 import { HomeMenu } from "./HomeRibbonControls";
 type CalculationMode="Automatic"|"Manual";
@@ -96,7 +96,7 @@ export default function FormulaRibbon({onAction,showFormulas,setShowFormulas,cal
  const [open,setOpen]=useState<string|null>(null),toggle=(key:string)=>setOpen(value=>value===key?null:key),close=()=>setOpen(null);
  const functionMenu=(category:string)=>{
   const items=functions[category]??[];
-  return items.map(fn=>({label:fn.name,description:fn.syntax,icon:<span className="formula-menu-fx">fx</span>,action:`formula-insert:${fn.name}`}));
+  return items.map(fn=>({label:fn.name,description:fn.syntax,icon:<span className="formula-menu-fx">fx</span>,action:category==="AutoSum"&&fn.name==="SUM"?"autosum":`formula-insert:${fn.name}`}));
  };
  const menu=(key:string,label:string,items:Parameters<typeof HomeMenu>[0]["items"],children:ReactNode)=>
   <HomeMenu label={label} open={open===key} onToggle={()=>toggle(key)} onClose={close} onAction={onAction} items={items} buttonClassName="formula-large-menu-trigger" className="formula-ribbon-menu">{children}</HomeMenu>;
