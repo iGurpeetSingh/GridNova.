@@ -7,7 +7,7 @@ export interface CellStyle {
   border?: "all" | "outer" | "none"; borderColor?: string;
   borderTop?: string; borderRight?: string; borderBottom?: string; borderLeft?: string;
 }
-export interface CellData { raw: string; style?: CellStyle; comment?: string; hyperlink?: string; checkbox?: boolean; datePicker?: boolean; mergeRows?: number; mergeCols?: number; mergedInto?: string; mergeBackup?: Record<string, CellData>; }
+export interface CellData { raw: string; style?: CellStyle; comment?: string; hyperlink?: string; image?: string; checkbox?: boolean; datePicker?: boolean; mergeRows?: number; mergeCols?: number; mergedInto?: string; mergeBackup?: Record<string, CellData>; }
 export type CellMap = Record<string, CellData>;
 export interface TableFilterState {
   selectedValues?: string[];
@@ -41,7 +41,7 @@ export interface FloatingChartData {
 export interface FloatingElementData {
   id: string;
   type: "shape" | "image" | "text";
-  shape?: "rectangle" | "ellipse" | "line" | "arrow";
+  shape?: "rectangle" | "ellipse" | "line" | "arrow" | "line-arrow" | "double-arrow" | "elbow-connector" | "curved-line" | "rounded-rectangle" | "snip-single-corner" | "triangle" | "right-triangle" | "diamond" | "pentagon" | "hexagon" | "star" | "heart" | "plus-cross" | "right-arrow" | "left-arrow" | "up-arrow" | "down-arrow" | "left-right-arrow" | "rect-callout" | "rounded-rect-callout" | "oval-callout" | "cloud-callout";
   x: number; y: number; width: number; height: number;
   text?: string; fill?: string; stroke?: string; src?: string;
   fontSize?: number; color?: string;
