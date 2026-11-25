@@ -1,9 +1,13 @@
-import { FunctionSquare } from "lucide-react";
+import { ChevronDown, FunctionSquare } from "lucide-react";
 interface Props { address:string; value:string; onChange:(v:string)=>void; onCommit:()=>void; }
 export default function FormulaBar({address,value,onChange,onCommit}:Props){
-  return <div className="flex h-11 shrink-0 items-center gap-3 border-b border-[#e6ece8] bg-[#fbfcfb] px-3">
-    <div className="flex h-7 w-[66px] shrink-0 items-center justify-center rounded-md border border-[#dfe7e1] bg-white text-xs font-semibold text-[#43564a]">{address}</div>
-    <div className="flex items-center gap-1.5 text-[#799184]"><FunctionSquare size={17}/><span className="text-[11px] font-bold italic">fx</span></div>
-    <input aria-label="Formula bar" value={value} onChange={e=>onChange(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onCommit();}}} className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-sm text-[#26382d] outline-none focus:border-[#a9d4b8] focus:bg-white"/>
+  return <div className="formula-bar no-print">
+    <button type="button" className="formula-name-box" aria-label="Name box" title="Name box">{address}<ChevronDown size={11}/></button>
+    <span className="formula-divider" aria-hidden="true"/>
+    <button type="button" className="formula-control formula-cancel" title="Cancel" aria-label="Cancel" onClick={()=>onChange("")}>×</button>
+    <button type="button" className="formula-control formula-enter" title="Enter" aria-label="Enter" onClick={onCommit}>✓</button>
+    <button type="button" className="formula-fx" title="Insert Function" aria-label="Insert Function"><FunctionSquare size={15}/><i>fx</i></button>
+    <input aria-label="Formula bar input" value={value} onChange={e=>onChange(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.nativeEvent.isComposing&&e.keyCode!==229)onCommit();}} className="formula-input"/>
+    <button type="button" className="formula-expand" title="Expand formula bar" aria-label="Expand formula bar"><ChevronDown size={12}/></button>
   </div>;
 }
