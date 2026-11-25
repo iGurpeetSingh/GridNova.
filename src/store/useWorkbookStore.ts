@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingChartData, SheetData, TemplateId, WorkbookData } from "../types";
-import { addressOf, emptySheet, emptyWorkbook, parseAddress } from "../types";
+import { addressOf, columnLabel, emptySheet, emptyWorkbook, parseAddress } from "../types";
 
 interface Store {
   workbooks: WorkbookData[]; activeWorkbookId: string | null; activeSheetId: string | null;
@@ -96,9 +96,14 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
   setClipboard: clipboard => set({clipboard}),
   paste: target => set(s=>{
     const sh=activeSheet(s), clip=s.clipboard, start=parseAddress(target); if(!sh||!clip||!start)return {};
+    const source=parseAddress(clip.source??target), rowDelta=start.row-(source?.row??start.row), colDelta=start.col-(source?.col??start.col);
+    const shiftFormula=(raw:string)=>raw.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g,(match,colLock:string,letters:string,rowLock:string,digits:string)=>{
+      const position=parseAddress(`${letters}${digits}`);if(!position)return match;
+      return `${colLock?"$"+letters:columnLabel(position.col+colDelta)}${rowLock?"$"+digits:position.row+rowDelta+1}`;
+    });
     return mutateActive(s,(w,ss)=>{
       const cells={...ss.cells};
-      clip.cells.forEach((row,ri)=>row.forEach((item,ci)=>{const addr=addressOf(start.row+ri,start.col+ci);cells[addr]={raw:item.raw,style:item.style?{...item.style}:undefined};}));
+      clip.cells.forEach((row,ri)=>row.forEach((item,ci)=>{const addr=addressOf(start.row+ri,start.col+ci),raw=item.raw.startsWith("=")?shiftFormula(item.raw):item.raw;cells[addr]={raw,style:item.style?{...item.style}:undefined};}));
       return {...w,sheets:w.sheets.map(x=>x.id===ss.id?{...x,cells,rowCount:Math.max(x.rowCount,start.row+clip.cells.length),columnCount:Math.max(x.columnCount,start.col+(clip.cells[0]?.length??1))}:x)};
     });
   }),

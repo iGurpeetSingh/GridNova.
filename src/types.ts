@@ -10,7 +10,7 @@ export interface CellData { raw: string; style?: CellStyle; comment?: string; hy
 export type CellMap = Record<string, CellData>;
 export interface SheetData {
   id: string; name: string; cells: CellMap; rowCount: number; columnCount: number;
-  columnWidths: Record<number, number>; showGridlines: boolean; showHeadings: boolean;
+  columnWidths: Record<number, number>; rowHeights?: Record<number, number>; showGridlines: boolean; showHeadings: boolean;
   freezeTopRow: boolean; filters: boolean;
 }
 export interface FloatingChartData {
@@ -24,7 +24,7 @@ export interface WorkbookData {
 export type TemplateId = "blank" | "budget" | "sales" | "project";
 export interface CellRange { startRow: number; startCol: number; endRow: number; endCol: number; }
 export interface ClipboardCell { raw: string; style?: CellStyle; }
-export interface ClipboardData { cells: ClipboardCell[][]; }
+export interface ClipboardData { cells: ClipboardCell[][]; source?: string; }
 export const DEFAULT_ROWS = 100;
 export const DEFAULT_COLUMNS = 26;
 export const DEFAULT_STYLE: CellStyle = {
