@@ -170,7 +170,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
         </div>
       </div>
       {!collapsed&&<div className="ribbon-scroll flex items-stretch">{content()}</div>}
-      <button type="button" className="ribbon-collapse-button" aria-label={collapsed?"Expand ribbon":"Collapse ribbon"} title={collapsed?"Expand ribbon":"Collapse ribbon"} onMouseDown={e=>e.preventDefault()} onClick={()=>setCollapsed(value=>!value)}>{collapsed?<ChevronDown size={13}/>:<ChevronDown size={13}/>}</button>
+      <button type="button" className="ribbon-collapse-button" aria-label={collapsed?"Expand ribbon":"Collapse ribbon"} title={collapsed?"Expand ribbon":"Collapse ribbon"} onMouseDown={e=>e.preventDefault()} onClick={()=>setCollapsed(value=>!value)}>{collapsed?<ChevronDown size={13}/>:<ChevronUp size={13}/>}</button>
     </div>
   </div>;
 }
