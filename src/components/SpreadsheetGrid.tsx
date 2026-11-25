@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import { ExternalLink, Filter, Plus } from "lucide-react";
+import { ExternalLink, Filter, Plus, Search } from "lucide-react";
 import type { CellRange, CellStyle, SheetData, TableFilterState } from "../types";
 import { addressOf, columnLabel, parseAddress } from "../types";
 import { formatCellValue } from "../utils/formulaEngine";
