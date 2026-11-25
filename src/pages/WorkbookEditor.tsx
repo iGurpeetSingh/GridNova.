@@ -11,6 +11,7 @@ import TableRangeDialog from "../components/TableRangeDialog";
 import FormulaLibraryDialog from "../components/FormulaLibraryDialog";
 import CellInsertDialog from "../components/CellInsertDialog";
 import FloatingElement from "../components/FloatingElement";
+import CellImageOverlays from "../components/CellImageOverlays";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData } from "../types";
 import { addressOf, parseAddress } from "../types";
@@ -570,6 +571,7 @@ export default function WorkbookEditor(){
     <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} formulaBarFocused={formulaBarFocused} onSelect={selectCell}/>
+      <CellImageOverlays sheet={sheet}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
       {(workbook.elements??[]).map(element=><FloatingElement key={element.id} element={element} onUpdate={updateElement} onDelete={deleteElement}/>)}
       <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void importFile(f)}}/>
