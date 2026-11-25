@@ -162,7 +162,18 @@ export default function WorkbookEditor(){
       const next=mode==="insert"&&pos>=index?pos+1:mode==="delete"&&pos>index?pos-1:pos;
       cells[axis==="row"?addressOf(next,p.col):addressOf(p.row,next)]=cell;
     });
-    updateSheet(sheet.id,{cells,rowCount:axis==="row"?Math.max(1,sheet.rowCount+(mode==="insert"?1:-1)):sheet.rowCount,columnCount:axis==="column"?Math.max(1,sheet.columnCount+(mode==="insert"?1:-1)):sheet.columnCount});
+    const tables=(sheet.tables??[]).flatMap(table=>{
+      let start=axis==="row"?table.range.startRow:table.range.startCol,end=axis==="row"?table.range.endRow:table.range.endCol;
+      if(mode==="insert"){
+        if(index<=start){start++;end++;}
+        else if(index<=end+1)end++;
+      }else{
+        if(index<start){start--;end--;}
+        else if(index<=end){if(index===start)return[];end--;if(end<start)return[];}
+      }
+      return [{...table,range:axis==="row"?{...table.range,startRow:start,endRow:end}:{...table.range,startCol:start,endCol:end}}];
+    });
+    updateSheet(sheet.id,{cells,tables,rowCount:axis==="row"?Math.max(1,sheet.rowCount+(mode==="insert"?1:-1)):sheet.rowCount,columnCount:axis==="column"?Math.max(1,sheet.columnCount+(mode==="insert"?1:-1)):sheet.columnCount});
   };
   const sortData=(descending:boolean)=>{
     const p=parseAddress(activeCell);if(!p)return;
@@ -170,7 +181,7 @@ export default function WorkbookEditor(){
     const rows=Array.from({length:Math.max(0,sheet.rowCount-1)},(_,i)=>i+1);
     rows.sort((a,b)=>{
       const av=sheet.cells[addressOf(a,p.col)]?.raw??"",bv=sheet.cells[addressOf(b,p.col)]?.raw??"";
-      const an=numericValue(av,sheet.cells),bn=numericValue(bv,sheet.cells);
+      const an=numericValue(av,sheet.cells,sheet.tables??[],addressOf(a,p.col)),bn=numericValue(bv,sheet.cells,sheet.tables??[],addressOf(b,p.col));
       const cmp=an!==null&&bn!==null?an-bn:av.localeCompare(bv,undefined,{numeric:true,sensitivity:"base"});
       return descending?-cmp:cmp;
     });
