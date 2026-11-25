@@ -11,12 +11,12 @@ export interface HomeMenuItem {
   disabled?:boolean;
   onSelect?:()=>void;
 }
-export function HomeMenu({label,children,items,open,onToggle,onClose,onAction,className="home-menu-panel",align="left"}:{
-  label:string;children:ReactNode;items:HomeMenuItem[];open:boolean;onToggle:()=>void;onClose:()=>void;onAction:(action:string)=>void;className?:string;align?:"left"|"right";
+export function HomeMenu({label,children,items,open,onToggle,onClose,onAction,className="home-menu-panel",align="left",buttonClassName="home-menu-trigger"}:{
+  label:string;children:ReactNode;items:HomeMenuItem[];open:boolean;onToggle:()=>void;onClose:()=>void;onAction:(action:string)=>void;className?:string;align?:"left"|"right";buttonClassName?:string;
 }){
   const anchor=useRef<HTMLButtonElement>(null);
   return <div className="home-menu-wrap">
-    <button ref={anchor} type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} className="home-menu-trigger" onMouseDown={event=>event.preventDefault()} onClick={onToggle}>{children}</button>
+    <button ref={anchor} type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} className={buttonClassName} onMouseDown={event=>event.preventDefault()} onClick={onToggle}>{children}</button>
     <FloatingPortal open={open} anchorRef={anchor} onClose={onClose} role="menu" ariaLabel={label} align={align} className={className}>
       {items.map((item,index)=><div key={item.label+index} className={item.dividerBefore?"home-menu-item-divider":""}>
         <button type="button" role="menuitem" disabled={item.disabled} className="home-menu-item" onMouseDown={event=>event.preventDefault()} onClick={()=>{if(item.onSelect)item.onSelect();else if(item.action)onAction(item.action);onClose();}}>
@@ -40,9 +40,9 @@ export function HomeColorMenu({kind,current,children,open,onToggle,onClose,onFor
     </FloatingPortal>
   </div>;
 }
-export function HomeSelectMenu({label,value,options,open,onToggle,onClose,onPick,icon}:{label:string;value:string;options:string[];open:boolean;onToggle:()=>void;onClose:()=>void;onPick:(value:string)=>void;icon:ReactNode}){
+export function HomeSelectMenu({label,value,options,open,onToggle,onClose,onPick,icon}:{label:string;value:string;options:string[];open:boolean;onToggle:()=>void;onClose:()=>void;onPick:(value:string)=>void;icon:ReactNode;buttonClassName?:string}){
   const anchor=useRef<HTMLButtonElement>(null);
-  return <div className="home-menu-wrap"><button ref={anchor} type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} className="home-select-trigger" onMouseDown={event=>event.preventDefault()} onClick={onToggle}><span>{value}</span><ChevronDown size={11}/></button>
+  return <div className="home-menu-wrap"><button ref={anchor} type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} className={buttonClassName} onMouseDown={event=>event.preventDefault()} onClick={onToggle}><span>{value}</span><ChevronDown size={11}/></button>
     <FloatingPortal open={open} anchorRef={anchor} onClose={onClose} role="menu" ariaLabel={label} className="home-select-menu">
       {options.map(option=><button key={option} type="button" role="menuitemradio" aria-checked={value===option} className={`home-select-item ${value===option?"is-selected":""}`} onMouseDown={event=>event.preventDefault()} onClick={()=>{onPick(option);onClose();}}><span className="home-select-item-icon">{icon}</span><span>{option}</span>{value===option&&<Check size={13}/>}</button>)}
     </FloatingPortal>
