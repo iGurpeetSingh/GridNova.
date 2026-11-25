@@ -82,6 +82,31 @@ export default function WorkbookEditor(){
     return `${addressOf(selection.startRow,selection.startCol)}:${addressOf(selection.endRow,selection.endCol)}`;
   };
   const updateCells=(cells:typeof sheet.cells)=>updateSheet(sheet.id,{cells});
+  const applyCellFormat=(style:Partial<CellStyle>)=>{
+    if(style.border==="outer"){
+      const startRow=selection?Math.min(selection.startRow,selection.endRow):parseAddress(activeCell)?.row??0;
+      const endRow=selection?Math.max(selection.startRow,selection.endRow):startRow;
+      const startCol=selection?Math.min(selection.startCol,selection.endCol):parseAddress(activeCell)?.col??0;
+      const endCol=selection?Math.max(selection.startCol,selection.endCol):startCol;
+      const cells={...sheet.cells},border=`1px solid ${style.borderColor??"#64748b"}`;
+      selectedAddresses.forEach(address=>{
+        const pos=parseAddress(address);if(!pos)return;
+        const cell=cells[address]??{raw:""},nextStyle={...(cell.style??{})};delete nextStyle.border;
+        if(pos.row===startRow)nextStyle.borderTop=border;
+        if(pos.row===endRow)nextStyle.borderBottom=border;
+        if(pos.col===startCol)nextStyle.borderLeft=border;
+        if(pos.col===endCol)nextStyle.borderRight=border;
+        cells[address]={...cell,style:nextStyle};
+      });
+      updateCells(cells);return;
+    }
+    if(style.border==="all")setStyle({...style,borderColor:style.borderColor??"#64748b"},selectedAddresses);
+    else if(style.border==="none"){
+      const cells={...sheet.cells};
+      selectedAddresses.forEach(address=>{const cell=cells[address]??{raw:""},nextStyle={...(cell.style??{})};delete nextStyle.borderTop;delete nextStyle.borderRight;delete nextStyle.borderBottom;delete nextStyle.borderLeft;nextStyle.border="none";cells[address]={...cell,style:nextStyle};});
+      updateCells(cells);
+    }else setStyle(style,selectedAddresses);
+  };
   const copySelection=(remove=false)=>{
     const matrix:string[][]=[];const styles:(CellStyle|undefined)[][]=[];
     if(!selection){const cell=sheet.cells[activeCell];setClipboard({cells:[[{raw:cell?.raw??"",style:cell?.style}]],source:activeCell});if(remove)setCell(activeCell,"");return;}
@@ -249,7 +274,7 @@ export default function WorkbookEditor(){
       <div className="hidden items-center gap-1.5 rounded-full bg-[#edf8f0] px-3 py-1.5 text-[10px] font-semibold text-[#16864b] sm:flex">{savePulse?<Check size={12}/>:<Cloud size={12}/>} {savePulse?"Saved just now":"Saved locally"}</div>
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
-    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={style=>setStyle(style,selectedAddresses)} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation}/>
+    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation}/>
     <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} onSelect={selectCell}/>

@@ -4,14 +4,15 @@ export interface CellStyle {
   fontFamily?: string; fontSize?: number; bold?: boolean; italic?: boolean;
   underline?: boolean; strike?: boolean; color?: string; backgroundColor?: string;
   align?: Align; wrap?: boolean; numberFormat?: NumberFormat; decimalPlaces?: number;
-  border?: "all" | "outer" | "none";
+  border?: "all" | "outer" | "none"; borderColor?: string;
+  borderTop?: string; borderRight?: string; borderBottom?: string; borderLeft?: string;
 }
 export interface CellData { raw: string; style?: CellStyle; comment?: string; hyperlink?: string; checkbox?: boolean; datePicker?: boolean; mergeRows?: number; mergeCols?: number; mergedInto?: string; mergeBackup?: Record<string, CellData>; }
 export type CellMap = Record<string, CellData>;
 export interface SheetData {
   id: string; name: string; cells: CellMap; rowCount: number; columnCount: number;
   columnWidths: Record<number, number>; rowHeights?: Record<number, number>; showGridlines: boolean; showHeadings: boolean;
-  freezeTopRow: boolean; filters: boolean;
+  freezeTopRow: boolean; filters: boolean; hiddenRows?: number[]; hiddenColumns?: number[];
 }
 export interface FloatingChartData {
   id: string; type: "bar" | "line" | "pie"; title: string; range: string;
