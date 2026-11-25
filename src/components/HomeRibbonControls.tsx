@@ -40,7 +40,7 @@ export function HomeColorMenu({kind,current,children,open,onToggle,onClose,onFor
     </FloatingPortal>
   </div>;
 }
-export function HomeSelectMenu({label,value,options,open,onToggle,onClose,onPick,icon}:{label:string;value:string;options:string[];open:boolean;onToggle:()=>void;onClose:()=>void;onPick:(value:string)=>void;icon:ReactNode;buttonClassName?:string}){
+export function HomeSelectMenu({label,value,options,open,onToggle,onClose,onPick,icon,buttonClassName="home-select-trigger"}:{label:string;value:string;options:string[];open:boolean;onToggle:()=>void;onClose:()=>void;onPick:(value:string)=>void;icon:ReactNode;buttonClassName?:string}){
   const anchor=useRef<HTMLButtonElement>(null);
   return <div className="home-menu-wrap"><button ref={anchor} type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} className={buttonClassName} onMouseDown={event=>event.preventDefault()} onClick={onToggle}><span>{value}</span><ChevronDown size={11}/></button>
     <FloatingPortal open={open} anchorRef={anchor} onClose={onClose} role="menu" ariaLabel={label} className="home-select-menu">
