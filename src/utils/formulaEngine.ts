@@ -1,6 +1,6 @@
 import type { CellMap, CellStyle, ExcelTableData } from "../types";
 import { addressOf, parseAddress } from "../types";
-import { getTableAt, getTableColumnIndex, tableReferenceRange } from "./tableUtils";
+import { getTableAt, getTableColumnIndex, tableFilterPasses, tableReferenceRange } from "./tableUtils";
 
 type Value = string | number | boolean;
 const refPattern = /^[A-Z]{1,3}[1-9]\d*$/;
@@ -70,12 +70,14 @@ function expandStructuredReferences(source: string, cells: CellMap, tables: Exce
   return output;
 }
 
-function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string): Value[] {
+function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string, ignoreFiltered = false): Value[] {
   const a = parseAddress(start), b = parseAddress(end);
   if (!a || !b) throw new Error("#REF!");
   const values: Value[] = [];
   for (let r = Math.min(a.row, b.row); r <= Math.max(a.row, b.row); r++) {
     for (let c = Math.min(a.col, b.col); c <= Math.max(a.col, b.col); c++) {
+      const table = ignoreFiltered ? getTableAt(tables, r, c) : undefined;
+      if (table && !tableFilterPasses(table, r, cells)) continue;
       values.push(resolve(addressOf(r, c), cells, seen, tables));
     }
   }
@@ -160,12 +162,12 @@ class Parser {
   }
   private power(): Value { let a = this.unary(); while (this.match("^")) a = Math.pow(number(a), number(this.unary())); return a; }
   private unary(): Value { if (this.match("-")) return -number(this.unary()); if (this.match("+")) return number(this.unary()); return this.primary(); }
-  private argument(): Value[] {
+  private argument(forFunction?: string): Value[] {
     const first = this.peek(), second = this.tokens[this.i + 1];
     if (first && refPattern.test(first.toUpperCase()) && second === ":") {
       const start = this.take()!.toUpperCase(); this.take(); const end = this.take()?.toUpperCase();
       if (!end || !refPattern.test(end)) throw new Error("#REF!");
-      return rangeValues(start, end, this.cells, this.seen, this.tables);
+      return rangeValues(start, end, this.cells, this.seen, this.tables, undefined, forFunction === "SUBTOTAL");
     }
     return [this.compare()];
   }
@@ -179,7 +181,7 @@ class Parser {
     if (token.toUpperCase() === "FALSE") return false;
     if (this.match("(")) {
       const args: Value[][] = [];
-      if (!this.match(")")) { do { args.push(this.argument()); } while (this.match(",")); if (!this.match(")")) throw new Error("#PARSE!"); }
+      if (!this.match(")")) { do { args.push(this.argument(token.toUpperCase())); } while (this.match(",")); if (!this.match(")")) throw new Error("#PARSE!"); }
       return this.call(token.toUpperCase(), args);
     }
     if (refPattern.test(token.toUpperCase())) return resolve(token.toUpperCase(), this.cells, this.seen, this.tables);
