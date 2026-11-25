@@ -370,11 +370,35 @@ export default function WorkbookEditor(){
       case "col-left":shiftRowsCols("column",parseAddress(activeCell)?.col??0,"insert");break;
       case "col-right":shiftRowsCols("column",(parseAddress(activeCell)?.col??0)+1,"insert");break;
       case "delete-col":shiftRowsCols("column",parseAddress(activeCell)?.col??0,"delete");break;
-      case "format-table":{
-        const range=selection??{startRow:0,startCol:0,endRow:9,endCol:3};const cells={...sheet.cells};
-        for(let r=range.startRow;r<=range.endRow;r++)for(let c=range.startCol;c<=range.endCol;c++){const a=addressOf(r,c),old=cells[a]??{raw:""};cells[a]={...old,style:{...old.style,...(r===range.startRow?{bold:true,color:"#ffffff",backgroundColor:"#107c41"}:{backgroundColor:r%2===0?"#f0f7f2":"#ffffff"})}};}
-        updateCells(cells);break;
+      case "format-table":openTableDialog("create");break;
+      case "table-resize":openTableDialog("resize");break;
+      case "table-rename":{
+        if(!activeTable)break;
+        const entered=window.prompt("Table name",activeTable.name);
+        if(entered===null)break;
+        const next=normalizeTableName(entered);
+        if((sheet.tables??[]).some(table=>table.id!==activeTable.id&&table.name.toLowerCase()===next.toLowerCase())){window.alert("A table with that name already exists.");break;}
+        updateActiveTable({name:next});break;
       }
+      case "table-toggle-headers":if(activeTable)updateActiveTable({hasHeaders:!activeTable.hasHeaders});break;
+      case "table-toggle-totals":if(activeTable)setTableTotalRow(!activeTable.showTotalRow);break;
+      case "table-toggle-first-column":if(activeTable)updateActiveTable({firstColumn:!activeTable.firstColumn});break;
+      case "table-toggle-last-column":if(activeTable)updateActiveTable({lastColumn:!activeTable.lastColumn});break;
+      case "table-toggle-banded-rows":if(activeTable)updateActiveTable({bandedRows:!activeTable.bandedRows});break;
+      case "table-toggle-banded-columns":if(activeTable)updateActiveTable({bandedColumns:!activeTable.bandedColumns});break;
+      case "table-toggle-filter-buttons":if(activeTable)updateActiveTable({showFilterButtons:!activeTable.showFilterButtons});break;
+      case "table-clear-style":if(activeTable)updateActiveTable({styleId:"TableStyleLight1"});break;
+      case "table-clear-filters":if(activeTable)updateActiveTable({filters:{}});break;
+      case "table-remove-duplicates":removeActiveTableDuplicates();break;
+      case "table-convert-range":convertActiveTableToRange();break;
+      case "insert-function":setFormulaLibraryOpen(true);break;
+      case "share-open":case "share-manage-access":setShareOpen(true);break;
+      case "share-copy-link":copyShareLink("workbook");break;
+      case "share-section-link":copyShareLink("range");break;
+      case "share-table-link":copyShareLink("table");break;
+      default:
+        if(name.startsWith("table-style-")&&activeTable){updateActiveTable({styleId:name.slice("table-style-".length)});break;}
+        break;
       case "chart-bar":case "chart-line":case "chart-pie":{
         const range=selectedRangeString();const chart:FloatingChartData={id:crypto.randomUUID(),type:name.replace("chart-","") as FloatingChartData["type"],title:name==="chart-bar"?"Sales by category":name==="chart-line"?"Trend":"Distribution",range,x:Math.max(20,window.innerWidth-570),y:175,width:420,height:290};
         addChart(chart);break;
