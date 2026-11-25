@@ -29,7 +29,7 @@ function resolveStructuredReference(name: string | null, inner: string, cells: C
   }
   const column = getTableColumnIndex(table, columnName, cells);
   if (column < 0) throw new Error("#REF!");
-  const range = tableReferenceRange(table, selector === "#Headers" || selector === "#Totals" || selector === "#Data" ? selector : undefined);
+  const range = tableReferenceRange(table, selector ?? "#Data");
   return `${addressOf(range.startRow, column)}:${addressOf(range.endRow, column)}`;
 }
 
