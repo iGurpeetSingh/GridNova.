@@ -11,12 +11,15 @@ export default function NameManagerDialog({open,namedRanges,sheetName,onClose,on
  const save=()=>{
   const normalized=name.trim();
   if(!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(normalized)){setError("Use a name starting with a letter or underscore; spaces are not allowed.");return;}
-  if(!/^('([^']|'')+'|[A-Za-z_][A-Za-z0-9_ ]*)!?\s*!?\$?[A-Z]{1,3}\$?[1-9]\d*(?::\$?[A-Z]{1,3}\$?[1-9]\d*)?$/i.test(refersTo.trim())&&!/^\$?[A-Z]{1,3}\$?[1-9]\d*(?::\$?[A-Z]{1,3}\$?[1-9]\d*)?$/i.test(refersTo.trim())){
+  const reference=refersTo.trim().replace(/^=/,"");
+  const addressPattern=/^\$?[A-Z]{1,3}\$?[1-9]\d*(?::\$?[A-Z]{1,3}\$?[1-9]\d*)?$/i;
+  const sheetPattern=/^(?:'[^']+'|[A-Za-z_][A-Za-z0-9_ ]*)!\$?[A-Z]{1,3}\$?[1-9]\d*(?::\$?[A-Z]{1,3}\$?[1-9]\d*)?$/i;
+  if(!addressPattern.test(reference)&&!sheetPattern.test(reference)){
    setError("Enter a cell or range such as B2:B10, or Sheet1!B2:B10.");return;
   }
   const exists=Object.keys(draft).some(key=>key.toLowerCase()===normalized.toLowerCase()&&key.toLowerCase()!==(editing??"").toLowerCase());
   if(exists){setError("A named range with this name already exists.");return;}
-  const next={...draft};if(editing&&editing!==normalized)delete next[editing];next[normalized]=refersTo.trim().replace(/^=/,"");
+  const next={...draft};if(editing&&editing!==normalized)delete next[editing];next[normalized]=reference;
   setDraft(next);onSave(next);reset();
  };
  const beginEdit=(key:string)=>{setEditing(key);setName(key);setRefersTo(draft[key]);setError("");};
