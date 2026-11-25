@@ -11,7 +11,7 @@ import {
   Strikethrough, Table2, Text, Trash2, Underline, Undo2, Upload, WrapText,
   X, ZoomIn, ZoomOut, Eye, EyeOff, Rows3, Columns3, SquareCheck, MessageSquare,
   CalendarClock, AlignJustify, Palette, ArrowLeft, Save,
-  ChevronDown, ChevronUp, ChevronRight, IndentDecrease, IndentIncrease, MessageSquare, Pencil,
+  ChevronDown, ChevronUp, ChevronRight, IndentDecrease, IndentIncrease, Pencil,
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   Replace, Paintbrush2, Share2, Link2, Users, ShieldCheck, TableProperties, FilterX, ListChecks,
 } from "lucide-react";
