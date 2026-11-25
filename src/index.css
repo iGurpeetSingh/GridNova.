@@ -25,8 +25,8 @@
 .grid-selection-overlay{position:absolute;z-index:24;box-sizing:border-box;border:2px solid #107C41;pointer-events:none}
 .grid-range-overlay{position:absolute;z-index:23;box-sizing:border-box;pointer-events:none}
 .grid-fill-preview-overlay{border:2px dashed #107C41;background:rgba(16,124,65,.025)}
-.grid-copy-overlay{border:2px dashed #107C41;animation:copy-march .72s linear infinite}
-@keyframes copy-march{0%,100%{border-color:#107C41;opacity:1}50%{border-color:#5F6368;opacity:.72}}
+.grid-copy-overlay{border:0;background-image:repeating-linear-gradient(90deg,#107C41 0 5px,transparent 5px 10px),repeating-linear-gradient(90deg,#107C41 0 5px,transparent 5px 10px),repeating-linear-gradient(0deg,#107C41 0 5px,transparent 5px 10px),repeating-linear-gradient(0deg,#107C41 0 5px,transparent 5px 10px);background-size:10px 2px,10px 2px,2px 10px,2px 10px;background-position:0 0,0 100%,0 0,100% 0;background-repeat:repeat-x,repeat-x,repeat-y,repeat-y;animation:copy-march .35s linear infinite}
+@keyframes copy-march{to{background-position:10px 0,-10px 100%,0 10px,100% -10px}}
 .grid-fill-handle-overlay{position:absolute;z-index:26;width:6px;height:6px;padding:0;border:1px solid #fff;background:#107C41;box-sizing:border-box;cursor:crosshair;pointer-events:auto;touch-action:none}
 .grid-fill-tooltip{position:fixed;z-index:12001;padding:3px 7px;border:1px solid #0b6234;border-radius:4px;background:#173b28;color:#fff;font-size:11px;font-weight:700;line-height:16px;white-space:nowrap;pointer-events:none;box-shadow:0 2px 7px rgba(0,0,0,.16)}
 .grid-corner,.grid-column-heading,.grid-row-heading{position:relative;height:27px;border:1px solid #e1dfdd;background:#f3f2f1;color:#605e5c;font-size:10px;font-weight:500;text-align:center;user-select:none}
