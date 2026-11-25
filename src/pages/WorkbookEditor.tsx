@@ -241,7 +241,7 @@ export default function WorkbookEditor(){
     }catch(e){window.alert(e instanceof Error?e.message:"Unable to import this file.");}
     finally{if(fileRef.current)fileRef.current.value="";}
   };
-  return <main className="app-shell flex h-screen min-h-[520px] flex-col overflow-hidden">
+  return <main className="app-shell workbook-shell flex h-screen h-[100dvh] w-screen min-h-0 flex-col overflow-hidden">
     <header className="no-print z-30 flex h-[58px] shrink-0 items-center gap-3 border-b border-[#e3ebe5] bg-white px-4">
       <button onMouseDown={e=>e.preventDefault()} onClick={()=>navigate("/")} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[#718178] hover:bg-[#f0f6f2]" title="Back to dashboard"><ArrowLeft size={18}/></button>
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e8f5ed] text-[#107c41]"><FileSpreadsheet size={19}/></div>
