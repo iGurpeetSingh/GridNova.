@@ -1,12 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FunctionSquare, Search, X } from "lucide-react";
 import { FORMULA_CATALOG, FORMULA_CATEGORIES, IMPLEMENTED_FORMULA_COUNT } from "../data/formulaCatalog";
 
-interface Props { open: boolean; onClose: () => void; onInsert: (formula: string) => void; }
-export default function FormulaLibraryDialog({ open, onClose, onInsert }: Props) {
+interface Props { open: boolean; onClose: () => void; onInsert: (formula: string) => void; initialCategory?:string; }
+export default function FormulaLibraryDialog({ open, onClose, onInsert, initialCategory="All" }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>("All");
   const [supportedOnly, setSupportedOnly] = useState(false);
+  useEffect(()=>{if(open)setCategory(FORMULA_CATEGORIES.includes(initialCategory as typeof FORMULA_CATEGORIES[number])?initialCategory:"All");},[open,initialCategory]);
   const results = useMemo(() => FORMULA_CATALOG.filter(entry =>
     (category === "All" || entry.category === category) &&
     (!supportedOnly || entry.implemented) &&
