@@ -337,3 +337,70 @@
  .home-ribbon-group[aria-label="Alignment"]{min-width:240px}
  .home-large-menu-trigger{width:58px}
 }
+
+
+/* Microsoft Excel for the web – Formulas ribbon */
+.formula-ribbon-group{position:relative;flex:0 0 auto;height:96px;min-height:96px;display:flex;align-items:center;gap:6px;padding:4px 8px 18px;border-right:1px solid #E5E5E5;color:#323130}
+.formula-ribbon-group-content{height:72px;display:flex;align-items:center;justify-content:center;gap:2px}
+.formula-ribbon-caption{position:absolute;left:4px;right:4px;bottom:2px;color:#605E5C;font-size:10px;line-height:12px;text-align:center}
+.formula-function-group{min-width:470px;padding-left:7px;padding-right:8px}
+.formula-function-group .formula-large-trigger,.formula-function-group .formula-large-menu-trigger{width:49px;min-width:49px}
+.formula-single-group{min-width:86px;padding-left:7px;padding-right:7px}
+.formula-single-group .formula-large-trigger{width:68px}
+.formula-calculation-group{min-width:248px;padding-left:7px;padding-right:8px;border-right:0}
+.formula-large-trigger,.formula-large-menu-trigger{height:69px;min-width:55px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;padding:4px 3px;border:1px solid transparent;border-radius:4px;background:#fff;color:#323130;text-align:center;font-size:10px;font-weight:400;line-height:12px;white-space:normal;word-break:normal;overflow-wrap:normal}
+.formula-large-trigger:hover,.formula-large-menu-trigger:hover{border-color:#D2D0CE;background:#F5F5F5}
+.formula-large-trigger>span:last-child,.formula-large-menu-trigger>span:last-child{max-width:100%;min-height:24px;display:flex;align-items:center;justify-content:center;white-space:normal;word-break:normal;overflow-wrap:normal}
+.formula-large-trigger>svg,.formula-large-menu-trigger>svg{flex:0 0 auto}
+.formula-large-menu-trigger{gap:2px}
+.formula-large-menu-trigger>span:nth-last-child(2){min-height:24px;display:flex;align-items:center;justify-content:center}
+.formula-fx-icon{height:30px;display:grid;place-items:center;color:#484644;font-family:Georgia,serif;font-size:25px;font-style:italic;font-weight:500;line-height:30px}
+.formula-inner-divider{height:66px;border-left:1px solid #E5E5E5;margin:0 2px}
+.formula-book-icon{position:relative;width:29px;height:31px;display:grid;place-items:center;flex:0 0 31px}
+.formula-book-icon>svg{position:absolute;inset:0}
+.formula-book-center{position:absolute;top:7px;left:9px;right:4px;bottom:5px;display:grid;place-items:center}
+.formula-book-glyph{font-size:16px;font-weight:600;line-height:16px}
+.formula-book-glyph--green{color:#107C41}.formula-book-glyph--purple{color:#7719AA}.formula-book-glyph--blue{color:#0F6CBD}.formula-book-glyph--orange{color:#C43E1C}
+.formula-tag-icon{position:relative;width:30px;height:32px;display:grid;place-items:center;color:#484644}
+.formula-tag-icon i{position:absolute;right:0;bottom:0;width:8px;height:8px;border:1px solid #fff;border-radius:50%;background:#0F6CBD}
+.formula-show-icon{position:relative;width:33px;height:32px;display:grid;place-items:center;color:#484644}
+.formula-show-icon>span{font-family:Georgia,serif;font-size:18px;font-style:italic}
+.formula-show-icon>svg{position:absolute;right:0;bottom:1px;padding:1px;border-radius:50%;background:#fff;color:#0F6CBD}
+.formula-show-icon.is-active{border-radius:4px;background:#E6F2EC;color:#107C41}
+.formula-calculation-group .formula-large-menu-trigger{width:76px;min-width:76px}
+.formula-calculate-actions{display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:148px;height:65px;padding-left:4px}
+.formula-calculate-actions button{height:27px;display:flex;align-items:center;gap:7px;padding:3px 5px;border:1px solid transparent;border-radius:3px;background:#fff;color:#323130;text-align:left;font-size:10px;white-space:nowrap}
+.formula-calculate-actions button:hover{border-color:#D2D0CE;background:#F3F2F1}
+.formula-sheet-calc{position:relative;width:17px;height:17px;display:grid;place-items:center;color:#0F6CBD}
+.formula-sheet-calc>svg:last-child{position:absolute;right:-3px;bottom:-2px;background:#fff;color:#107C41}
+.formula-ribbon-menu{width:min(300px,calc(100vw - 16px));max-height:min(520px,calc(100dvh - 16px));padding:5px;background:#fff}
+.formula-ribbon-menu .home-menu-item{min-height:39px}
+.formula-ribbon-menu .home-menu-item-copy strong{font-size:11px}
+.formula-ribbon-menu .home-menu-item-copy small{font-size:9px;color:#797775}
+.formula-menu-fx{width:21px;height:21px;display:grid;place-items:center;border-radius:4px;background:#EAF2FA;color:#0F6CBD;font-family:Georgia,serif;font-size:12px;font-style:italic;font-weight:700}
+.formula-menu-check-empty{width:15px;height:15px;display:block;border:1px solid #D2D0CE;border-radius:50%}
+.name-manager-backdrop{z-index:14500}
+.name-manager-dialog{width:min(660px,100%);max-height:min(660px,calc(100dvh - 24px));display:flex;flex-direction:column}
+.name-manager-dialog>header p{margin:5px 0 0;color:#797775;font-size:10px;font-weight:400;letter-spacing:0}
+.name-manager-body{min-height:0;display:flex;flex-direction:column;gap:14px;padding:16px 20px}
+.name-manager-editor{display:grid;grid-template-columns:1fr 1.2fr;gap:10px;padding:12px;border:1px solid #E1DFDD;border-radius:7px;background:#FAFAFA}
+.name-manager-editor label{display:grid;gap:5px;color:#605E5C;font-size:10px;font-weight:650}
+.name-manager-editor input{height:32px;min-width:0;padding:5px 8px;border:1px solid #D2D0CE;border-radius:4px;background:#fff;color:#323130;font-size:11px}
+.name-manager-error{grid-column:1/-1;margin:0;color:#C4314B;font-size:10px}
+.name-manager-editor-actions{grid-column:1/-1;display:flex;gap:6px}
+.name-manager-editor-actions button{min-height:29px;display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border:1px solid #107C41;border-radius:4px;background:#107C41;color:#fff;font-size:10px;font-weight:600}
+.name-manager-editor-actions button.secondary{border-color:#D2D0CE;background:#fff;color:#323130}
+.name-manager-list-heading{display:flex;align-items:center;justify-content:space-between;color:#323130;font-size:11px}
+.name-manager-list-heading span{color:#797775;font-size:9px}
+.name-manager-list{min-height:60px;max-height:260px;overflow:auto;border-top:1px solid #E5E5E5}
+.name-manager-row{min-height:39px;display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:1px solid #EFEFED}
+.name-manager-row>div{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.name-manager-row strong{font-size:11px;color:#323130}
+.name-manager-row small{overflow:hidden;color:#797775;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+.name-manager-row>button{width:27px;height:27px;display:grid;place-items:center;border:1px solid transparent;border-radius:4px;background:#fff;color:#605E5C}
+.name-manager-row>button:hover{border-color:#D2D0CE;background:#F3F2F1;color:#0F6CBD}
+.name-manager-empty{padding:18px;color:#797775;text-align:center;font-size:10px}
+.name-manager-dialog>footer{display:flex;align-items:center;justify-content:space-between}
+.name-manager-dialog>footer span{color:#797775;font-size:10px}
+.formula-calculation-toast{position:fixed;right:18px;bottom:45px;z-index:12050;padding:8px 12px;border:1px solid #CDE4D5;border-radius:6px;background:#F0F7F2;color:#107C41;font-size:11px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+@media(max-width:740px){.formula-function-group{min-width:450px}.formula-calculation-group{min-width:228px}.formula-calculation-group .formula-large-menu-trigger{width:70px;min-width:70px}.formula-calculate-actions{min-width:136px}.name-manager-editor{grid-template-columns:1fr}}
