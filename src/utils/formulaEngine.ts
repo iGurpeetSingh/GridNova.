@@ -288,7 +288,15 @@ export function numericValue(raw: string, cells: CellMap, tables: ExcelTableData
   if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
   return null;
 }
-export function recalculate(cells: CellMap): CellMap { return { ...cells }; }
+export function recalculate(cells: CellMap, tables:ExcelTableData[]=[], namedRanges:Record<string,string>={}): CellMap {
+  const next={...cells};
+  for(const [address,cell] of Object.entries(cells)){
+    if(!cell.raw.startsWith("="))continue;
+    const value=evaluate(cell.raw,cells,new Set(),tables,address,namedRanges);
+    next[address]={...cell,cachedValue:String(value)};
+  }
+  return next;
+}
 export function formatCellValue(raw: string, cells: CellMap, showFormula: boolean, style?: CellStyle, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): string {
   if (showFormula && raw.startsWith("=")) return raw;
   const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges) : raw;
