@@ -9,10 +9,29 @@ export interface CellStyle {
 }
 export interface CellData { raw: string; style?: CellStyle; comment?: string; hyperlink?: string; checkbox?: boolean; datePicker?: boolean; mergeRows?: number; mergeCols?: number; mergedInto?: string; mergeBackup?: Record<string, CellData>; }
 export type CellMap = Record<string, CellData>;
+export interface TableFilterState {
+  selectedValues?: string[];
+  condition?: { operator: "contains" | "notContains" | "equals" | "notEquals" | "beginsWith" | "endsWith" | "greaterThan" | "lessThan" | "between"; value: string; secondValue?: string };
+}
+export interface ExcelTableData {
+  id: string;
+  name: string;
+  range: CellRange;
+  hasHeaders: boolean;
+  showTotalRow: boolean;
+  firstColumn: boolean;
+  lastColumn: boolean;
+  bandedRows: boolean;
+  bandedColumns: boolean;
+  showFilterButtons: boolean;
+  styleId: string;
+  filters: Record<number, TableFilterState>;
+}
 export interface SheetData {
   id: string; name: string; cells: CellMap; rowCount: number; columnCount: number;
   columnWidths: Record<number, number>; rowHeights?: Record<number, number>; showGridlines: boolean; showHeadings: boolean;
   freezeTopRow: boolean; filters: boolean; hiddenRows?: number[]; hiddenColumns?: number[];
+  tables?: ExcelTableData[];
 }
 export interface FloatingChartData {
   id: string; type: "bar" | "line" | "pie"; title: string; range: string;
@@ -52,7 +71,7 @@ export const parseAddress = (address: string): { row: number; col: number } | nu
 export const emptySheet = (name = "Sheet 1"): SheetData => ({
   id: crypto.randomUUID(), name, cells: {}, rowCount: DEFAULT_ROWS,
   columnCount: DEFAULT_COLUMNS, columnWidths: {}, showGridlines: true,
-  showHeadings: true, freezeTopRow: false, filters: false,
+  showHeadings: true, freezeTopRow: false, filters: false, tables: [],
 });
 export const emptyWorkbook = (title = "Untitled Workbook"): WorkbookData => ({
   id: crypto.randomUUID(), title, sheets: [emptySheet()], charts: [],
