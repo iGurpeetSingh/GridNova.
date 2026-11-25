@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import FloatingPortal from "./FloatingPortal";
 import InsertRibbonIcon from "./InsertRibbonIcon";
+import { ChartGalleryButton, EditingModeDropdown, InsertIconDropdown, ShapeGalleryButton } from "./InsertDropdownGallery";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine,
   ArrowUpToLine, Bold, Braces, CalendarDays, ChartColumn, ChartLine, Check,
@@ -84,13 +85,13 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
       </>;
       case "Insert":return <>
         <InsertGroup label="Tables">
-          <ActionMenu id="insert-pivot" label="PivotTable options" className="insert-command" items={[{label:"PivotTable from Selection",action:"pivot-table"},{label:"Recommended PivotTables",action:"pivot-table"},{label:"From Table or Range",action:"pivot-table"}]} open={openMenu==="insert-pivot"} onToggle={()=>toggleMenu("insert-pivot")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="pivot"/><span>PivotTable</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>
-          <button type="button" className="insert-command" title="Create a formatted Excel Table" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("format-table")}><InsertRibbonIcon name="table"/><span>Table</span></button>
-          <ActionMenu id="insert-forms" label="Forms options" className="insert-command" items={[{label:"Create New Form",action:"forms-new"},{label:"Insert Form Field",action:"forms-field"},{label:"Open Forms",action:"forms-open"}]} open={openMenu==="insert-forms"} onToggle={()=>toggleMenu("insert-forms")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="forms"/><span>Forms</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>
+          <InsertIconDropdown kind="pivot" open={openMenu==="insert-pivot"} onToggle={()=>toggleMenu("insert-pivot")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="pivot"/><span className="insert-command-label">PivotTable</span><ChevronDown className="insert-command-chevron" size={10}/></InsertIconDropdown>
+          <button type="button" className="insert-command" title="Create a formatted Excel Table" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("format-table")}><InsertRibbonIcon name="table"/><span className="insert-command-label">Table</span></button>
+          <InsertIconDropdown kind="forms" open={openMenu==="insert-forms"} onToggle={()=>toggleMenu("insert-forms")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="forms"/><span className="insert-command-label">Forms</span><ChevronDown className="insert-command-chevron" size={10}/></InsertIconDropdown>
         </InsertGroup>
         <InsertGroup label="Illustrations">
-          <ActionMenu id="insert-pictures" label="Pictures options" className="insert-command" items={[{label:"This Device",action:"picture-device"},{label:"Stock Images",action:"picture-stock"},{label:"Online Pictures",action:"picture-online"}]} open={openMenu==="insert-pictures"} onToggle={()=>toggleMenu("insert-pictures")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="pictures"/><span>Pictures</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>
-          <ActionMenu id="insert-shapes" label="Shapes options" className="insert-command" items={[{label:"Rectangle",action:"shape-rectangle"},{label:"Oval",action:"shape-ellipse"},{label:"Line",action:"shape-line"},{label:"Arrow",action:"shape-arrow"}]} open={openMenu==="insert-shapes"} onToggle={()=>toggleMenu("insert-shapes")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="shapes"/><span>Shapes</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>
+          <InsertIconDropdown kind="pictures" open={openMenu==="insert-pictures"} onToggle={()=>toggleMenu("insert-pictures")} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name="pictures"/><span className="insert-command-label">Pictures</span><ChevronDown className="insert-command-chevron" size={10}/></InsertIconDropdown>
+          <ShapeGalleryButton onSelect={shape=>onAction(`shape-gallery:${shape}`)}><InsertRibbonIcon name="shapes"/><span className="insert-command-label">Shapes</span><ChevronDown className="insert-command-chevron" size={10}/></ShapeGalleryButton>
         </InsertGroup>
         <InsertGroup label="Controls">
           <button type="button" className="insert-command" title="Insert an interactive checkbox into the selected cells" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("checkbox")}><InsertRibbonIcon name="checkbox"/><span>Checkbox</span></button>
@@ -99,19 +100,19 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
           {([
             ["column","Column"],["line","Line"],["scatter","Scatter"],["pie","Pie"],
             ["bar","Bar"],["statistical","Statistical"],["combo","Combo"],["treemap","Other Charts"]
-          ] as const).map(([kind,label])=><ActionMenu key={kind} id={`insert-chart-${kind}`} label={`${label} chart types`} className="insert-command" items={(kind==="column"?["Clustered Column","Stacked Column","100% Stacked Column"]:kind==="line"?["Line","Line with Markers","Stacked Line"]:kind==="scatter"?["Scatter","Smooth Lines and Markers","Straight Lines and Markers"]:kind==="pie"?["2-D Pie","Doughnut","Pie of Pie"]:kind==="bar"?["Clustered Bar","Stacked Bar","100% Stacked Bar"]:kind==="statistical"?["Histogram","Pareto","Box & Whisker"]:kind==="combo"?["Clustered Column and Line","Stacked Column and Line"]:["Treemap","Sunburst","Waterfall"]).map((variant,index)=>({label:variant,action:`chart-insert-${kind}-${index}`}))} open={openMenu===`insert-chart-${kind}`} onToggle={()=>toggleMenu(`insert-chart-${kind}`)} onClose={closeMenu} onAction={onAction}><InsertRibbonIcon name={kind==="treemap"?"other":kind}/><span>{label}</span><ChevronDown className="insert-command-chevron" size={10}/></ActionMenu>)}
+          ] as const).map(([kind,label])=><ChartGalleryButton key={kind} kind={kind} label={label} twoWord={kind==="treemap"} onSelect={onAction}><InsertRibbonIcon name={kind==="treemap"?"other":kind}/><span className={kind==="treemap"?"insert-command-label insert-command-label--two-word":"insert-command-label"}>{label}</span><ChevronDown className="insert-command-chevron" size={10}/></ChartGalleryButton>)}
         </InsertGroup>
         <InsertGroup label="Filters">
-          <button type="button" className="insert-command" disabled={!activeTable} title={activeTable?"Insert a table slicer":"Select a Table or PivotTable to insert a Slicer"} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("slicer")}><InsertRibbonIcon name="slicer"/><span>Slicer</span></button>
+          <button type="button" className="insert-command" disabled={!activeTable} title={activeTable?"Insert a table slicer":"Select a Table or PivotTable to insert a Slicer"} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("slicer")}><InsertRibbonIcon name="slicer"/><span className="insert-command-label">Slicer</span></button>
         </InsertGroup>
         <InsertGroup label="Links">
-          <button type="button" className="insert-command" title="Insert a hyperlink into the active cell" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("hyperlink")}><InsertRibbonIcon name="link"/><span>Link</span></button>
+          <button type="button" className="insert-command" title="Insert a hyperlink into the active cell" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("hyperlink")}><InsertRibbonIcon name="link"/><span className="insert-command-label">Link</span></button>
         </InsertGroup>
         <InsertGroup label="Comments">
-          <button type="button" className="insert-command" title="Add a comment to the active cell" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("comment")}><InsertRibbonIcon name="comment"/><span>New Comment</span></button>
+          <button type="button" className="insert-command" title="Add a comment to the active cell" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("comment")}><InsertRibbonIcon name="comment"/><span className="insert-command-label insert-command-label--two-word">New Comment</span></button>
         </InsertGroup>
         <InsertGroup label="Text">
-          <button type="button" className="insert-command" title="Insert a text box over the grid" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("text-box")}><InsertRibbonIcon name="text"/><span>Text Box</span></button>
+          <button type="button" className="insert-command" title="Insert a text box over the grid" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("text-box")}><InsertRibbonIcon name="text"/><span className="insert-command-label insert-command-label--two-word">Text Box</span></button>
         </InsertGroup>
       </>;
       case "Share":return <>
@@ -166,7 +167,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
         <nav className="ribbon-tabs" aria-label="Workbook tabs">{tabs.map(tab=><button key={tab} onMouseDown={e=>e.preventDefault()} onClick={()=>setActiveTab(tab)} className={`ribbon-tab ${activeTab===tab?"is-active":""}`}>{tab}{activeTab===tab&&<span className="ribbon-tab-indicator"/>}</button>)}</nav>
         <div className="ribbon-utilities">
           <button type="button" className="ribbon-utility-button" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("comments-panel")}><MessageSquare size={15}/>Comments</button>
-          <ActionMenu id="editing-mode" label="Editing mode" className="ribbon-utility-button" items={([{label:"Editing",onSelect:()=>setEditingMode("Editing")},{label:"Reviewing",onSelect:()=>setEditingMode("Reviewing")},{label:"Viewing",onSelect:()=>setEditingMode("Viewing")}] )} open={openMenu==="editing-mode"} onToggle={()=>toggleMenu("editing-mode")} onClose={closeMenu} onAction={onAction}><Pencil size={14}/>{editingMode}<ChevronDown size={12}/></ActionMenu>
+          <EditingModeDropdown open={openMenu==="editing-mode"} onToggle={()=>toggleMenu("editing-mode")} onClose={closeMenu} mode={editingMode} onModeChange={setEditingMode}><Pencil size={14}/>{editingMode}<ChevronDown size={12}/></EditingModeDropdown>
         </div>
       </div>
       {!collapsed&&<div className="ribbon-scroll flex items-stretch">{content()}</div>}
