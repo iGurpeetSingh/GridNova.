@@ -396,9 +396,6 @@ export default function WorkbookEditor(){
       case "share-copy-link":copyShareLink("workbook");break;
       case "share-section-link":copyShareLink("range");break;
       case "share-table-link":copyShareLink("table");break;
-      default:
-        if(name.startsWith("table-style-")&&activeTable){updateActiveTable({styleId:name.slice("table-style-".length)});break;}
-        break;
       case "chart-bar":case "chart-line":case "chart-pie":{
         const range=selectedRangeString();const chart:FloatingChartData={id:crypto.randomUUID(),type:name.replace("chart-","") as FloatingChartData["type"],title:name==="chart-bar"?"Sales by category":name==="chart-line"?"Trend":"Distribution",range,x:Math.max(20,window.innerWidth-570),y:175,width:420,height:290};
         addChart(chart);break;
@@ -433,7 +430,9 @@ export default function WorkbookEditor(){
       case "freeze":updateSheet(sheet.id,{freezeTopRow:!sheet.freezeTopRow});break;
       case "zoom-in":useWorkbookStore.getState().setZoom(zoom+10);break;case "zoom-out":useWorkbookStore.getState().setZoom(zoom-10);break;
       case "import":fileRef.current?.click();break;
-      default:break;
+      default:
+        if(name.startsWith("table-style-")&&activeTable)updateActiveTable({styleId:name.slice("table-style-".length)});
+        break;
     }
     setShowSaved();
   };
@@ -455,7 +454,7 @@ export default function WorkbookEditor(){
       <div className="hidden items-center gap-1.5 rounded-full bg-[#edf8f0] px-3 py-1.5 text-[10px] font-semibold text-[#16864b] sm:flex">{savePulse?<Check size={12}/>:<Cloud size={12}/>} {savePulse?"Saved just now":"Saved locally"}</div>
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
-    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation}/>
+    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation} activeTable={activeTable}/>
     <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} formulaBarFocused={formulaBarFocused} onSelect={selectCell}/>
@@ -465,5 +464,7 @@ export default function WorkbookEditor(){
     <SheetBar sheets={workbook.sheets} activeId={sheet.id} onSelect={setActiveSheet} onAdd={addSheet} onRename={renameSheet} onDelete={id=>{if(window.confirm("Delete this sheet?"))deleteSheet(id)}}/>
     <footer className="no-print flex h-8 shrink-0 items-center justify-between border-t border-[#e2e9e4] bg-white px-4 text-[10px] text-[#829087]"><div className="flex items-center gap-4"><span>Ready</span><span>Count: <b className="text-[#52665a]">{stats.count}</b></span><span>Sum: <b className="text-[#52665a]">{stats.sum.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span><span>Average: <b className="text-[#52665a]">{stats.average.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span></div><div>{sheet.showGridlines?"Gridlines on":"Gridlines off"} · {zoom}%</div></footer>
     <ShareModal open={shareOpen} onClose={()=>setShareOpen(false)} workbookId={workbook.id} title={workbook.title} onExport={exportFile}/>
+    <TableRangeDialog open={tableDialogOpen} title={tableDialogMode==="resize"?"Resize Table":"Create Table"} initialRange={tableDialogMode==="resize"&&activeTable?rangeLabel(activeTable.range):suggestedTableRange} initialHasHeaders={tableDialogMode==="resize"?(activeTable?.hasHeaders??true):true} submitLabel={tableDialogMode==="resize"?"Resize":"OK"} onClose={()=>setTableDialogOpen(false)} onSubmit={submitTableRange}/>
+    <FormulaLibraryDialog open={formulaLibraryOpen} onClose={()=>setFormulaLibraryOpen(false)} onInsert={formula=>{setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true)}}/>
   </main>;
 }
