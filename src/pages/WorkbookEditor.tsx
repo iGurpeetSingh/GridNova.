@@ -73,6 +73,7 @@ export default function WorkbookEditor(){
   const [slicerOpen,setSlicerOpen]=useState(false);
   const [slicerColumn,setSlicerColumn]=useState("0");
   const [slicerValues,setSlicerValues]=useState<string[]>([]);
+  const [picturePlacement,setPicturePlacement]=useState<"cell"|"over">("over");
   const [savePulse,setSavePulse]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
   const pictureRef=useRef<HTMLInputElement>(null);
@@ -311,7 +312,14 @@ export default function WorkbookEditor(){
     if(!file.type.startsWith("image/")){window.alert("Choose an image file.");return;}
     if(file.size>6*1024*1024){window.alert("Choose an image smaller than 6 MB.");return;}
     const reader=new FileReader();
-    reader.onload=()=>{if(typeof reader.result==="string")insertFloatingElement({type:"image",src:reader.result,text:file.name,width:320,height:210,fill:"#ffffff",stroke:"#0F6CBD"});};
+    reader.onload=()=>{
+      if(typeof reader.result!=="string")return;
+      if(picturePlacement==="cell"){
+        const cells={...sheet.cells},existing=cells[activeCell]??{raw:""};
+        cells[activeCell]={...existing,image:reader.result};
+        updateSheet(sheet.id,{cells});setShowSaved();
+      }else insertFloatingElement({type:"image",src:reader.result,text:file.name,width:320,height:210,fill:"#ffffff",stroke:"#0F6CBD"});
+    };
     reader.onerror=()=>window.alert("Unable to read this picture.");
     reader.readAsDataURL(file);
   };
@@ -457,11 +465,23 @@ export default function WorkbookEditor(){
       case "share-section-link":copyShareLink("range");break;
       case "share-table-link":copyShareLink("table");break;
       case "pivot-table":createPivotTable();break;
-      case "forms-new":window.open("https://forms.office.com", "_blank", "noopener,noreferrer");break;
+      case "external-pivot":window.alert("External data source connections are not configured in this local workbook. Select a range and use From Table/Range instead.");break;
+      case "forms-new":{
+        addSheet();
+        const newSheetId=useWorkbookStore.getState().activeSheetId;
+        if(newSheetId){
+          renameSheet(newSheetId,"Form Responses");
+          updateSheet(newSheetId,{cells:{A1:{raw:"Submission ID",style:{bold:true,color:"#ffffff",backgroundColor:"#038387"}},B1:{raw:"Submitted At",style:{bold:true,color:"#ffffff",backgroundColor:"#038387"}},C1:{raw:"Response",style:{bold:true,color:"#ffffff",backgroundColor:"#038387"}}}});
+        }
+        window.open("https://forms.office.com","_blank","noopener,noreferrer");
+        window.alert("A Form Responses sheet has been created. Microsoft Forms is not connected for automatic response sync in this local workbook.");
+        break;
+      }
       case "forms-open":window.open("https://forms.office.com", "_blank", "noopener,noreferrer");break;
       case "forms-field":insertFloatingElement({type:"text",text:"Form response",fontSize:14,width:240,height:64,fill:"#ffffff",stroke:"#038387"});break;
-      case "picture-device":pictureRef.current?.click();break;
-      case "picture-stock":case "picture-online":window.alert("Online and stock picture providers are not connected. Choose This Device to insert a local picture.");break;
+      case "picture-cell-device":setPicturePlacement("cell");pictureRef.current?.click();break;
+      case "picture-over-device":setPicturePlacement("over");pictureRef.current?.click();break;
+      case "picture-cell-stock":case "picture-over-online":case "picture-stock":case "picture-online":window.alert("Stock and online image providers are not connected. Choose This Device to insert a local image.");break;
       case "shape-rectangle":case "shape-ellipse":case "shape-line":case "shape-arrow":insertFloatingElement({type:"shape",shape:name.slice("shape-".length) as FloatingElementData["shape"]});break;
       case "text-box":insertFloatingElement({type:"text",text:"Type text here",fontSize:16,color:"#323130",width:280,height:110,fill:"#ffffff",stroke:"#0F6CBD"});break;
       case "slicer":openSlicer();break;
@@ -501,14 +521,29 @@ export default function WorkbookEditor(){
       case "import":fileRef.current?.click();break;
       default:
         if(name.startsWith("table-style-")&&activeTable)updateActiveTable({styleId:name.slice("table-style-".length)});
-        else if(name.startsWith("chart-insert-")){
-          const payload=name.slice("chart-insert-".length),split=payload.lastIndexOf("-"),type=payload.slice(0,split) as FloatingChartData["type"],variantIndex=Number(payload.slice(split+1));
-          const variants:Record<string,string[]>={column:["Clustered Column","Stacked Column","100% Stacked Column"],line:["Line","Line with Markers","Stacked Line"],scatter:["Scatter","Smooth Lines and Markers","Straight Lines and Markers"],pie:["2-D Pie","Doughnut","Pie of Pie"],bar:["Clustered Bar","Stacked Bar","100% Stacked Bar"],statistical:["Histogram","Pareto","Box & Whisker"],combo:["Clustered Column and Line","Stacked Column and Line"],treemap:["Treemap","Sunburst","Waterfall"]};
-          const variant=variants[type]?.[variantIndex]??"";
-          const title=type==="treemap"?variant:variant||type.charAt(0).toUpperCase()+type.slice(1);
-          const chart:FloatingChartData={id:crypto.randomUUID(),type,title,variant,range:selectedRangeString(),x:Math.max(20,window.innerWidth-570),y:90,width:440,height:300};
+        else if(name.startsWith("shape-gallery:")){
+          const shape=name.slice("shape-gallery:".length) as FloatingElementData["shape"];
+          insertFloatingElement({type:"shape",shape});
+        }
+        else if(name.startsWith("chart-gallery:")){
+          const [,kindText,indexText]=name.split(":");
+          const type=kindText as FloatingChartData["type"],index=Number(indexText);
+          const variants:Record<string,string[]>={
+            column:["Clustered Column","Stacked Column","100% Stacked Column","3-D Clustered Column","3-D Stacked Column"],
+            line:["Line","Stacked Line","Line with Markers","Area","Stacked Area"],
+            scatter:["Scatter","Scatter with Smooth Lines and Markers","Scatter with Straight Lines","Bubble"],
+            pie:["Pie","Pie of Pie","3-D Pie","Doughnut"],
+            bar:["Clustered Bar","Stacked Bar","100% Stacked Bar","3-D Clustered Bar"],
+            statistical:["Histogram","Pareto","Box & Whisker"],
+            combo:["Clustered Column - Line","Clustered Column - Line on Secondary Axis","Stacked Area - Clustered Column","Stacked Column - Line"],
+            treemap:["Treemap","Sunburst","Waterfall","Funnel","Radar"]
+          };
+          const variant=variants[type]?.[index];
+          if(!variant)break;
+          const chart:FloatingChartData={id:crypto.randomUUID(),type,title:variant,variant,range:selectedRangeString(),x:Math.max(20,window.innerWidth-570),y:90,width:440,height:300};
           addChart(chart);
         }
+        else if(name==="more-charts")window.alert("The chart gallery includes all available chart subtypes in this workbook build.");
         break;
     }
     setShowSaved();
