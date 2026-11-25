@@ -33,12 +33,22 @@ export interface SheetData {
   freezeTopRow: boolean; filters: boolean; hiddenRows?: number[]; hiddenColumns?: number[];
   tables?: ExcelTableData[];
 }
+export type ChartType = "column" | "line" | "scatter" | "pie" | "bar" | "statistical" | "combo" | "treemap";
 export interface FloatingChartData {
-  id: string; type: "bar" | "line" | "pie"; title: string; range: string;
+  id: string; type: ChartType; title: string; range: string; variant?: string;
   x: number; y: number; width: number; height: number;
+}
+export interface FloatingElementData {
+  id: string;
+  type: "shape" | "image" | "text";
+  shape?: "rectangle" | "ellipse" | "line" | "arrow";
+  x: number; y: number; width: number; height: number;
+  text?: string; fill?: string; stroke?: string; src?: string;
+  fontSize?: number; color?: string;
 }
 export interface WorkbookData {
   id: string; title: string; sheets: SheetData[]; charts: FloatingChartData[];
+  elements?: FloatingElementData[];
   createdAt: number; modifiedAt: number; orientation: "portrait" | "landscape";
 }
 export type TemplateId = "blank" | "budget" | "sales" | "project";
@@ -74,6 +84,6 @@ export const emptySheet = (name = "Sheet 1"): SheetData => ({
   showHeadings: true, freezeTopRow: false, filters: false, tables: [],
 });
 export const emptyWorkbook = (title = "Untitled Workbook"): WorkbookData => ({
-  id: crypto.randomUUID(), title, sheets: [emptySheet()], charts: [],
+  id: crypto.randomUUID(), title, sheets: [emptySheet()], charts: [], elements: [],
   createdAt: Date.now(), modifiedAt: Date.now(), orientation: "portrait",
 });
