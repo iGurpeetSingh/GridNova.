@@ -2,8 +2,9 @@ export type NumberFormat = "General" | "Number" | "Currency ₹" | "Currency $" 
 export type Align = "left" | "center" | "right";
 export interface CellStyle {
   fontFamily?: string; fontSize?: number; bold?: boolean; italic?: boolean;
-  underline?: boolean; strike?: boolean; color?: string; backgroundColor?: string;
-  align?: Align; wrap?: boolean; numberFormat?: NumberFormat; decimalPlaces?: number;
+  underline?: boolean; doubleUnderline?: boolean; strike?: boolean; color?: string; backgroundColor?: string;
+  align?: Align; verticalAlign?: "top" | "middle" | "bottom"; indent?: number; textOrientation?: "horizontal" | "vertical";
+  wrap?: boolean; numberFormat?: NumberFormat; decimalPlaces?: number;
   border?: "all" | "outer" | "none"; borderColor?: string;
   borderTop?: string; borderRight?: string; borderBottom?: string; borderLeft?: string;
 }
