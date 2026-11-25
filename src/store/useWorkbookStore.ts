@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingChartData, SheetData, TemplateId, WorkbookData } from "../types";
+import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingChartData, FloatingElementData, SheetData, TemplateId, WorkbookData } from "../types";
 import { addressOf, columnLabel, emptySheet, emptyWorkbook, parseAddress } from "../types";
 
 interface Store {
@@ -17,6 +17,7 @@ interface Store {
   setClipboard: (data: ClipboardData | null) => void; paste: (target: string) => void;
   updateSheet: (id: string, changes: Partial<SheetData>) => void;
   addChart: (chart: FloatingChartData) => void; updateChart: (id: string, changes: Partial<FloatingChartData>) => void; deleteChart: (id: string) => void;
+  addElement: (element: FloatingElementData) => void; updateElement: (id: string, changes: Partial<FloatingElementData>) => void; deleteElement: (id: string) => void;
   setShowFormulas: (v: boolean) => void; setZoom: (v: number) => void; setOrientation: (v: "portrait" | "landscape") => void;
   undo: () => void; redo: () => void;
 }
@@ -111,6 +112,9 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
   addChart: chart => set(s=>mutateActive(s,w=>({...w,charts:[...w.charts,chart]}))),
   updateChart: (id,changes) => set(s=>mutateActive(s,w=>({...w,charts:w.charts.map(c=>c.id===id?{...c,...changes}:c)}))),
   deleteChart: id => set(s=>mutateActive(s,w=>({...w,charts:w.charts.filter(c=>c.id!==id)}))),
+  addElement: element => set(s=>mutateActive(s,w=>({...w,elements:[...(w.elements??[]),element]}))),
+  updateElement: (id,changes) => set(s=>mutateActive(s,w=>({...w,elements:(w.elements??[]).map(element=>element.id===id?{...element,...changes}:element)}))),
+  deleteElement: id => set(s=>mutateActive(s,w=>({...w,elements:(w.elements??[]).filter(element=>element.id!==id)}))),
   setShowFormulas: v=>set({showFormulas:v}), setZoom:v=>set({zoom:Math.max(50,Math.min(200,v))}),
   setOrientation: v=>set(s=>{const w=activeWorkbook(s);return w?{workbooks:s.workbooks.map(x=>x.id===w.id?{...x,orientation:v,modifiedAt:Date.now()}:x)}:{};}),
   undo: ()=>set(s=>{const prev=s.undoStack.at(-1);if(!prev)return {};return {workbooks:prev,undoStack:s.undoStack.slice(0,-1),redoStack:[...s.redoStack,clone(s.workbooks)]};}),
