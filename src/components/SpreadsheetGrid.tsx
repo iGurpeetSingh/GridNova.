@@ -71,7 +71,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const hiddenRows = sheet.hiddenRows ?? [];
   const hiddenColumns = sheet.hiddenColumns ?? [];
   const columns = useMemo(() => Array.from({ length: Math.max(sheet.columnCount, 26) }, (_, i) => i).filter(col => !hiddenColumns.includes(col)), [sheet.columnCount, hiddenColumns]);
-  const rows = useMemo(() => Array.from({ length: Math.max(sheet.rowCount, 100) }, (_, i) => i).filter(row => !hiddenRows.includes(row) && (row === 0 || Object.entries(columnFilters).every(([col, value]) => !value || (sheet.cells[addressOf(row, Number(col))]?.raw ?? "") === value)), [sheet.rowCount, sheet.cells, columnFilters, hiddenRows]);
+  const rows = useMemo(() => Array.from({ length: Math.max(sheet.rowCount, 100) }, (_, i) => i).filter(row => !hiddenRows.includes(row) && (row === 0 || Object.entries(columnFilters).every(([col, value]) => !value || (sheet.cells[addressOf(row, Number(col))]?.raw ?? "") === value))), [sheet.rowCount, sheet.cells, columnFilters, hiddenRows]);
   const bounds = selection ? clampRange(selection) : { startRow: active.row, endRow: active.row, startCol: active.col, endCol: active.col };
   const selected = (row: number, col: number) => row >= bounds.startRow && row <= bounds.endRow && col >= bounds.startCol && col <= bounds.endCol;
   const setRange = (range: CellRange, address = addressOf(range.endRow, range.endCol)) => onSelect(address, range);
