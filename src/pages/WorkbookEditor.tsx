@@ -387,15 +387,38 @@ export default function WorkbookEditor(){
       case "cut":copySelection(true);break;case "copy":copySelection(false);break;case "paste":if(clipboard)paste(activeCell);break;
       case "bold":setStyle({bold:!activeStyle.bold},selectedAddresses);break;
       case "italic":setStyle({italic:!activeStyle.italic},selectedAddresses);break;
-      case "underline":setStyle({underline:!activeStyle.underline},selectedAddresses);break;
+      case "underline":setStyle({underline:!activeStyle.underline,doubleUnderline:false},selectedAddresses);break;
+      case "double-underline":setStyle({doubleUnderline:!activeStyle.doubleUnderline,underline:false},selectedAddresses);break;
       case "strike":setStyle({strike:!activeStyle.strike},selectedAddresses);break;
+      case "valign-top":setStyle({verticalAlign:"top"},selectedAddresses);break;
+      case "valign-middle":setStyle({verticalAlign:"middle"},selectedAddresses);break;
+      case "valign-bottom":setStyle({verticalAlign:"bottom"},selectedAddresses);break;
+      case "indent-up":setStyle({indent:Math.min(12,(activeStyle.indent??0)+1)},selectedAddresses);break;
+      case "indent-down":setStyle({indent:Math.max(0,(activeStyle.indent??0)-1)},selectedAddresses);break;
+      case "orientation-horizontal":setStyle({textOrientation:"horizontal"},selectedAddresses);break;
+      case "orientation-vertical":case "orientation-rotate-up":setStyle({textOrientation:"vertical"},selectedAddresses);break;
       case "align-left":setStyle({align:"left"},selectedAddresses);break;case "align-center":setStyle({align:"center"},selectedAddresses);break;case "align-right":setStyle({align:"right"},selectedAddresses);break;
       case "wrap":setStyle({wrap:!activeStyle.wrap},selectedAddresses);break;
-      case "percent":setStyle({numberFormat:"Percentage %"},selectedAddresses);break;case "currency-inr":setStyle({numberFormat:"Currency ₹"},selectedAddresses);break;case "comma":setStyle({numberFormat:"Number"},selectedAddresses);break;
+      case "percent":setStyle({numberFormat:"Percentage %"},selectedAddresses);break;
+      case "currency-inr":setStyle({numberFormat:"Currency ₹"},selectedAddresses);break;
+      case "currency-usd":setStyle({numberFormat:"Currency $"},selectedAddresses);break;
+      case "number-general":setStyle({numberFormat:"General"},selectedAddresses);break;
+      case "comma":setStyle({numberFormat:"Number",decimalPlaces:2},selectedAddresses);break;
       case "font-up":{const v=Number(activeStyle.fontSize??11);setStyle({fontSize:Math.min(36,v+1)},selectedAddresses);break;}
       case "font-down":{const v=Number(activeStyle.fontSize??11);setStyle({fontSize:Math.max(10,v-1)},selectedAddresses);break;}
       case "decimal-up":{const v=Number(activeStyle.decimalPlaces??0);setStyle({numberFormat:activeStyle.numberFormat==="General"||!activeStyle.numberFormat?"Number":activeStyle.numberFormat,decimalPlaces:Math.min(8,v+1)},selectedAddresses);break;}
       case "decimal-down":{const v=Number(activeStyle.decimalPlaces??2);setStyle({numberFormat:activeStyle.numberFormat==="General"||!activeStyle.numberFormat?"Number":activeStyle.numberFormat,decimalPlaces:Math.max(0,v-1)},selectedAddresses);break;}
+      case "paste-values":case "paste-formulas":case "paste-formats":{
+        if(!clipboard)break;
+        const start=parseAddress(activeCell);if(!start)break;
+        const cells={...sheet.cells};
+        clipboard.cells.forEach((row,ri)=>row.forEach((item,ci)=>{
+          const address=addressOf(start.row+ri,start.col+ci),existing=cells[address]??{raw:""};
+          if(name==="paste-formats")cells[address]={...existing,style:item.style?{...item.style}:undefined};
+          else cells[address]={...existing,raw:item.raw};
+        }));
+        updateCells(cells);break;
+      }
       case "autosum":case "formula-sum":{
         const p=parseAddress(activeCell);if(!p)break;
         const formula=p.row>0?`=SUM(${addressOf(0,p.col)}:${addressOf(p.row-1,p.col)})`:p.col>0?`=SUM(A1:${addressOf(p.row,p.col-1)})`:"=SUM(A1:A1)";
@@ -414,7 +437,26 @@ export default function WorkbookEditor(){
         updateCells(cells);if(found[0])selectCell(found[0][0]);window.alert(`${found.length} matching cell(s) found.`);break;
       }
       case "clear":{const cells={...sheet.cells};selectedAddresses.forEach(a=>cells[a]={...(cells[a]??{raw:""}),raw:""});updateCells(cells);break;}
+      case "clear-all":{const cells={...sheet.cells};selectedAddresses.forEach(a=>delete cells[a]);updateCells(cells);break;}
       case "clear-format":{selectedAddresses.forEach(a=>useWorkbookStore.getState().clearFormat(a));break;}
+      case "conditional-positive":case "conditional-negative":{
+        const cells={...sheet.cells};
+        selectedAddresses.forEach(a=>{
+          const numeric=numericValue(cells[a]?.raw??"",cells,sheet.tables??[],a);
+          if(numeric===null||numeric===undefined)return;
+          const color=name==="conditional-positive"?(numeric>=0?"#E2F0D9":"#FCE4D6"):(numeric<0?"#F4CCCC":"#FFF2CC");
+          cells[a]={...(cells[a]??{raw:""}),style:{...(cells[a]?.style??{}),backgroundColor:color,color:name==="conditional-positive"?(numeric>=0?"#006100":"#9C0006"):(numeric<0?"#9C0006":"#7F6000")}};
+        });
+        updateCells(cells);break;
+      }
+      case "conditional-clear":{
+        const cells={...sheet.cells};selectedAddresses.forEach(a=>{const cell=cells[a];if(!cell?.style)return;const next={...cell.style};delete next.backgroundColor;delete next.color;cells[a]={...cell,style:next};});updateCells(cells);break;
+      }
+      case "cell-style-normal":setStyle({bold:false,italic:false,underline:false,doubleUnderline:false,strike:false,color:"#323130",backgroundColor:"#FFFFFF"},selectedAddresses);break;
+      case "cell-style-good":setStyle({bold:false,color:"#006100",backgroundColor:"#E2F0D9"},selectedAddresses);break;
+      case "cell-style-bad":setStyle({bold:false,color:"#9C0006",backgroundColor:"#FCE4D6"},selectedAddresses);break;
+      case "cell-style-neutral":setStyle({bold:false,color:"#7F6000",backgroundColor:"#FFF2CC"},selectedAddresses);break;
+      case "cell-style-heading":setStyle({bold:true,color:"#FFFFFF",backgroundColor:"#1F4E78"},selectedAddresses);break;
       case "merge":{
         if(selectedAddresses.length<2){window.alert("Select two or more cells before merging.");break;}
         const startRow=Math.min(selection!.startRow,selection!.endRow),endRow=Math.max(selection!.startRow,selection!.endRow);
