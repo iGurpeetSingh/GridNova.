@@ -10,12 +10,35 @@ import type { CellStyle, SheetData } from "../types";
 import InsertRibbonIcon from "./InsertRibbonIcon";
 import { HomeColorMenu,HomeMenu,HomeSelectMenu,HomeStackAction } from "./HomeRibbonControls";
 import { TABLE_STYLES } from "../utils/tableUtils";
+import { useWorkbookStore } from "../store/useWorkbookStore";
+import { parseAddress } from "../types";
 interface Props { onAction:(action:string)=>void; onFormat:(style:Partial<CellStyle>)=>void; style:CellStyle; sheet:SheetData; }
 function Group({label,children}:{label:string;children:ReactNode}){return <section className="home-ribbon-group" aria-label={label}><div className="home-ribbon-group-content">{children}</div><div className="home-ribbon-caption">{label}</div></section>}
 function IconAction({label,icon,action,onAction,active=false}:{label:string;icon:ReactNode;action:string;onAction:(a:string)=>void;active?:boolean}){return <button type="button" title={label} aria-label={label} className={`home-icon-action ${active?"is-active":""}`} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction(action)}>{icon}</button>}
 export default function HomeRibbon({onAction,onFormat,style}:Props){
  const [open,setOpen]=useState<string|null>(null),toggle=(k:string)=>setOpen(v=>v===k?null:k),close=()=>setOpen(null),fmt=(s:Partial<CellStyle>)=>onFormat(s);
- const menu=(key:string,label:string,items:Parameters<typeof HomeMenu>[0]["items"],children:ReactNode,buttonClassName:string)=> <HomeMenu label={label} open={open===key} onToggle={()=>toggle(key)} onClose={close} onAction={onAction} items={items} buttonClassName={buttonClassName}>{children}</HomeMenu>;
+ const runAction=(action:string)=>{
+  if(action==="addin-store"){window.open("https://appsource.microsoft.com/","_blank","noopener,noreferrer");return;}
+  if(["auto-fit-column","auto-fit-row","hide-row","hide-col"].includes(action)){
+   const state=useWorkbookStore.getState(),cell=parseAddress(state.activeCell);if(!cell)return;
+   const range=state.selection;
+   if(action==="auto-fit-column"){
+    const max=Object.entries(sheet.cells).reduce((v,[address,item])=>parseAddress(address)?.col===cell.col?Math.max(v,(item.raw??"").length):v,8);
+    state.updateSheet(sheet.id,{columnWidths:{...sheet.columnWidths,[cell.col]:Math.max(64,Math.min(360,Math.ceil(max*7.6+22)))}});return;
+   }
+   if(action==="auto-fit-row"){
+    const max=Object.entries(sheet.cells).reduce((v,[address,item])=>parseAddress(address)?.row===cell.row?Math.max(v,(item.raw??"").length):v,8);
+    state.updateSheet(sheet.id,{rowHeights:{...(sheet.rowHeights??{}),[cell.row]:Math.max(27,Math.min(100,Math.ceil(max/32)*18+9))}});return;
+   }
+   const start=range?(action==="hide-row"?Math.min(range.startRow,range.endRow):Math.min(range.startCol,range.endCol)):(action==="hide-row"?cell.row:cell.col);
+   const end=range?(action==="hide-row"?Math.max(range.startRow,range.endRow):Math.max(range.startCol,range.endCol)):start;
+   if(action==="hide-row"){const hidden=new Set(sheet.hiddenRows??[]);for(let n=start;n<=end;n++)hidden.add(n);state.updateSheet(sheet.id,{hiddenRows:[...hidden]});}
+   else {const hidden=new Set(sheet.hiddenColumns??[]);for(let n=start;n<=end;n++)hidden.add(n);state.updateSheet(sheet.id,{hiddenColumns:[...hidden]});}
+   return;
+  }
+  onAction(action);
+ };
+ const menu=(key:string,label:string,items:Parameters<typeof HomeMenu>[0]["items"],children:ReactNode,buttonClassName:string)=> <HomeMenu label={label} open={open===key} onToggle={()=>toggle(key)} onClose={close} onAction={runAction} items={items} buttonClassName={buttonClassName}>{children}</HomeMenu>;
  return <>
  <Group label="Undo"><div className="home-undo-stack"><IconAction label="Undo" icon={<Undo2 size={17}/>} action="undo" onAction={onAction}/><IconAction label="Redo" icon={<Redo2 size={17}/>} action="redo" onAction={onAction}/></div></Group>
  <Group label="Clipboard">
