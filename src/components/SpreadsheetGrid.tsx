@@ -459,7 +459,24 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       cells[addressOf(row, pos.col)] = cell;
     });
     Object.entries(cells).forEach(([key, cell]) => { if (cell.raw.startsWith("=")) cells[key] = { ...cell, raw: adjustReferences(cell.raw, "row", index, count, insert) }; });
-    updateSheet(sheet.id, { cells, rowCount: Math.max(100, sheet.rowCount + (insert ? count : -count)) });
+    const tables = (sheet.tables ?? []).flatMap(table => {
+      let startRow = table.range.startRow, endRow = table.range.endRow;
+      if (insert) {
+        if (index <= startRow) { startRow += count; endRow += count; }
+        else if (index <= endRow + 1) endRow += count;
+      } else {
+        const deletedEnd = index + count - 1;
+        if (deletedEnd < startRow) { startRow -= count; endRow -= count; }
+        else if (index <= endRow) {
+          if (index <= startRow) return [];
+          const removed = Math.max(0, Math.min(endRow, deletedEnd) - Math.max(startRow, index) + 1);
+          endRow -= removed;
+          if (endRow < startRow) return [];
+        }
+      }
+      return [{ ...table, range: { ...table.range, startRow, endRow } }];
+    });
+    updateSheet(sheet.id, { cells, tables, rowCount: Math.max(100, sheet.rowCount + (insert ? count : -count)) });
   };
   const shiftColumns = (index: number, count: number, insert: boolean) => {
     const cells: SheetData["cells"] = {};
@@ -472,7 +489,24 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     Object.entries(cells).forEach(([key, cell]) => { if (cell.raw.startsWith("=")) cells[key] = { ...cell, raw: adjustReferences(cell.raw, "column", index, count, insert) }; });
     const widths: Record<number, number> = {};
     Object.entries(sheet.columnWidths).forEach(([key, width]) => { const col = Number(key); if (!insert && col >= index && col < index + count) return; widths[insert && col >= index ? col + count : !insert && col >= index + count ? col - count : col] = width; });
-    updateSheet(sheet.id, { cells, columnWidths: widths, columnCount: Math.max(26, sheet.columnCount + (insert ? count : -count)) });
+    const tables = (sheet.tables ?? []).flatMap(table => {
+      let startCol = table.range.startCol, endCol = table.range.endCol;
+      if (insert) {
+        if (index <= startCol) { startCol += count; endCol += count; }
+        else if (index <= endCol + 1) endCol += count;
+      } else {
+        const deletedEnd = index + count - 1;
+        if (deletedEnd < startCol) { startCol -= count; endCol -= count; }
+        else if (index <= endCol) {
+          if (index <= startCol) return [];
+          const removed = Math.max(0, Math.min(endCol, deletedEnd) - Math.max(startCol, index) + 1);
+          endCol -= removed;
+          if (endCol < startCol) return [];
+        }
+      }
+      return [{ ...table, range: { ...table.range, startCol, endCol } }];
+    });
+    updateSheet(sheet.id, { cells, columnWidths: widths, tables, columnCount: Math.max(26, sheet.columnCount + (insert ? count : -count)) });
   };
   const shiftSelectedCells = (direction: "down" | "right" | "up" | "left") => {
     const rowCount = bounds.endRow - bounds.startRow + 1, colCount = bounds.endCol - bounds.startCol + 1;
@@ -502,6 +536,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     if (!menu) return;
     const countRows = bounds.endRow - bounds.startRow + 1;
     const countCols = bounds.endCol - bounds.startCol + 1;
+    const contextTable = getTableAt(sheet.tables, menu.index, menu.col);
     if (action === "cut") void copySystem(true);
     else if (action === "copy") void copySystem();
     else if (action === "paste") clipboard ? pasteInternal("all") : void pasteFromSystem();
@@ -516,6 +551,40 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     else if (action === "insert-cells-right") shiftSelectedCells("right");
     else if (action === "delete-cells-up") shiftSelectedCells("up");
     else if (action === "delete-cells-left") shiftSelectedCells("left");
+    else if (action === "table-insert-row-above" && contextTable) shiftRows(menu.index, 1, true);
+    else if (action === "table-insert-row-below" && contextTable) shiftRows(menu.index + 1, 1, true);
+    else if (action === "table-delete-row" && contextTable) shiftRows(menu.index, 1, false);
+    else if (action === "table-insert-column-left" && contextTable) shiftColumns(menu.col, 1, true);
+    else if (action === "table-insert-column-right" && contextTable) shiftColumns(menu.col + 1, 1, true);
+    else if (action === "table-delete-column" && contextTable) shiftColumns(menu.col, 1, false);
+    else if (action === "table-clear-filters" && contextTable) updateSheet(sheet.id, { tables: (sheet.tables ?? []).map(table => table.id === contextTable.id ? { ...table, filters: {} } : table) });
+    else if (action === "table-remove-duplicates" && contextTable) {
+      const seen = new Set<string>(), keep: CellMap[] = [];
+      for (let row = contextTable.range.startRow + 1; row <= contextTable.range.endRow; row++) {
+        const signature = Array.from({ length: contextTable.range.endCol - contextTable.range.startCol + 1 }, (_, offset) => sheet.cells[addressOf(row, contextTable.range.startCol + offset)]?.raw ?? "").join("\u001f");
+        if (seen.has(signature)) continue;
+        seen.add(signature);
+        keep.push(Object.fromEntries(Array.from({ length: contextTable.range.endCol - contextTable.range.startCol + 1 }, (_, offset) => [addressOf(row, contextTable.range.startCol + offset), sheet.cells[addressOf(row, contextTable.range.startCol + offset)] ?? { raw: "" }])));
+      }
+      const next = { ...sheet.cells }, firstData = contextTable.range.startRow + 1;
+      for (let row = firstData; row <= contextTable.range.endRow; row++) for (let col = contextTable.range.startCol; col <= contextTable.range.endCol; col++) delete next[addressOf(row, col)];
+      keep.forEach((rowCells, offset) => Object.entries(rowCells).forEach(([source, cell]) => { const position = parseAddress(source)!; next[addressOf(firstData + offset, position.col)] = cell; }));
+      const tables = (sheet.tables ?? []).map(table => table.id === contextTable.id ? { ...table, range: { ...table.range, endRow: firstData + keep.length - 1 } } : table);
+      updateSheet(sheet.id, { cells: next, tables });
+    }
+    else if (action === "table-convert-range" && contextTable) {
+      const palette = getTablePalette(contextTable.styleId), next = { ...sheet.cells };
+      for (let row = contextTable.range.startRow; row <= contextTable.range.endRow + (contextTable.showTotalRow ? 1 : 0); row++) {
+        for (let col = contextTable.range.startCol; col <= contextTable.range.endCol; col++) {
+          const key = addressOf(row, col), cell = next[key] ?? { raw: "" }, style = { ...(cell.style ?? {}) };
+          if (!style.backgroundColor) style.backgroundColor = row === contextTable.range.startRow ? palette.header : contextTable.bandedRows && (row - contextTable.range.startRow) % 2 === 0 ? palette.band : "#ffffff";
+          if (row === contextTable.range.startRow && !style.color) style.color = palette.text;
+          if (row === contextTable.range.startRow) style.bold = true;
+          next[key] = { ...cell, style };
+        }
+      }
+      updateSheet(sheet.id, { cells: next, tables: (sheet.tables ?? []).filter(table => table.id !== contextTable.id) });
+    }
     else if (action === "border-all") applyRangeBorder("all");
     else if (action === "border-outer") applyRangeBorder("outer");
     else if (action === "border-bottom") applyRangeBorder("bottom");
@@ -660,6 +729,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     else onSelect(addressOf(nextRow, nextCol), { startRow: nextRow, startCol: nextCol, endRow: nextRow, endCol: nextCol });
     focusCell(nextRow, nextCol);
   };
+  const contextTable = menu ? getTableAt(sheet.tables, menu.index, menu.col) : undefined;
   const menuItem = (label: string, action: string, shortcut?: string) => <button key={action} type="button" role="menuitem" onClick={() => menuAction(action)} className="grid-context-item"><span>{label}</span>{shortcut && <span className="grid-context-shortcut">{shortcut}</span>}</button>;
   const filteringTable = tableFilterMenu ? sheet.tables?.find(item => item.id === tableFilterMenu.tableId) : undefined;
   const filterValues = filteringTable && tableFilterMenu ? tableColumnValues(filteringTable, tableFilterMenu.col, sheet.cells) : [];
@@ -792,6 +862,18 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
         <div className="grid-context-divider" />
         {menuItem("All borders", "border-all")}{menuItem("Outside borders", "border-outer")}{menuItem("Bottom border", "border-bottom")}{menuItem("Right border", "border-right")}{menuItem("Remove borders", "border-clear")}
         {menuItem("Keyboard shortcuts…", "show-shortcuts")}{menuItem("Clear All", "clear-all")}
+        {contextTable && <>
+          <div className="grid-context-divider" />
+          {menuItem("Insert Table Row Above", "table-insert-row-above")}
+          {menuItem("Insert Table Row Below", "table-insert-row-below")}
+          {menuItem("Delete Table Row", "table-delete-row")}
+          {menuItem("Insert Table Column Left", "table-insert-column-left")}
+          {menuItem("Insert Table Column Right", "table-insert-column-right")}
+          {menuItem("Delete Table Column", "table-delete-column")}
+          {menuItem("Clear Table Filters", "table-clear-filters")}
+          {menuItem("Remove Duplicates from Table", "table-remove-duplicates")}
+          {menuItem("Convert Table to Range", "table-convert-range")}
+        </>}
       </>}
       {menu.kind === "row" && <>{menuItem("Hide row", "hide-row")}{menuItem("Unhide all rows", "unhide-rows")}{menuItem("Resize row…", "resize-row")}{menuItem("Fit row to data", "autofit-row")}</>}
       {menu.kind === "column" && <>{menuItem("Hide column", "hide-column")}{menuItem("Unhide all columns", "unhide-columns")}{menuItem("Resize column…", "resize-column")}{menuItem("Fit column to data", "autofit-column")}</>}
