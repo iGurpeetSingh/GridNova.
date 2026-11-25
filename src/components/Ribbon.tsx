@@ -94,7 +94,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
           <ShapeGalleryButton onSelect={shape=>onAction(`shape-gallery:${shape}`)}><InsertRibbonIcon name="shapes"/><span className="insert-command-label">Shapes</span><ChevronDown className="insert-command-chevron" size={10}/></ShapeGalleryButton>
         </InsertGroup>
         <InsertGroup label="Controls">
-          <button type="button" className="insert-command" title="Insert an interactive checkbox into the selected cells" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("checkbox")}><InsertRibbonIcon name="checkbox"/><span>Checkbox</span></button>
+          <button type="button" className="insert-command" title="Insert an interactive checkbox into the selected cells" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("checkbox")}><InsertRibbonIcon name="checkbox"/><span className="insert-command-label">Checkbox</span></button>
         </InsertGroup>
         <InsertGroup label="Charts">
           {([
