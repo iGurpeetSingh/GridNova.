@@ -175,6 +175,117 @@ export default function WorkbookEditor(){
     });
     updateSheet(sheet.id,{cells,tables,rowCount:axis==="row"?Math.max(1,sheet.rowCount+(mode==="insert"?1:-1)):sheet.rowCount,columnCount:axis==="column"?Math.max(1,sheet.columnCount+(mode==="insert"?1:-1)):sheet.columnCount});
   };
+  const openTableDialog=(mode:"create"|"resize")=>{setTableDialogMode(mode);setTableDialogOpen(true)};
+  const updateActiveTable=(changes:Partial<ExcelTableData>)=>{
+    if(!activeTable)return;
+    updateSheet(sheet.id,{tables:(sheet.tables??[]).map(table=>table.id===activeTable.id?{...table,...changes}:table)});
+  };
+  const submitTableRange=(rangeText:string,hasHeaders:boolean)=>{
+    const parsed=parseRangeLabel(rangeText);
+    if(!parsed){window.alert("Enter a valid range such as A1:D10.");return;}
+    const resizing=tableDialogMode==="resize"&&activeTable;
+    const overlaps=(sheet.tables??[]).some(table=>{
+      if(resizing&&table.id===activeTable.id)return false;
+      const end=table.range.endRow+(table.showTotalRow?1:0);
+      return parsed.startRow<=end&&parsed.endRow>=table.range.startRow&&parsed.startCol<=table.range.endCol&&parsed.endCol>=table.range.startCol;
+    });
+    if(overlaps){window.alert("This range overlaps another Excel Table. Choose a separate range.");return;}
+    let cells={...sheet.cells},range={...parsed};
+    if(!resizing&&!hasHeaders){
+      const shifted:typeof sheet.cells={};
+      Object.entries(sheet.cells).forEach(([key,cell])=>{
+        const position=parseAddress(key);if(!position)return;
+        const row=position.row>=parsed.startRow?position.row+1:position.row;
+        shifted[addressOf(row,position.col)]={...cell,raw:cell.raw.startsWith("=")?shiftFormulaRowRefs(cell.raw,parsed.startRow):cell.raw};
+      });
+      cells=shifted;range.endRow+=1;
+    }
+    const used=new Set<string>();
+    for(let col=range.startCol;col<=range.endCol;col++){
+      const key=addressOf(range.startRow,col);
+      const initial=resizing?cells[key]?.raw?.trim():hasHeaders?cells[key]?.raw?.trim():"";
+      const base=initial||("Column"+(col-range.startCol+1));
+      let label=base,suffix=2;
+      while(used.has(label.toLowerCase()))label=base+"_"+(suffix++);
+      used.add(label.toLowerCase());
+      cells[key]={...(cells[key]??{raw:""}),raw:label};
+    }
+    const tables=[...(sheet.tables??[])];
+    if(resizing&&activeTable){
+      updateSheet(sheet.id,{cells,tables:tables.map(table=>table.id===activeTable.id?{...table,range,hasHeaders:true}:table),rowCount:Math.max(sheet.rowCount,range.endRow+1),columnCount:Math.max(sheet.columnCount,range.endCol+1)});
+    }else{
+      const tableName=normalizeTableName("Table"+(tables.length+1));
+      const table:ExcelTableData={id:crypto.randomUUID(),name:tableName,range,hasHeaders:true,showTotalRow:false,firstColumn:false,lastColumn:false,bandedRows:true,bandedColumns:false,showFilterButtons:true,styleId:"TableStyleMedium16",filters:{}};
+      updateSheet(sheet.id,{cells,tables:[...tables,table],rowCount:Math.max(sheet.rowCount+(hasHeaders?0:1),range.endRow+1),columnCount:Math.max(sheet.columnCount,range.endCol+1)});
+      selectCell(addressOf(range.startRow,range.startCol),range);
+      setTab("Table Design");
+    }
+    setTableDialogOpen(false);setShowSaved();
+  };
+  const setTableTotalRow=(enable:boolean)=>{
+    if(!activeTable||activeTable.showTotalRow===enable)return;
+    const totalRow=activeTable.range.endRow+1;
+    if(enable){
+      shiftRowsCols("row",totalRow,"insert");
+      const latest=useWorkbookStore.getState().workbooks.find(item=>item.id===workbook.id)?.sheets.find(item=>item.id===sheet.id);
+      if(!latest)return;
+      const cells={...latest.cells};
+      for(let col=activeTable.range.startCol;col<=activeTable.range.endCol;col++){
+        const header=latest.cells[addressOf(activeTable.range.startRow,col)]?.raw||("Column"+(col-activeTable.range.startCol+1));
+        const values=Array.from({length:activeTable.range.endRow-activeTable.range.startRow},(_,i)=>latest.cells[addressOf(activeTable.range.startRow+i+1,col)]?.raw??"");
+        const numericColumn=values.some(value=>value.trim()!==""&&Number.isFinite(Number(value)));
+        cells[addressOf(totalRow,col)]={raw:"=SUBTOTAL("+(numericColumn?109:103)+","+activeTable.name+"["+header+"])",style:{bold:true}};
+      }
+      updateSheet(sheet.id,{cells,tables:(latest.tables??[]).map(table=>table.id===activeTable.id?{...table,range:activeTable.range,showTotalRow:true}:table)});
+    }else{
+      shiftRowsCols("row",totalRow,"delete");
+      const latest=useWorkbookStore.getState().workbooks.find(item=>item.id===workbook.id)?.sheets.find(item=>item.id===sheet.id);
+      if(latest)updateSheet(sheet.id,{tables:(latest.tables??[]).map(table=>table.id===activeTable.id?{...table,showTotalRow:false}:table)});
+    }
+  };
+  const convertActiveTableToRange=()=>{
+    if(!activeTable)return;
+    const palette=getTablePalette(activeTable.styleId),cells={...sheet.cells};
+    for(let row=activeTable.range.startRow;row<=activeTable.range.endRow+(activeTable.showTotalRow?1:0);row++)
+      for(let col=activeTable.range.startCol;col<=activeTable.range.endCol;col++){
+        const key=addressOf(row,col),cell=cells[key]??{raw:""},style={...(cell.style??{})};
+        if(!style.backgroundColor)style.backgroundColor=row===activeTable.range.startRow?palette.header:activeTable.bandedRows&&(row-activeTable.range.startRow)%2===0?palette.band:"#ffffff";
+        if(row===activeTable.range.startRow&&!style.color)style.color=palette.text;
+        if(row===activeTable.range.startRow)style.bold=true;
+        cells[key]={...cell,style};
+      }
+    updateSheet(sheet.id,{cells,tables:(sheet.tables??[]).filter(table=>table.id!==activeTable.id)});
+    setTab("Home");
+  };
+  const removeActiveTableDuplicates=()=>{
+    if(!activeTable)return;
+    const seen=new Set<string>(),keep:Array<Array<typeof sheet.cells[string]|undefined>>=[];
+    for(let row=activeTable.range.startRow+1;row<=activeTable.range.endRow;row++){
+      const record=Array.from({length:activeTable.range.endCol-activeTable.range.startCol+1},(_,offset)=>sheet.cells[addressOf(row,activeTable.range.startCol+offset)]);
+      const signature=record.map(cell=>cell?.raw??"").join("\u001f");
+      if(!seen.has(signature)){seen.add(signature);keep.push(record);}
+    }
+    const cells={...sheet.cells},firstData=activeTable.range.startRow+1;
+    for(let row=firstData;row<=activeTable.range.endRow+(activeTable.showTotalRow?1:0);row++)
+      for(let col=activeTable.range.startCol;col<=activeTable.range.endCol;col++)delete cells[addressOf(row,col)];
+    keep.forEach((record,offset)=>record.forEach((cell,col)=>{if(cell)cells[addressOf(firstData+offset,activeTable.range.startCol+col)]=cell;}));
+    const endRow=activeTable.range.startRow+keep.length;
+    if(activeTable.showTotalRow)for(let col=activeTable.range.startCol;col<=activeTable.range.endCol;col++){
+      const old=sheet.cells[addressOf(activeTable.range.endRow+1,col)];
+      if(old)cells[addressOf(endRow+1,col)]=old;
+    }
+    updateSheet(sheet.id,{cells,tables:(sheet.tables??[]).map(table=>table.id===activeTable.id?{...table,range:{...table.range,endRow}}:table)});
+  };
+  const copyShareLink=async(kind:"workbook"|"range"|"table")=>{
+    let section="";
+    if(kind!=="workbook"){
+      section="?sheet="+encodeURIComponent(sheet.id)+"&range="+encodeURIComponent(selectedRangeString());
+      if(kind==="table"&&activeTable)section+="&table="+encodeURIComponent(activeTable.name);
+    }
+    const url=window.location.origin+"/workbook/"+workbook.id+section;
+    try{await navigator.clipboard.writeText(url);window.alert("Link copied. Actual shared access and permissions require an authenticated sharing backend.");}
+    catch{window.prompt("Copy this link",url);}
+  };
   const sortData=(descending:boolean)=>{
     const p=parseAddress(activeCell);if(!p)return;
     const header=sheet.cells[addressOf(0,p.col)]?.raw;
