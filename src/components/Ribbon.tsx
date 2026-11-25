@@ -12,18 +12,20 @@ import {
   CalendarClock, AlignJustify, Palette, ArrowLeft, Save,
   ChevronDown, ChevronUp, ChevronRight, IndentDecrease, IndentIncrease,
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
-  Replace, Paintbrush2,
+  Replace, Paintbrush2, Share2, Link2, Users, ShieldCheck, TableProperties, FilterX, ListChecks,
 } from "lucide-react";
-import type { CellStyle, SheetData } from "../types";
+import type { CellStyle, ExcelTableData, SheetData } from "../types";
+import { TABLE_STYLES } from "../utils/tableUtils";
 
-type Tab = "File"|"Home"|"Insert"|"Page Layout"|"Formulas"|"Data"|"View";
+type Tab = "File"|"Home"|"Insert"|"Share"|"Page Layout"|"Formulas"|"Data"|"Review"|"View"|"Help"|"Draw"|"Table Design";
 interface Props {
   activeTab:Tab; setActiveTab:(t:Tab)=>void; onAction:(action:string)=>void;
   onFormat:(style:Partial<CellStyle>)=>void; style:CellStyle; sheet:SheetData;
   showFormulas:boolean; setShowFormulas:(v:boolean)=>void; zoom:number; setZoom:(v:number)=>void;
   orientation:"portrait"|"landscape"; setOrientation:(v:"portrait"|"landscape")=>void;
+  activeTable?: ExcelTableData | null;
 }
-const tabs:Tab[]=["File","Home","Insert","Page Layout","Formulas","Data","View"];
+const baseTabs:Tab[]=["File","Home","Insert","Share","Page Layout","Formulas","Data","Review","View","Help","Draw"];
 const tones:Record<string,string>={green:"#107c41",blue:"#3b82f6",indigo:"#6366f1",amber:"#e59a23",purple:"#8b5cf6",rose:"#e45a56",pink:"#e66aa8"};
 function Tool({label,icon:Icon,action,onAction,tone="blue",active=false}:any){
   return <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction(action)} title={label} aria-label={label} className={`ribbon-action ${active?"active":""}`}>
@@ -52,7 +54,8 @@ function ActionMenu({id,label,className,children,items,open,onToggle,onClose,onA
 function Group({label,children}:{label:string;children:ReactNode}){
   return <section aria-label={label} className="ribbon-group"><div className="ribbon-group-content">{children}</div><div className="ribbon-label">{label}</div></section>;
 }
-export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation}:Props){
+export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation,activeTable=null}:Props){
+  const tabs = activeTable ? [...baseTabs, "Table Design" as Tab] : baseTabs;
   const [openMenu,setOpenMenu]=useState<string|null>(null);
   const toggleMenu=(key:string)=>setOpenMenu(current=>current===key?null:key);
   const closeMenu=()=>setOpenMenu(null);
@@ -75,10 +78,38 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
       </>;
       case "Insert":return <>
         <Group label="Cells">{button("Row above",ArrowUpToLine,"row-above","green")}{button("Row below",ArrowDownToLine,"row-below","green")}{button("Delete row",Rows3,"delete-row","rose")}{button("Column left",Columns3,"col-left","green")}{button("Column right",Plus,"col-right","green")}{button("Delete column",Trash2,"delete-col","rose")}</Group>
-        <Group label="Tables">{button("Format as table",Table2,"format-table","green")}</Group>
+        <Group label="Tables">{button("Format as Table",Table2,"format-table","green")}</Group>
         <Group label="Charts">{button("Bar chart",ChartColumn,"chart-bar","purple")}{button("Line chart",ChartLine,"chart-line","purple")}{button("Pie chart",Braces,"chart-pie","purple")}</Group>
         <Group label="Elements">{button("Hyperlink",Link,"hyperlink","pink")}{button("Comment",MessageSquare,"comment","pink")}{button("Checkbox",SquareCheck,"checkbox","pink")}{button("Date",CalendarDays,"date","pink")}</Group>
       </>;
+      case "Share":return <>
+        <Group label="Share Workbook">{button("Share workbook",Share2,"share-open","green")}{button("Copy workbook link",Link2,"share-copy-link","blue")}</Group>
+        <Group label="Share Selection">{button("Create range link",Link2,"share-section-link","blue")}{button("Share selected table",Table2,"share-table-link","blue")}</Group>
+        <Group label="Collaboration">{button("Manage access",ShieldCheck,"share-manage-access","blue")}{button("Invite people",Users,"share-open","green")}</Group>
+      </>;
+      case "Table Design":return activeTable ? <>
+        <Group label="Properties">
+          <button type="button" className="ribbon-labeled" title="Rename Table" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("table-rename")}><TableProperties size={16}/>{activeTable.name}<ChevronDown size={9}/></button>
+          {button("Resize Table",Rows3,"table-resize","blue")}
+        </Group>
+        <Group label="Tools">{button("Remove Duplicates",Eraser,"table-remove-duplicates","rose")}{button("Convert to Range",Grid2X2,"table-convert-range","blue")}{button("Clear Filters",FilterX,"table-clear-filters","blue")}</Group>
+        <Group label="Table Style Options">
+          {button("Header Row",Table2,"table-toggle-headers","green",activeTable.hasHeaders)}
+          {button("Total Row",Sigma,"table-toggle-totals","green",activeTable.showTotalRow)}
+          {button("First Column",Columns3,"table-toggle-first-column","blue",activeTable.firstColumn)}
+          {button("Last Column",Columns3,"table-toggle-last-column","blue",activeTable.lastColumn)}
+          {button("Banded Rows",Rows3,"table-toggle-banded-rows","blue",activeTable.bandedRows)}
+          {button("Banded Columns",Columns3,"table-toggle-banded-columns","blue",activeTable.bandedColumns)}
+          {button("Filter Button",Filter,"table-toggle-filter-buttons","blue",activeTable.showFilterButtons)}
+        </Group>
+        <Group label="Table Styles">
+          <ActionMenu id="table-styles" label="Table Styles Gallery" className="ribbon-labeled" items={TABLE_STYLES.map(id=>({label:id.replace("TableStyle","").replace(/([A-Z])/g," $1").trim(),action:`table-style-${id}`}))} open={openMenu==="table-styles"} onToggle={()=>toggleMenu("table-styles")} onClose={closeMenu} onAction={onAction}><Palette size={16}/>Table Styles <ChevronDown size={9}/></ActionMenu>
+          {button("Clear Style",Eraser,"table-clear-style","rose")}
+        </Group>
+      </> : <Group label="Table Design">{button("Create Table",Table2,"format-table","green")}</Group>;
+      case "Review":return <Group label="Review">{button("New Comment",MessageSquare,"comment","blue")}{button("Protect Sheet",ShieldCheck,"protect-sheet","blue")}</Group>;
+      case "Help":return <Group label="Help">{button("Keyboard shortcuts",FunctionSquare,"show-shortcuts","blue")}{button("Function help",Search,"insert-function","blue")}</Group>;
+      case "Draw":return <Group label="Drawing">{button("Add comment",MessageSquare,"comment","blue")}</Group>;
       case "Page Layout":return <>
         <Group label="Page setup"><Tool label="Portrait" icon={FileText} action="orientation-portrait" onAction={onAction} tone="blue" active={orientation==="portrait"}/><Tool label="Landscape" icon={FileText} action="orientation-landscape" onAction={onAction} tone="blue" active={orientation==="landscape"}/></Group>
         <Group label="Sheet options">{button(sheet.showGridlines?"Hide gridlines":"Show gridlines",Grid2X2,"gridlines","green",!sheet.showGridlines)}{button(sheet.showHeadings?"Hide headings":"Show headings",Rows3,"headings","blue",!sheet.showHeadings)}</Group>
