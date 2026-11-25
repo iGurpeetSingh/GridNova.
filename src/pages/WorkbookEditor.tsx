@@ -279,7 +279,8 @@ export default function WorkbookEditor(){
   const copyShareLink=async(kind:"workbook"|"range"|"table")=>{
     let section="";
     if(kind!=="workbook"){
-      section="?sheet="+encodeURIComponent(sheet.id)+"&range="+encodeURIComponent(selectedRangeString());
+      const sharedRange=kind==="table"&&activeTable?rangeLabel(activeTable.range):selectedRangeString();
+      section="?sheet="+encodeURIComponent(sheet.id)+"&range="+encodeURIComponent(sharedRange);
       if(kind==="table"&&activeTable)section+="&table="+encodeURIComponent(activeTable.name);
     }
     const url=window.location.origin+"/workbook/"+workbook.id+section;
