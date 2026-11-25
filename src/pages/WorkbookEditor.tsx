@@ -9,13 +9,14 @@ const FloatingChart = lazy(() => import("../components/FloatingChart"));
 import ShareModal from "../components/ShareModal";
 import TableRangeDialog from "../components/TableRangeDialog";
 import FormulaLibraryDialog from "../components/FormulaLibraryDialog";
+import NameManagerDialog from "../components/NameManagerDialog";
 import CellInsertDialog from "../components/CellInsertDialog";
 import FloatingElement from "../components/FloatingElement";
 import CellImageOverlays from "../components/CellImageOverlays";
 import { useWorkbookStore } from "../store/useWorkbookStore";
-import type { CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData } from "../types";
+import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData } from "../types";
 import { addressOf, parseAddress } from "../types";
-import { numericValue } from "../utils/formulaEngine";
+import { numericValue, recalculate } from "../utils/formulaEngine";
 import { getTableAt, getTableHeaderLabel, getTablePalette, normalizeTableName, tableColumnValues } from "../utils/tableUtils";
 
 
@@ -69,6 +70,9 @@ export default function WorkbookEditor(){
   const [tableDialogOpen,setTableDialogOpen]=useState(false);
   const [tableDialogMode,setTableDialogMode]=useState<"create"|"resize">("create");
   const [formulaLibraryOpen,setFormulaLibraryOpen]=useState(false);
+  const [formulaLibraryCategory,setFormulaLibraryCategory]=useState("All");
+  const [nameManagerOpen,setNameManagerOpen]=useState(false);
+  const [calculationToast,setCalculationToast]=useState("");
   const [cellDialogKind,setCellDialogKind]=useState<"link"|"comment"|null>(null);
   const [commentsPanelOpen,setCommentsPanelOpen]=useState(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
@@ -79,11 +83,14 @@ export default function WorkbookEditor(){
   const fileRef=useRef<HTMLInputElement>(null);
   const pictureRef=useRef<HTMLInputElement>(null);
   const renameWorkbook=useWorkbookStore(s=>s.renameWorkbook);
+  const updateWorkbook=useWorkbookStore(s=>s.updateWorkbook);
   const setShowSaved=()=>{setSavePulse(true);window.setTimeout(()=>setSavePulse(false),1400)};
   useEffect(()=>{if(id&&activeWorkbookId!==id)setActiveWorkbook(id)},[id,activeWorkbookId,setActiveWorkbook]);
   useEffect(()=>{setTitleValue(workbook?.title??"")},[workbook?.title]);
   const sheet=workbook?.sheets.find(s=>s.id===activeSheetId)??workbook?.sheets[0];
   const activeRaw=sheet?.cells[activeCell]?.raw??"";
+  const namedRanges=workbook?.namedRanges??{};
+  const calculationMode:CalculationMode=workbook?.calculationMode??"Automatic";
   useEffect(()=>{setFormulaValue(activeRaw)},[activeRaw,activeCell,activeSheetId]);
   const activeStyle=sheet?.cells[activeCell]?.style??{};
   const selectedAddresses=useMemo(()=>{
@@ -95,9 +102,9 @@ export default function WorkbookEditor(){
   },[selection,activeCell]);
   const stats=useMemo(()=>{
     if(!sheet)return {count:0,sum:0,average:0};
-    const vals=selectedAddresses.map(a=>numericValue(sheet.cells[a]?.raw??"",sheet.cells,sheet.tables??[],a)).filter((v):v is number=>v!==null);
+    const vals=selectedAddresses.map(a=>numericValue(sheet.cells[a]?.raw??"",sheet.cells,sheet.tables??[],a,namedRanges)).filter((v):v is number=>v!==null);
     return {count:vals.length,sum:vals.reduce((a,b)=>a+b,0),average:vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0};
-  },[sheet,selectedAddresses]);
+  },[sheet,selectedAddresses,namedRanges]);
   const activePosition = parseAddress(activeCell);
   const activeTable = activePosition && sheet ? getTableAt(sheet.tables, activePosition.row, activePosition.col) ?? null : null;
   const suggestedTableRange = useMemo(() => {
@@ -371,6 +378,29 @@ export default function WorkbookEditor(){
     if(header!==undefined&&sheet.cells[addressOf(0,p.col)]?.raw!==header)return;
     updateCells(cells);
   };
+  const showCalculationToast=(message:string)=>{
+    setCalculationToast(message);
+    window.setTimeout(()=>setCalculationToast(current=>current===message?"":current),1800);
+  };
+  const updateCalculationMode=(mode:CalculationMode)=>{
+    const nextSheets=workbook.sheets.map(item=>({...item,cells:recalculate(item.cells,item.tables??[],namedRanges)}));
+    updateWorkbook(workbook.id,{calculationMode:mode,sheets:nextSheets});
+    showCalculationToast(`Calculation mode: ${mode}`);
+  };
+  const calculateWorkbook=()=>{
+    const nextSheets=workbook.sheets.map(item=>({...item,cells:recalculate(item.cells,item.tables??[],namedRanges)}));
+    updateWorkbook(workbook.id,{sheets:nextSheets});
+    showCalculationToast("Workbook calculated");
+  };
+  const calculateActiveSheet=()=>{
+    const nextCells=recalculate(sheet.cells,sheet.tables??[],namedRanges);
+    updateSheet(sheet.id,{cells:nextCells});
+    showCalculationToast(`${sheet.name} calculated`);
+  };
+  const insertFormula=(functionName:string)=>{
+    const formula=`=${functionName}(`;
+    setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true);
+  };
   const action=(name:string)=>{
     switch(name){
       case "new":{const created=useWorkbookStore.getState().createWorkbook("blank");navigate(`/workbook/${created}`);break;}
@@ -502,7 +532,11 @@ export default function WorkbookEditor(){
       case "table-clear-filters":if(activeTable)updateActiveTable({filters:{}});break;
       case "table-remove-duplicates":removeActiveTableDuplicates();break;
       case "table-convert-range":convertActiveTableToRange();break;
-      case "insert-function":setFormulaLibraryOpen(true);break;
+      case "insert-function":setFormulaLibraryCategory("All");setFormulaLibraryOpen(true);break;
+      case "calculate-workbook":calculateWorkbook();break;
+      case "calculate-sheet":calculateActiveSheet();break;
+      case "formula-category:Statistical":case "formula-category:Engineering":case "formula-category:Information":
+        setFormulaLibraryCategory(name.slice("formula-category:".length));setFormulaLibraryOpen(true);break;
       case "share-open":case "share-manage-access":setShareOpen(true);break;
       case "share-copy-link":copyShareLink("workbook");break;
       case "share-section-link":copyShareLink("range");break;
@@ -563,7 +597,8 @@ export default function WorkbookEditor(){
       case "zoom-in":useWorkbookStore.getState().setZoom(zoom+10);break;case "zoom-out":useWorkbookStore.getState().setZoom(zoom-10);break;
       case "import":fileRef.current?.click();break;
       default:
-        if(name.startsWith("table-style-")&&activeTable)updateActiveTable({styleId:name.slice("table-style-".length)});
+        if(name.startsWith("formula-insert:"))insertFormula(name.slice("formula-insert:".length));
+        else if(name.startsWith("table-style-")&&activeTable)updateActiveTable({styleId:name.slice("table-style-".length)});
         else if(name.startsWith("shape-gallery:")){
           const shape=name.slice("shape-gallery:".length) as FloatingElementData["shape"];
           insertFloatingElement({type:"shape",shape});
@@ -609,10 +644,10 @@ export default function WorkbookEditor(){
       <div className="hidden items-center gap-1.5 rounded-full bg-[#edf8f0] px-3 py-1.5 text-[10px] font-semibold text-[#16864b] sm:flex">{savePulse?<Check size={12}/>:<Cloud size={12}/>} {savePulse?"Saved just now":"Saved locally"}</div>
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
-    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation} activeTable={activeTable}/>
-    <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}} onCancel={()=>setFormulaValue(activeRaw)} onInsertFunction={()=>setFormulaLibraryOpen(true)} onNavigate={address=>selectCell(address)} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>
+    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation} activeTable={activeTable} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)}/>
+    <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}} onCancel={()=>setFormulaValue(activeRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <SpreadsheetGrid sheet={sheet} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} formulaBarFocused={formulaBarFocused} onSelect={selectCell}/>
+      <SpreadsheetGrid sheet={sheet} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} onSelect={selectCell}/>
       <CellImageOverlays sheet={sheet}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
       {(workbook.elements??[]).map(element=><FloatingElement key={element.id} element={element} onUpdate={updateElement} onDelete={deleteElement}/>)}
@@ -620,10 +655,12 @@ export default function WorkbookEditor(){
       <input ref={pictureRef} type="file" accept="image/*" className="hidden" onChange={event=>{const file=event.target.files?.[0];if(file)importPicture(file);if(pictureRef.current)pictureRef.current.value="";}}/>
     </div>
     <SheetBar sheets={workbook.sheets} activeId={sheet.id} onSelect={setActiveSheet} onAdd={addSheet} onRename={renameSheet} onDelete={id=>{if(window.confirm("Delete this sheet?"))deleteSheet(id)}}/>
+    {calculationToast&&<div role="status" className="formula-calculation-toast">{calculationToast}</div>}
     <footer className="no-print flex h-8 shrink-0 items-center justify-between border-t border-[#e2e9e4] bg-white px-4 text-[10px] text-[#829087]"><div className="flex items-center gap-4"><span>Ready</span><span>Count: <b className="text-[#52665a]">{stats.count}</b></span><span>Sum: <b className="text-[#52665a]">{stats.sum.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span><span>Average: <b className="text-[#52665a]">{stats.average.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span></div><div>{sheet.showGridlines?"Gridlines on":"Gridlines off"} · {zoom}%</div></footer>
     <ShareModal open={shareOpen} onClose={()=>setShareOpen(false)} workbookId={workbook.id} title={workbook.title} onExport={exportFile}/>
     <TableRangeDialog open={tableDialogOpen} title={tableDialogMode==="resize"?"Resize Table":"Create Table"} initialRange={tableDialogMode==="resize"&&activeTable?rangeLabel(activeTable.range):suggestedTableRange} initialHasHeaders={tableDialogMode==="resize"?(activeTable?.hasHeaders??true):true} submitLabel={tableDialogMode==="resize"?"Resize":"OK"} onClose={()=>setTableDialogOpen(false)} onSubmit={submitTableRange}/>
-    <FormulaLibraryDialog open={formulaLibraryOpen} onClose={()=>setFormulaLibraryOpen(false)} onInsert={formula=>{setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true)}}/>
+    <FormulaLibraryDialog open={formulaLibraryOpen} initialCategory={formulaLibraryCategory} onClose={()=>setFormulaLibraryOpen(false)} onInsert={formula=>{setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true)}}/>
+    <NameManagerDialog open={nameManagerOpen} namedRanges={namedRanges} sheetName={sheet.name} onClose={()=>setNameManagerOpen(false)} onSave={ranges=>{updateWorkbook(workbook.id,{namedRanges:ranges});setShowSaved()}}/>
     <CellInsertDialog open={!!cellDialogKind} kind={cellDialogKind??"link"} initialValue={cellDialogKind==="comment"?(sheet.cells[activeCell]?.comment??""):(sheet.cells[activeCell]?.hyperlink??"")} initialText={cellDialogKind==="link"?(sheet.cells[activeCell]?.raw??""):""} onClose={()=>setCellDialogKind(null)} onSubmit={(value,secondary)=>{if(cellDialogKind==="link"){const url=value.trim(),label=secondary?.trim()||url;updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:label}),raw:label,hyperlink:url}}});}else{updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),comment:value}}});}setCellDialogKind(null);setShowSaved();}}/>
     {commentsPanelOpen&&<div className="grid-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setCommentsPanelOpen(false);}}><section className="grid-dialog comments-panel-dialog" role="dialog" aria-modal="true" aria-labelledby="comments-panel-title"><header><div><span>WORKBOOK REVIEW</span><h2 id="comments-panel-title">Comments</h2><p>{Object.values(sheet.cells).filter(cell=>cell.comment).length} cell comments in {sheet.name}</p></div><button type="button" onClick={()=>setCommentsPanelOpen(false)} aria-label="Close comments">×</button></header><div className="comments-panel-list">{Object.entries(sheet.cells).filter(([,cell])=>cell.comment).map(([address,cell])=><button type="button" key={address} className="comments-panel-item" onMouseDown={event=>event.preventDefault()} onClick={()=>{selectCell(address);setCommentsPanelOpen(false);}}><strong>{address}</strong><span>{cell.comment}</span></button>)}{!Object.values(sheet.cells).some(cell=>cell.comment)&&<p className="comments-panel-empty">No comments in this sheet yet. Use Insert → New Comment to add one.</p>}</div><footer><button type="button" onClick={()=>setCommentsPanelOpen(false)}>Close</button></footer></section></div>}
     {slicerOpen&&activeTable&&<div className="grid-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setSlicerOpen(false);}}><section className="grid-dialog slicer-dialog" role="dialog" aria-modal="true" aria-labelledby="slicer-title"><header><div><span>TABLE FILTER</span><h2 id="slicer-title">Insert Slicer</h2><p>Choose a table column and the values to display.</p></div><button type="button" onClick={()=>setSlicerOpen(false)} aria-label="Close slicer">×</button></header><div className="slicer-dialog-fields"><label>Column<select value={slicerColumn} onChange={event=>{const col=Number(event.target.value);setSlicerColumn(event.target.value);setSlicerValues(tableColumnValues(activeTable,col,sheet.cells));}}>{Array.from({length:activeTable.range.endCol-activeTable.range.startCol+1},(_,offset)=>activeTable.range.startCol+offset).map(col=><option key={col} value={String(col)}>{getTableHeaderLabel(activeTable,col,sheet.cells)}</option>)}</select></label><div className="slicer-dialog-values">{tableColumnValues(activeTable,Number(slicerColumn),sheet.cells).map(value=><label key={value||"__blank"}><input type="checkbox" checked={slicerValues.includes(value)} onChange={event=>setSlicerValues(current=>event.target.checked?[...current,value]:current.filter(item=>item!==value))}/>{value||"(Blanks)"}</label>)}</div></div><footer><button type="button" className="grid-dialog-secondary" onClick={()=>setSlicerOpen(false)}>Cancel</button><button type="button" onClick={applySlicer}>Apply Slicer</button></footer></section></div>}
