@@ -10,7 +10,7 @@ export const FORMULA_CATEGORIES = [
   "Compatibility", "Cube", "Database", "Date & Time", "Engineering", "Financial",
   "Information", "Logical", "Lookup & Reference", "Math & Trig", "Statistical", "Text", "Web",
 ] as const;
-const entries: FormulaEntry[] = [
+const entries: [string,string,string,string,string,boolean][] = [
   ["BETADIST","Compatibility","BETADIST(x,alpha,beta,...)","Returns the beta cumulative distribution.","=BETADIST(2,8,10)",false],
   ["NORMDIST","Compatibility","NORMDIST(x,mean,standard_dev,cumulative)","Returns the normal distribution.","=NORMDIST(42,40,1.5,TRUE)",false],
   ["ZTEST","Compatibility","ZTEST(array,x,[sigma])","Returns the one-tailed probability-value of a z-test.","=ZTEST(A2:A20,4)",false],
