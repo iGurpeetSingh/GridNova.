@@ -11,6 +11,7 @@ import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CellData, CellRange, CellStyle, FloatingChartData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue } from "../utils/formulaEngine";
+import { calculateWorkbook, spillOriginForCell } from "../utils/spillEngine";
 
 
 type Tab = "File"|"Home"|"Insert"|"Page Layout"|"Formulas"|"Data"|"View";
@@ -51,8 +52,13 @@ export default function WorkbookEditor(){
   useEffect(()=>{if(id&&activeWorkbookId!==id)setActiveWorkbook(id)},[id,activeWorkbookId,setActiveWorkbook]);
   useEffect(()=>{setTitleValue(workbook?.title??"")},[workbook?.title]);
   const sheet=workbook?.sheets.find(s=>s.id===activeSheetId)??workbook?.sheets[0];
-  const activeRaw=sheet?.cells[activeCell]?.raw??"";
-  useEffect(()=>{setFormulaValue(activeRaw)},[activeRaw,activeCell,activeSheetId]);
+  const calculation = useMemo(() => calculateWorkbook(workbook?.sheets ?? []), [workbook?.sheets]);
+  const sheetCalculation = sheet ? calculation.sheets[sheet.id] : undefined;
+  const spillOrigin = spillOriginForCell(sheetCalculation, activeCell);
+  const formulaBarAddress = spillOrigin ?? activeCell;
+  const formulaBarReadOnly = !!spillOrigin;
+  const activeRaw=sheet?.cells[formulaBarAddress]?.raw??"";
+  useEffect(()=>{setFormulaValue(activeRaw)},[activeRaw,activeCell,activeSheetId,spillOrigin]);
   const activeStyle=sheet?.cells[activeCell]?.style??{};
   const selectedAddresses=useMemo(()=>{
     if(!selection)return [activeCell];
@@ -250,9 +256,9 @@ export default function WorkbookEditor(){
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
     <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={style=>setStyle(style,selectedAddresses)} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation}/>
-    <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}}/>
+    <FormulaBar address={activeCell} value={formulaValue} readOnly={formulaBarReadOnly} onChange={setFormulaValue} onCommit={()=>{if(!formulaBarReadOnly){setCell(activeCell,formulaValue);setShowSaved()}}}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <SpreadsheetGrid sheet={sheet} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} onSelect={selectCell}/>
+      <SpreadsheetGrid sheet={sheet} calculation={sheetCalculation} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} onSelect={selectCell}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
       <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void importFile(f)}}/>
     </div>
