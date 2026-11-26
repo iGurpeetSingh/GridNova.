@@ -5,23 +5,24 @@ import { FORMULA_CATALOG, getFormula } from "../lib/formula-catalog";
 
 export interface ArgumentInfo { functionName:string; syntax:string; parameters:string[]; activeIndex:number; activeParameter:string; }
 export function getFormulaArgumentInfo(raw:string):ArgumentInfo|null {
- let depth=0,inString=false,lastOpen=-1,commas=0;
+ const stack:{index:number;commas:number}[]=[];
+ let inString=false;
  for(let i=0;i<raw.length;i++){
   const ch=raw[i];
   if(ch==='"'){if(inString&&raw[i+1]==='"'){i++;continue;}inString=!inString;continue;}
   if(inString)continue;
-  if(ch==="("){depth++;if(depth===1){lastOpen=i;commas=0;} }
-  else if(ch===")"){if(depth>0)depth--;if(depth===0)lastOpen=-1;}
-  else if(ch===","&&depth===1&&lastOpen>=0)commas++;
+  if(ch==="(")stack.push({index:i,commas:0});
+  else if(ch===")")stack.pop();
+  else if(ch===","&&stack.length)stack[stack.length-1].commas++;
  }
- if(lastOpen<0)return null;
- const before=raw.slice(0,lastOpen).match(/([A-Za-z_][A-Za-z0-9_.]*)\s*$/);
+ const current=stack.at(-1);if(!current)return null;
+ const before=raw.slice(0,current.index).match(/([A-Za-z_][A-Za-z0-9_.]*)\\s*$/);
  if(!before)return null;
  const entry=getFormula(before[1]);if(!entry)return null;
  const inside=entry.syntax.slice(entry.syntax.indexOf("(")+1,-1);
  const parameters=inside.split(",").map(item=>item.trim()).filter(Boolean);
- const activeParameter=parameters[Math.min(commas,parameters.length-1)]??"argument";
- return {functionName:entry.name,syntax:entry.syntax,parameters,activeIndex:commas,activeParameter:activeParameter.replace(/^\[|\]$/g,"")};
+ const activeParameter=parameters[Math.min(current.commas,parameters.length-1)]??"argument";
+ return {functionName:entry.name,syntax:entry.syntax,parameters,activeIndex:current.commas,activeParameter:activeParameter.replace(/^\\[|\\]$/g,"")};
 }
 interface AutoProps {
  open:boolean;query:string;anchorRef:RefObject<HTMLElement|null>;activeIndex:number;
