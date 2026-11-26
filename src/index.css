@@ -474,7 +474,6 @@
 }
 @media(max-width:560px){
   .workbook-shell>header{height:48px!important;gap:5px}
-  .workbook-shell>header .text-\\[10px\\]{display:none}
   .ribbon-tabbar{height:36px!important}
   .ribbon-tab{padding:0 7px;font-size:11px}
   .ribbon-scroll{min-height:78px}
