@@ -146,7 +146,7 @@ function resolve(address: string, cells: CellMap, seen: Set<string>, tables: Exc
   if (seen.has(key)) throw new Error("#CIRC!");
   if (cell.raw.startsWith("=")) {
     const next = new Set(seen); next.add(key);
-    return evaluate(cell.raw, cells, next, tables, key, namedRanges,sheets,currentSheetName);
+    return evaluate(cell.raw, cells, next, tables, address, namedRanges,sheets,currentSheetName);
   }
   const n = Number(cell.raw);
   return cell.raw.trim() !== "" && Number.isFinite(n) ? n : cell.raw;
@@ -599,7 +599,7 @@ class Parser {
       case "NETWORKDAYS":case "NETWORKDAYS.INTL":case "WORKDAY":case "WORKDAY.INTL":{const start=toDate(a[0]);if(!start)return "#VALUE!";const intl=fn.endsWith(".INTL"),isWork=fn.startsWith("WORKDAY"),weekend=intl?(a[2]??1):1,holidayIdx=isWork?(intl?3:2):(intl?3:2),holidays=new Set(list(holidayIdx).map(toSerial).filter(Number.isFinite));if(isWork){const date=dateOnly(start),days=number(a[1]),step=days<0?-1:1;let remaining=Math.abs(Math.trunc(days));while(remaining>0){date.setUTCDate(date.getUTCDate()+step);if(!isWeekend(date,weekend)&&!holidays.has(serialFromDate(date)))remaining--;}return serialFromDate(date);}const end=toDate(a[1]);if(!end)return "#VALUE!";const step=end>=start?1:-1;let count=0,date=dateOnly(start),last=dateOnly(end);while((step>0&&date<=last)||(step<0&&date>=last)){if(!isWeekend(date,weekend)&&!holidays.has(serialFromDate(date)))count+=step;date.setUTCDate(date.getUTCDate()+step);}return count;}
       case "SUMIF":case "COUNTIF":case "AVERAGEIF":{const range=list(0),criteria=a[1]??"",target=list(2).length?list(2):range;const matched=range.map((value,index)=>({value,result:target[index]??""})).filter(item=>criteriaMatches(item.value,criteria));const values=numeric(matched.map(item=>item.result));return fn==="COUNTIF"?matched.length:fn==="SUMIF"?sum(values):values.length?average(values):"#DIV/0!";}
       case "SUMIFS":case "COUNTIFS":case "AVERAGEIFS":{const target=list(0),pairs:{range:Value[];criteria:Value}[]=[];const offset=fn==="COUNTIFS"?0:1;for(let i=offset;i+1<args.length;i+=2)pairs.push({range:list(i),criteria:a[i+1]??""});const matched=target.filter((_,index)=>pairs.every(pair=>criteriaMatches(pair.range[index]??"",pair.criteria)));const values=numeric(matched);return fn==="COUNTIFS"?matched.length:fn==="SUMIFS"?sum(values):values.length?average(values):"#DIV/0!";}
-      case "MAXIFS":case "MINIFS":{const target=list(0),pairs:{range:Value[];criteria:Value}[]=[];for(let i=1;i+1<args.length;i+=2)pairs.push({range:list(i),criteria:a[i+1]??""});const values=target.filter((_,index)=>pairs.every(pair=>criteriaMatches(pair.range[index]??"",pair.criteria))).map(number);return values.length?(fn==="MAXIFS"?Math.max(...values):Math.min(...values)):"#N/A";}
+      case "MAXIFS":case "MINIFS":{const target=list(0),pairs:{range:Value[];criteria:Value}[]=[];for(let i=1;i+1<args.length;i+=2)pairs.push({range:list(i),criteria:a[i+1]??""});const matched=target.filter((_,index)=>pairs.every(pair=>criteriaMatches(pair.range[index]??"",pair.criteria)));const values=numeric(matched);return values.length?(fn==="MAXIFS"?Math.max(...values):Math.min(...values)):"#N/A";}
       case "PMT":return pmt(number(a[0]),number(a[1]),number(a[2]),number(a[3]??0),number(a[4]??0));
       case "IPMT":return ipmt(number(a[0]),number(a[1]),number(a[2]),number(a[3]),number(a[4]??0),number(a[5]??0));
       case "PPMT":return pmt(number(a[0]),number(a[2]),number(a[3]),number(a[4]??0),number(a[5]??0))-ipmt(number(a[0]),number(a[1]),number(a[2]),number(a[3]),number(a[4]??0),number(a[5]??0));
@@ -622,7 +622,24 @@ class Parser {
       case "XIRR":return xirr(list(0).map(number),list(1),number(a[2]??0.1));
       case "MIRR":{const cash=list(0).map(number),finance=number(a[1]),reinvest=number(a[2]),n=cash.length;if(!n)return "#NUM!";let positive=0,negative=0;cash.forEach((v,i)=>{if(v>0)positive+=v*(1+reinvest)**(n-1-i);if(v<0)negative+=v/(1+finance)**i;});return Math.pow(-positive/negative,1/(n-1))-1;}
       case "XNPV":{const cash=list(1).map(number),dates=list(2).map(toSerial),rate=number(a[0]);if(!dates.length||dates.some(v=>!Number.isFinite(v)))return "#NUM!";return cash.reduce((acc,v,i)=>acc+v/(1+rate)**((dates[i]-dates[0])/365),0);}
-      case "VLOOKUP":case "HLOOKUP":{const data=matrix(1),lookup=a[0],index=Math.trunc(number(a[2]))-1,approx=a[3]!==false;if(!data.length)return "#N/A";if(fn==="VLOOKUP"){const row=data.find(row=>String(row[0]).toLowerCase()===String(lookup).toLowerCase());if(row)return row[index]??"#REF!";if(approx){const sorted=[...data].sort((x,y)=>number(x[0])-number(y[0]));const row=[...sorted].reverse().find(x=>number(x[0])<=number(lookup));return row?.[index]??"#N/A";}}else{const header=data[0]??[],column=header.findIndex(v=>String(v).toLowerCase()===String(lookup).toLowerCase());if(column>=0)return data[index]?.[column]??"#REF!";}return "#N/A";}
+      case "VLOOKUP":case "HLOOKUP":{
+        const data=matrix(1),lookup=a[0],index=Math.trunc(number(a[2]))-1,approx=a[3]!==false;
+        if(!data.length)return "#N/A";
+        if(index<0)return "#REF!";
+        if(fn==="VLOOKUP"){
+          const exact=data.find(row=>String(row[0]).toLowerCase()===String(lookup).toLowerCase());
+          if(exact)return exact[index]??"#REF!";
+          if(!approx)return "#N/A";
+          const target=Number(lookup),candidates=data.filter(row=>String(row[0]??"").trim()!==""&&Number.isFinite(Number(row[0]))&&Number.isFinite(target)&&Number(row[0])<=target).sort((left,right)=>Number(left[0])-Number(right[0]));
+          return candidates.at(-1)?.[index]??"#N/A";
+        }
+        const header=data[0]??[],exactColumn=header.findIndex(value=>String(value).toLowerCase()===String(lookup).toLowerCase());
+        if(exactColumn>=0)return data[index]?.[exactColumn]??"#REF!";
+        if(!approx)return "#N/A";
+        const target=Number(lookup),candidates=header.map((value,column)=>({value,column})).filter(item=>String(item.value??"").trim()!==""&&Number.isFinite(Number(item.value))&&Number.isFinite(target)&&Number(item.value)<=target).sort((left,right)=>Number(left.value)-Number(right.value));
+        const column=candidates.at(-1)?.column;
+        return column===undefined?"#N/A":data[index]?.[column]??"#REF!";
+      }
       case "XLOOKUP":case "XMATCH":case "MATCH":{
         const look=a[0],lookupMatrix=matrix(1),horizontal=lookupMatrix.length===1;
         const source=horizontal?(lookupMatrix[0]??[]):lookupMatrix.map(row=>row[0]??"");
