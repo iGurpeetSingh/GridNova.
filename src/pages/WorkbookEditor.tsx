@@ -102,9 +102,9 @@ export default function WorkbookEditor(){
   },[selection,activeCell]);
   const stats=useMemo(()=>{
     if(!sheet)return {count:0,sum:0,average:0};
-    const vals=selectedAddresses.map(a=>numericValue(sheet.cells[a]?.raw??"",sheet.cells,sheet.tables??[],a,namedRanges,workbook.sheets,sheet.name)).filter((v):v is number=>v!==null);
+    const vals=selectedAddresses.map(a=>numericValue(sheet.cells[a]?.raw??"",sheet.cells,sheet.tables??[],a,namedRanges,workbook?.sheets??[],sheet.name)).filter((v):v is number=>v!==null);
     return {count:vals.length,sum:vals.reduce((a,b)=>a+b,0),average:vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0};
-  },[sheet,selectedAddresses,namedRanges]);
+  },[sheet,selectedAddresses,namedRanges,workbook?.sheets]);
   const activePosition = parseAddress(activeCell);
   const activeTable = activePosition && sheet ? getTableAt(sheet.tables, activePosition.row, activePosition.col) ?? null : null;
   const suggestedTableRange = useMemo(() => {
