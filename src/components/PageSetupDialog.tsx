@@ -42,12 +42,12 @@ export default function PageSetupDialog({open,settings,onClose,onSave,onPrint}:P
         </section>
         <div className="page-setup-two-columns">
           <section className="page-setup-section"><h3>Paper Size</h3><select value={draft.paperSize} onChange={event=>update({paperSize:event.target.value as SheetPageSetup["paperSize"]})}><option value="A4">A4 (210 × 297 mm)</option><option value="Letter">Letter (8.5 × 11 in)</option><option value="Legal">Legal (8.5 × 14 in)</option><option value="A3">A3 (297 × 420 mm)</option></select></section>
-          <section className="page-setup-section"><h3>Margins</h3><div className="page-setup-margin-presets">{Object.keys(presets).map(name=><button key={name} type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>update({margins:{...presets[name]}})}>{name}</button>)}</div></section>
+          <section className="page-setup-section"><h3>Margins</h3><div className="page-setup-margin-presets">{(["Normal","Wide","Narrow"] as const).map(name=><button key={name} type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>update({margins:{...presets[name]}})}>{name}</button>)}</div></section>
         </div>
         <section className="page-setup-section">
           <div className="page-setup-section-heading"><h3>Custom Margins</h3><select aria-label="Margin units" value={draft.marginUnit} onChange={event=>update({marginUnit:event.target.value as "in"|"cm"})}><option value="in">Inches</option><option value="cm">Centimeters</option></select></div>
           <div className="page-setup-margin-grid">
-            {(["top","bottom","left","right"] as const).map(key=><label key={key}><span>{key[0].toUpperCase()+key.slice(1)}</span><div><input type="number" min="0" max={draft.marginUnit==="in"?2:5} step={draft.marginUnit==="in"?.05:.1} value={Number(units(draft.marginUnit,draft.margins[key]).toFixed(2))} onChange={event=>setMargin(key,event.target.value)}/><small>{draft.marginUnit}</small></div></label>)}
+            {(["top","bottom","left","right"] as const).map(key=><label key={key}><span>{key[0].toUpperCase()+key.slice(1)}</span><div><input type="number" min="0" max={draft.marginUnit==="in"?2:5} step={draft.marginUnit==="in" ? .05 : .1} value={Number(units(draft.marginUnit,draft.margins[key]).toFixed(2))} onChange={event=>setMargin(key,event.target.value)}/><small>{draft.marginUnit}</small></div></label>)}
           </div>
         </section>
         <section className="page-setup-section">

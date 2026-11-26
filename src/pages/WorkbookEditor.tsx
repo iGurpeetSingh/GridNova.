@@ -13,8 +13,10 @@ import NameManagerDialog from "../components/NameManagerDialog";
 import CellInsertDialog from "../components/CellInsertDialog";
 import FloatingElement from "../components/FloatingElement";
 import CellImageOverlays from "../components/CellImageOverlays";
+import PageSetupDialog from "../components/PageSetupDialog";
 import { useWorkbookStore } from "../store/useWorkbookStore";
-import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData } from "../types";
+import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup } from "../types";
+import { DEFAULT_PAGE_SETUP } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue, recalculate } from "../utils/formulaEngine";
 import { getTableAt, getTableHeaderLabel, getTablePalette, normalizeTableName, tableColumnValues } from "../utils/tableUtils";
@@ -63,7 +65,6 @@ export default function WorkbookEditor(){
   const deleteElement=useWorkbookStore(s=>s.deleteElement);
   const undo=useWorkbookStore(s=>s.undo);const redo=useWorkbookStore(s=>s.redo);
   const setShowFormulas=useWorkbookStore(s=>s.setShowFormulas);const setZoom=useWorkbookStore(s=>s.setZoom);
-  const setOrientation=useWorkbookStore(s=>s.setOrientation);
   const [tab,setTab]=useState<Tab>("Home");const [formulaValue,setFormulaValue]=useState("");
   const [formulaBarFocused,setFormulaBarFocused]=useState(false);
   const [shareOpen,setShareOpen]=useState(false);const [renaming,setRenaming]=useState(false);const [titleValue,setTitleValue]=useState("");
@@ -76,6 +77,7 @@ export default function WorkbookEditor(){
   const [cellDialogKind,setCellDialogKind]=useState<"link"|"comment"|null>(null);
   const [commentsPanelOpen,setCommentsPanelOpen]=useState(false);
   const [workbookStatsOpen,setWorkbookStatsOpen]=useState(false);
+  const [pageSetupOpen,setPageSetupOpen]=useState(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
   const [slicerColumn,setSlicerColumn]=useState("0");
   const [slicerValues,setSlicerValues]=useState<string[]>([]);
@@ -137,6 +139,14 @@ export default function WorkbookEditor(){
     if (range && params.get("sheet") === sheet?.id) setSelection(range, addressOf(range.startRow, range.startCol));
   }, [workbook?.id, sheet?.id, setSelection]);
   if(!workbook||!sheet)return <main className="app-shell grid min-h-screen place-items-center p-6"><div className="glass max-w-md rounded-3xl p-8 text-center"><FileSpreadsheet className="mx-auto mb-3 text-[#149052]" size={36}/><h1 className="text-lg font-bold text-[#284331]">Workbook not found</h1><p className="mt-2 text-sm text-[#86948b]">This workbook may have been deleted or is not saved in this browser.</p><button onClick={()=>navigate("/")} className="btn btn-primary mt-5"><ArrowLeft size={14}/> Back to dashboard</button></div></main>;
+  const pageSetup:SheetPageSetup={
+    ...DEFAULT_PAGE_SETUP,
+    orientation:workbook.orientation,
+    ...(sheet.pageSetup??{}),
+    margins:{...DEFAULT_PAGE_SETUP.margins,...sheet.pageSetup?.margins},
+    rowBreaks:[...(sheet.pageSetup?.rowBreaks??[])],
+    columnBreaks:[...(sheet.pageSetup?.columnBreaks??[])]
+  };
 
   const selectCell=(address:string,range?:CellRange)=>setSelection(range??null,address);
   const commitTitle=()=>{renameWorkbook(workbook.id,titleValue);setRenaming(false);setShowSaved()};
@@ -416,8 +426,47 @@ export default function WorkbookEditor(){
     const formula=`=${functionName}(`;
     setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true);
   };
+  const savePageSetup=(next:SheetPageSetup)=>{
+    updateSheet(sheet.id,{pageSetup:{...next,margins:{...next.margins},rowBreaks:[...next.rowBreaks],columnBreaks:[...next.columnBreaks]}});
+    setPageSetupOpen(false);setShowSaved();
+  };
+  const printPageSetup=(next:SheetPageSetup)=>{
+    updateSheet(sheet.id,{pageSetup:{...next,margins:{...next.margins},rowBreaks:[...next.rowBreaks],columnBreaks:[...next.columnBreaks]}});
+    setPageSetupOpen(false);
+    const paper:Record<string,{width:number;height:number}>={A4:{width:8.27,height:11.69},Letter:{width:8.5,height:11},Legal:{width:8.5,height:14},A3:{width:11.7,height:16.5}};
+    const size=paper[next.paperSize],width=next.orientation==="portrait"?size.width:size.height,height=next.orientation==="portrait"?size.height:size.width;
+    const range=next.printArea??{startRow:0,startCol:0,endRow:Math.max(0,sheet.rowCount-1),endCol:Math.max(0,sheet.columnCount-1)};
+    const availableWidth=width-next.margins.left-next.margins.right,availableHeight=height-next.margins.top-next.margins.bottom;
+    const gridWidth=(next.printHeadings?48:0)+Array.from({length:range.endCol-range.startCol+1},(_,offset)=>sheet.columnWidths[range.startCol+offset]??110).reduce((sum,value)=>sum+value,0);
+    const gridHeight=(next.printHeadings?27:0)+Array.from({length:range.endRow-range.startRow+1},(_,offset)=>sheet.rowHeights?.[range.startRow+offset]??27).reduce((sum,value)=>sum+value,0);
+    const fitX=availableWidth*96/Math.max(1,gridWidth),fitY=availableHeight*96/Math.max(1,gridHeight);
+    const printScale=next.scalingMode==="custom"?next.scalingPercent/100:next.scalingMode==="fit-sheet"?Math.min(fitX,fitY):next.scalingMode==="fit-columns"?fitX:next.scalingMode==="fit-rows"?fitY:1;
+    const margin=(value:number)=>`${value.toFixed(3)}in`;
+    const style=document.createElement("style");style.dataset.gridnovaPagePrint="true";
+    style.textContent=`@page{size:${next.paperSize} ${next.orientation};margin:${margin(next.margins.top)} ${margin(next.margins.right)} ${margin(next.margins.bottom)} ${margin(next.margins.left)}}@media print{body *{visibility:hidden!important}#gridnova-print-grid,#gridnova-print-grid *{visibility:visible!important}#gridnova-print-grid{position:fixed!important;inset:0!important;width:100vw!important;height:auto!important;overflow:visible!important;background:#fff!important}#gridnova-print-grid .grid-canvas{zoom:${Math.max(.25,Math.min(2,printScale))} !important}#gridnova-print-grid .print-excluded-row,#gridnova-print-grid .print-excluded-column{display:none!important}#gridnova-print-grid .grid-corner,#gridnova-print-grid .grid-column-heading,#gridnova-print-grid .grid-row-heading{display:${next.printHeadings?"":"none"}!important}#gridnova-print-grid .grid-cell{border:${next.printGridlines?"1px solid #D4D4D4":"0"}!important}#gridnova-print-grid .grid-selection-overlay,#gridnova-print-grid .grid-range-overlay,#gridnova-print-grid .grid-fill-handle-overlay,#gridnova-print-grid .grid-fill-tooltip,#gridnova-print-grid .grid-print-area-overlay,#gridnova-print-grid .grid-add-rows{display:none!important}#gridnova-print-grid tr[data-page-break-before="true"]{break-before:page!important;page-break-before:always!important}#gridnova-print-grid td[data-page-break-column-before="true"]{break-before:column!important;page-break-before:always!important}.page-setup-backdrop{display:none!important}.grid-print-header,.grid-print-footer{display:block!important;position:fixed;left:0;right:0;text-align:center;font-size:9pt;color:#444}.grid-print-header{top:0}.grid-print-footer{bottom:0}}`;
+    document.head.appendChild(style);
+    const cleanup=()=>{style.remove();window.removeEventListener("afterprint",cleanup)};
+    window.addEventListener("afterprint",cleanup);
+    window.print();
+  };
   const action=(name:string)=>{
     switch(name){
+      case "page-setup-open":setPageSetupOpen(true);break;
+      case "print-area-set":{
+        const selected=selection?{startRow:Math.min(selection.startRow,selection.endRow),startCol:Math.min(selection.startCol,selection.endCol),endRow:Math.max(selection.startRow,selection.endRow),endCol:Math.max(selection.startCol,selection.endCol)}:{startRow:parseAddress(activeCell)?.row??0,startCol:parseAddress(activeCell)?.col??0,endRow:parseAddress(activeCell)?.row??0,endCol:parseAddress(activeCell)?.col??0};
+        updateSheet(sheet.id,{pageSetup:{...pageSetup,printArea:selected}});break;
+      }
+      case "print-area-clear":updateSheet(sheet.id,{pageSetup:{...pageSetup,printArea:null}});break;
+      case "page-break-insert":{
+        const point=parseAddress(activeCell)??{row:0,col:0};
+        updateSheet(sheet.id,{pageSetup:{...pageSetup,rowBreaks:point.row>0?[...new Set([...pageSetup.rowBreaks,point.row])].sort((a,b)=>a-b):pageSetup.rowBreaks,columnBreaks:point.col>0?[...new Set([...pageSetup.columnBreaks,point.col])].sort((a,b)=>a-b):pageSetup.columnBreaks}});break;
+      }
+      case "page-break-remove":{
+        const point=parseAddress(activeCell)??{row:0,col:0};
+        updateSheet(sheet.id,{pageSetup:{...pageSetup,rowBreaks:pageSetup.rowBreaks.filter(value=>value!==point.row),columnBreaks:pageSetup.columnBreaks.filter(value=>value!==point.col)}});break;
+      }
+      case "page-break-reset":updateSheet(sheet.id,{pageSetup:{...pageSetup,rowBreaks:[],columnBreaks:[]}});break;
+      case "sheet-rtl-toggle":updateSheet(sheet.id,{pageSetup:{...pageSetup,isRtl:!pageSetup.isRtl}});break;
       case "new":{const created=useWorkbookStore.getState().createWorkbook("blank");navigate(`/workbook/${created}`);break;}
       case "back":navigate("/");break;
       case "save":setShowSaved();break;
@@ -751,10 +800,10 @@ export default function WorkbookEditor(){
       <div className="hidden items-center gap-1.5 rounded-full bg-[#edf8f0] px-3 py-1.5 text-[10px] font-semibold text-[#16864b] sm:flex">{savePulse?<Check size={12}/>:<Cloud size={12}/>} {savePulse?"Saved just now":"Saved locally"}</div>
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
-    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation} activeTable={activeTable} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)} onOpenFunctionLibrary={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}}/>
+    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} pageSetup={pageSetup} activeCell={activeCell} activeTable={activeTable} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)} onOpenFunctionLibrary={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}}/>
     <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}} onCancel={()=>setFormulaValue(activeRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} formulaBarDraft={formulaValue} onSelect={selectCell}/>
+      <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} pageSetup={pageSetup} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} formulaBarDraft={formulaValue} onSelect={selectCell}/>
       <CellImageOverlays sheet={sheet}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
       {(workbook.elements??[]).map(element=><FloatingElement key={element.id} element={element} onUpdate={updateElement} onDelete={deleteElement}/>)}
@@ -767,6 +816,7 @@ export default function WorkbookEditor(){
     {workbookStatsOpen&&<div className="grid-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setWorkbookStatsOpen(false);}}><section className="grid-dialog workbook-stats-dialog" role="dialog" aria-modal="true" aria-labelledby="workbook-stats-title"><header><div><span>WORKBOOK INSIGHTS</span><h2 id="workbook-stats-title">Workbook Statistics</h2><p>Live counts across all worksheets in this workbook</p></div><button type="button" onClick={()=>setWorkbookStatsOpen(false)} aria-label="Close statistics">×</button></header><div className="workbook-stats-grid">{[
       ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
+    <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
     <ShareModal open={shareOpen} onClose={()=>setShareOpen(false)} workbookId={workbook.id} title={workbook.title} onExport={exportFile}/>
     <TableRangeDialog open={tableDialogOpen} title={tableDialogMode==="resize"?"Resize Table":"Create Table"} initialRange={tableDialogMode==="resize"&&activeTable?rangeLabel(activeTable.range):suggestedTableRange} initialHasHeaders={tableDialogMode==="resize"?(activeTable?.hasHeaders??true):true} submitLabel={tableDialogMode==="resize"?"Resize":"OK"} onClose={()=>setTableDialogOpen(false)} onSubmit={submitTableRange}/>
     <FormulaLibraryDialog open={formulaLibraryOpen} initialCategory={formulaLibraryCategory} onClose={()=>setFormulaLibraryOpen(false)} onInsert={formula=>{setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true)}}/>

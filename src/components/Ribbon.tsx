@@ -5,6 +5,7 @@ import InsertRibbonIcon from "./InsertRibbonIcon";
 import { ChartGalleryButton, EditingModeDropdown, InsertIconDropdown, ShapeGalleryButton } from "./InsertDropdownGallery";
 import HomeRibbon from "./HomeRibbon";
 import FormulaRibbon from "./FormulaRibbon";
+import PageLayoutRibbon from "./PageLayoutRibbon";
 import type { CalculationMode } from "../types";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine,
@@ -19,7 +20,8 @@ import {
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   Replace, Paintbrush2, Share2, Link2, Users, ShieldCheck, TableProperties, FilterX, ListChecks,
 } from "lucide-react";
-import type { CellStyle, ExcelTableData, SheetData } from "../types";
+import type { CellStyle, ExcelTableData, SheetData, SheetPageSetup } from "../types";
+import { parseAddress } from "../types";
 import { TABLE_STYLES } from "../utils/tableUtils";
 
 type Tab = "File"|"Home"|"Insert"|"Share"|"Page Layout"|"Formulas"|"Data"|"Review"|"View"|"Help"|"Draw"|"Table Design";
@@ -27,7 +29,7 @@ interface Props {
   activeTab:Tab; setActiveTab:(t:Tab)=>void; onAction:(action:string)=>void;
   onFormat:(style:Partial<CellStyle>)=>void; style:CellStyle; sheet:SheetData;
   showFormulas:boolean; setShowFormulas:(v:boolean)=>void; zoom:number; setZoom:(v:number)=>void;
-  orientation:"portrait"|"landscape"; setOrientation:(v:"portrait"|"landscape")=>void;
+  pageSetup:SheetPageSetup; activeCell:string;
   activeTable?: ExcelTableData | null;
   calculationMode?:CalculationMode;onCalculationModeChange:(mode:CalculationMode)=>void;
   onOpenNameManager:()=>void;onOpenFunctionLibrary:()=>void;
@@ -64,7 +66,7 @@ function Group({label,children}:{label:string;children:ReactNode}){
 function InsertGroup({label,children}:{label:string;children:ReactNode}){
   return <section aria-label={label} className="insert-ribbon-group"><div className="insert-ribbon-group-content">{children}</div><div className="insert-ribbon-caption">{label}</div></section>;
 }
-export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation,activeTable=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager,onOpenFunctionLibrary}:Props){
+export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,pageSetup,activeCell,activeTable=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager,onOpenFunctionLibrary}:Props){
   const tabs = activeTable ? [...baseTabs, "Table Design" as Tab] : baseTabs;
   const [openMenu,setOpenMenu]=useState<string|null>(null);
   const [collapsed,setCollapsed]=useState(false);
@@ -145,10 +147,12 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
       </>;
       case "Help":return <Group label="Help">{button("Keyboard shortcuts",FunctionSquare,"show-shortcuts","blue")}{button("Function help",Search,"insert-function","blue")}</Group>;
       case "Draw":return <Group label="Drawing">{button("Add comment",MessageSquare,"comment","blue")}</Group>;
-      case "Page Layout":return <>
-        <Group label="Page setup"><Tool label="Portrait" icon={FileText} action="orientation-portrait" onAction={onAction} tone="blue" active={orientation==="portrait"}/><Tool label="Landscape" icon={FileText} action="orientation-landscape" onAction={onAction} tone="blue" active={orientation==="landscape"}/></Group>
-        <Group label="Sheet options">{button(sheet.showGridlines?"Hide gridlines":"Show gridlines",Grid2X2,"gridlines","green",!sheet.showGridlines)}{button(sheet.showHeadings?"Hide headings":"Show headings",Rows3,"headings","blue",!sheet.showHeadings)}</Group>
-      </>;
+      case "Page Layout":{
+        const position=parseAddress(activeCell)??{row:0,col:0};
+        const hasBreakAtActive=pageSetup.rowBreaks.includes(position.row)||pageSetup.columnBreaks.includes(position.col);
+        const hasAnyBreaks=pageSetup.rowBreaks.length>0||pageSetup.columnBreaks.length>0;
+        return <PageLayoutRibbon settings={pageSetup} hasPrintArea={!!pageSetup.printArea} hasBreakAtActive={hasBreakAtActive} hasAnyBreaks={hasAnyBreaks} onAction={onAction}/>;
+      }
       case "Formulas":return <FormulaRibbon onAction={onAction} showFormulas={showFormulas} setShowFormulas={setShowFormulas} calculationMode={calculationMode} onCalculationModeChange={onCalculationModeChange} onOpenNameManager={onOpenNameManager} onOpenFunctionLibrary={onOpenFunctionLibrary}/>;
       case "Data":return <>
         <Group label="Import">{button("Import CSV / Excel",Upload,"import","green")}</Group>
