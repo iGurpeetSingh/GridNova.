@@ -11,7 +11,7 @@ import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine,
   ArrowUpToLine, Bold, Braces, CalendarDays, ChartColumn, ChartLine, Check,
   Clipboard, Copy, Eraser, FileDown, FilePlus2, FileSpreadsheet, FileText, Filter,
-  FunctionSquare, Grid2X2, Highlighter, Italic, Link, ListFilter, Minus, PaintBucket,
+  FunctionSquare, Calculator, Grid2X2, Highlighter, Italic, Link, ListFilter, Minus, PaintBucket,
   Paintbrush, Percent, Plus, Printer, Redo2, Scissors, Search, Sigma, SortAsc,
   Strikethrough, Table2, Text, Trash2, Underline, Undo2, Upload, WrapText,
   X, ZoomIn, ZoomOut, Eye, EyeOff, Rows3, Columns3, SquareCheck, MessageSquare,
