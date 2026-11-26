@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingChartData, FloatingElementData, SheetData, TemplateId, WorkbookData } from "../types";
 import { addressOf, columnLabel, emptySheet, emptyWorkbook, parseAddress } from "../types";
 import { recalculateWorkbookIncremental } from "../lib/dependency-graph";
+import { refreshWorkbookPivots } from "../utils/pivotEngine";
 
 interface Store {
   workbooks: WorkbookData[]; activeWorkbookId: string | null; activeSheetId: string | null; autoSaveEnabled:boolean;
@@ -82,8 +83,11 @@ const mutateActive = (s: Store, updater: (w: WorkbookData, sh: SheetData) => Wor
 const recalculateAfterMutation=(state:Store,result:Partial<Store>,sheetId:string,addresses:string[]):Partial<Store>=>{
   const workbookId=state.activeWorkbookId;
   if(!workbookId||!addresses.length)return result;
-  const base=(result.workbooks??state.workbooks).find(item=>item.id===workbookId);
-  if(!base||base.calculationMode==="Manual")return result;
+  const original=(result.workbooks??state.workbooks).find(item=>item.id===workbookId);
+  if(!original)return result;
+  const sourceHasPivots=original.sheets.some(destination=>(destination.pivotTables??[]).some(definition=>definition.sourceSheetId===sheetId));
+  const base=sourceHasPivots?refreshWorkbookPivots(original):original;
+  if(base.calculationMode==="Manual")return sourceHasPivots?{...result,workbooks:(result.workbooks??state.workbooks).map(item=>item.id===workbookId?base:item)}:result;
   const recalculated=recalculateWorkbookIncremental(base,addresses.map(address=>({sheetId,address}))).workbook;
   return {...result,workbooks:(result.workbooks??state.workbooks).map(item=>item.id===workbookId?recalculated:item)};
 };
