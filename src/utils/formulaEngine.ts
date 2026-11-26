@@ -339,13 +339,13 @@ class Parser {
     if(sheetName&&start&&refPattern.test(start)){
       this.i++;
       const target=this.sheets.find(item=>item.name.toLowerCase()===sheetName!.toLowerCase());
-      let value=rangeValues(start,start,target?.cells??this.cells,this.seen,target?.tables??this.tables,undefined,false,this.namedRanges,this.sheets,target?.name??sheetName);
+      let value:Value=rangeValues(start,start,target?.cells??this.cells,this.seen,target?.tables??this.tables,undefined,false,this.namedRanges,this.sheets,target?.name??sheetName);
       if(this.match("#"))value=this.resolveSpillReference(value);
       return [value];
     }
     if(!sheetName&&start&&refPattern.test(start)){
       this.i++;
-      let value=rangeValues(start,start,this.cells,this.seen,this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges,this.sheets,this.currentSheetName);
+      let value:Value=rangeValues(start,start,this.cells,this.seen,this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges,this.sheets,this.currentSheetName);
       if(this.match("#"))value=this.resolveSpillReference(value);
       return [value];
     }
