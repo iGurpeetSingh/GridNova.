@@ -30,16 +30,18 @@ export default function FormulaDebuggerDialog({open,formula,cells,tables,namedRa
   if(!open)return null;
   const evaluateStep=(step:Step)=>evaluate("="+step.expression,cells,new Set(),tables,address,namedRanges,sheets,sheetName);
   const completed=steps.slice(0,current).map(step=>({step,value:evaluateStep(step)}));
+  const currentStep=steps[current];
+  const expressionSource=formula.replace(/^=/,"");
   const finalValue=evaluate(formula,cells,new Set(),tables,address,namedRanges,sheets,sheetName);
   return createPortal(<div className="formula-debug-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>
     <section className="formula-debug-dialog" role="dialog" aria-modal="true" aria-labelledby="formula-debug-title" onMouseDown={event=>event.stopPropagation()}>
       <header><div><span>FORMULA AUDITING</span><h2 id="formula-debug-title">Evaluate Formula</h2><p>{address} · Step through nested functions</p></div><button type="button" onClick={onClose} aria-label="Close"><X size={18}/></button></header>
-      <div className="formula-debug-expression"><label>Formula</label><code>{formula||"(No formula in active cell)"}</code></div>
+      <div className="formula-debug-expression"><label>Formula · {currentStep?`Step ${current+1} of ${steps.length}`:"Complete"}</label><code>{currentStep?<>{expressionSource.slice(0,currentStep.start)}<mark>{expressionSource.slice(currentStep.start,currentStep.end)}</mark>{expressionSource.slice(currentStep.end)}</>:formula||"(No formula in active cell)"}</code></div>
       <div className="formula-debug-steps">
         {steps.length?steps.map((step,index)=><div key={step.expression} className={index===current&&current<steps.length?"is-current":index<current?"is-complete":""}><span>{index+1}</span><div><strong>{step.name}</strong><code>{step.expression}</code>{index<current&&<small>Result: {String(completed[index]?.value??"")}</small>}</div>{index<current&&<Check size={15}/>}</div>):<p>No nested function calls found. The full expression is evaluated as one calculation.</p>}
       </div>
       <div className="formula-debug-result"><span>Final result</span><strong>{String(finalValue)}</strong></div>
-      <footer><button type="button" className="formula-debug-secondary" onClick={()=>setCurrent(0)}><RotateCcw size={14}/> Restart</button><button type="button" onClick={()=>setCurrent(value=>Math.min(steps.length,value+1))} disabled={current>=steps.length}><ChevronRight size={14}/> Evaluate Next</button><button type="button" className="formula-debug-secondary" onClick={onClose}>Close</button></footer>
+      <footer><button type="button" className="formula-debug-secondary" onClick={()=>setCurrent(0)}><RotateCcw size={14}/> Restart</button><button type="button" onClick={()=>setCurrent(value=>Math.min(steps.length,value+1))} disabled={current>=steps.length}><ChevronRight size={14}/> Evaluate</button><button type="button" className="formula-debug-secondary" onClick={onClose}>Close</button></footer>
     </section>
   </div>,document.body);
 }

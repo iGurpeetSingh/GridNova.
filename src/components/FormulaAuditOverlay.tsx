@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { WorkbookData, SheetData } from "../types";
 import { parseAddress, addressOf } from "../types";
-import { buildDependencyGraph, cellNodeId, extractFormulaReferences, type CellNodeId, type RangeDependency } from "../lib/dependency-graph";
+import { buildDependencyGraph, cellNodeId, getDependents, extractFormulaReferences, type CellNodeId, type RangeDependency } from "../lib/dependency-graph";
 
 type AuditMode="precedents"|"dependents";
 interface Props { workbook:WorkbookData; sheet:SheetData; activeCell:string; mode:AuditMode|null; }
@@ -25,7 +25,7 @@ function buildEdges(workbook:WorkbookData,sheet:SheetData,address:string,mode:Au
     }
   }else{
     const graph=buildDependencyGraph(workbook);
-    const sources=new Set<CellNodeId>(graph.dependents.get(current)??[]);
+    const sources=new Set<CellNodeId>(getDependents(graph,current));
     graph.ranges.forEach((range:RangeDependency)=>{if(range.sheetId===sheet.id){const p=parseAddress(address);if(p&&p.row>=range.range.startRow&&p.row<=range.range.endRow&&p.col>=range.range.startCol&&p.col<=range.range.endCol)sources.add(range.target);}});
     sources.forEach(id=>{
       const separator=id.lastIndexOf("!"),sheetId=id.slice(0,separator),target=id.slice(separator+1);
