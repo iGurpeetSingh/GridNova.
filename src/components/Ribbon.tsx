@@ -7,7 +7,7 @@ import HomeRibbon from "./HomeRibbon";
 import FormulaRibbon from "./FormulaRibbon";
 import FileMenu from "./FileMenu";
 import PageLayoutRibbon from "./PageLayoutRibbon";
-import type { CalculationMode } from "../types";
+import type { CalculationMode, PivotTableDefinition } from "../types";
 import {
   AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine, BarChart3,
   ArrowUpToLine, Bold, Braces, CalendarDays, ChartColumn, ChartLine, Check,
@@ -32,6 +32,7 @@ interface Props {
   showFormulas:boolean; setShowFormulas:(v:boolean)=>void; zoom:number; setZoom:(v:number)=>void;
   pageSetup:SheetPageSetup; activeCell:string; workbooks:WorkbookData[]; currentWorkbookId:string; currentSheetProtected:boolean; currentWorkbookProtected:boolean;
   activeTable?: ExcelTableData | null;
+  activePivot?:PivotTableDefinition|null;
   calculationMode?:CalculationMode;onCalculationModeChange:(mode:CalculationMode)=>void;
   onOpenNameManager:()=>void;onOpenFunctionLibrary:()=>void;
 }
@@ -67,7 +68,7 @@ function Group({label,children}:{label:string;children:ReactNode}){
 function InsertGroup({label,children}:{label:string;children:ReactNode}){
   return <section aria-label={label} className="insert-ribbon-group"><div className="insert-ribbon-group-content">{children}</div><div className="insert-ribbon-caption">{label}</div></section>;
 }
-export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,pageSetup,activeCell,workbooks,currentWorkbookId,currentSheetProtected,currentWorkbookProtected,activeTable=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager,onOpenFunctionLibrary}:Props){
+export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,pageSetup,activeCell,workbooks,currentWorkbookId,currentSheetProtected,currentWorkbookProtected,activeTable=null,activePivot=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager,onOpenFunctionLibrary}:Props){
   const tabs = activeTable ? [...baseTabs, "Table Design" as Tab] : baseTabs;
   const [openMenu,setOpenMenu]=useState<string|null>(null);
   const [collapsed,setCollapsed]=useState(false);
@@ -107,7 +108,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
           <button type="button" className="insert-command" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("sparkline-winloss")}><BarChart3 size={20}/><span className="insert-command-label">Win/Loss</span></button>
         </InsertGroup>
         <InsertGroup label="Filters">
-          <button type="button" className="insert-command" disabled={!activeTable} title={activeTable?"Insert a table slicer":"Select a Table or PivotTable to insert a Slicer"} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("slicer")}><InsertRibbonIcon name="slicer"/><span className="insert-command-label">Slicer</span></button>
+          <button type="button" className="insert-command" disabled={!activeTable&&!activePivot} title={activeTable||activePivot?"Insert a table or PivotTable slicer":"Select a Table or PivotTable to insert a Slicer"} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("slicer")}><InsertRibbonIcon name="slicer"/><span className="insert-command-label">Slicer</span></button>
         </InsertGroup>
         <InsertGroup label="Links">
           <button type="button" className="insert-command" title="Insert a hyperlink into the active cell" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("hyperlink")}><InsertRibbonIcon name="link"/><span className="insert-command-label">Link</span></button>

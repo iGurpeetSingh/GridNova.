@@ -4,13 +4,16 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Fun
 import type { FloatingChartData, SheetData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue } from "../utils/formulaEngine";
+import { tableFilterPasses } from "../utils/tableUtils";
 interface Props { chart:FloatingChartData; sheet:SheetData; onUpdate:(id:string,changes:Partial<FloatingChartData>)=>void; onDelete:(id:string)=>void; }
 const COLORS=["#0F6CBD","#62ABF5","#107C41","#038387","#8A70C4","#F4B544"];
 function chartRows(chart:FloatingChartData,sheet:SheetData){
   const [start,end]=chart.range.split(":");const a=parseAddress(start??"A1"),b=parseAddress(end??start??"A1");
   if(!a||!b)return [];
   const rows:Record<string,string|number>[]=[];
+  const filteredTables=(sheet.tables??[]).filter(table=>a.row>=table.range.startRow&&b.row<=table.range.endRow&&a.col>=table.range.startCol&&b.col<=table.range.endCol);
   for(let r=a.row;r<=Math.min(b.row,sheet.rowCount);r++){
+    if(filteredTables.some(table=>!tableFilterPasses(table,r,sheet.cells)))continue;
     const label=sheet.cells[addressOf(r,a.col)]?.raw||`Row ${r+1}`;
     const item:Record<string,string|number>={name:label,x:r-a.row+1};
     for(let c=a.col+1;c<=b.col;c++){

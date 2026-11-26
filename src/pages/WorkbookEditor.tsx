@@ -43,6 +43,10 @@ const parseRangeLabel = (value: string): CellRange | null => {
   return { startRow: Math.min(start.row, end.row), startCol: Math.min(start.col, end.col), endRow: Math.max(start.row, end.row), endCol: Math.max(start.col, end.col) };
 };
 const rangeLabel = (range: CellRange) => `${addressOf(range.startRow, range.startCol)}:${addressOf(range.endRow, range.endCol)}`;
+const uniqueValuesInColumn=(source:SheetData,range:CellRange,column:number)=>{
+  const values=new Set<string>();for(let row=range.startRow+1;row<=range.endRow;row++)values.add(source.cells[addressOf(row,column)]?.raw??"");
+  return [...values].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:"base"}));
+};
 const shiftFormulaRowRefs = (raw: string, startRow: number) => raw.replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)/g, (match, colLock: string, letters: string, rowLock: string, digits: string) => {
   const row = Number(digits) - 1;
   return row >= startRow ? `${colLock}${letters}${rowLock}${row + 2}` : match;
@@ -110,6 +114,7 @@ export default function WorkbookEditor(){
   const [slicerOpen,setSlicerOpen]=useState(false);
   const [slicerColumn,setSlicerColumn]=useState("0");
   const [slicerValues,setSlicerValues]=useState<string[]>([]);
+  const [slicerContext,setSlicerContext]=useState<{kind:"table"|"pivot";sourceSheetId:string;sourceRange:CellRange;tableId?:string;pivotTableId?:string;headers:string[]}|null>(null);
   const [picturePlacement,setPicturePlacement]=useState<"cell"|"over">("over");
   const [savePulse,setSavePulse]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
@@ -161,6 +166,13 @@ export default function WorkbookEditor(){
   },[sheet,selectedAddresses,namedRanges,workbook?.sheets]);
   const activePosition = parseAddress(activeCell);
   const activeTable = activePosition && sheet ? getTableAt(sheet.tables, activePosition.row, activePosition.col) ?? null : null;
+  const activePivot=activePosition&&sheet?(sheet.pivotTables??[]).find(pivot=>{
+    const range=pivot.outputRange;return !!range&&activePosition.row>=range.startRow&&activePosition.row<=range.endRow&&activePosition.col>=range.startCol&&activePosition.col<=range.endCol;
+  })??null:null;
+  const slicerSourceSheet=slicerContext?workbook?.sheets.find(item=>item.id===slicerContext.sourceSheetId)??null:null;
+  const slicerColumnIndex=slicerContext?slicerContext.sourceRange.startCol+Number(slicerColumn):0;
+  const contextTable=slicerContext?.kind==="table"&&slicerContext.tableId?slicerSourceSheet?.tables?.find(item=>item.id===slicerContext.tableId):undefined;
+  const slicerOptions=slicerContext&&slicerSourceSheet?(contextTable?tableColumnValues(contextTable,slicerColumnIndex,slicerSourceSheet.cells):uniqueValuesInColumn(slicerSourceSheet,slicerContext.sourceRange,slicerColumnIndex)):[];
   const workbookStats=useMemo(()=>{
     const sheets=workbook?.sheets??[];
     const allCells=sheets.flatMap(item=>Object.values(item.cells));
@@ -378,20 +390,33 @@ export default function WorkbookEditor(){
     setShowSaved();
   };
   const openSlicer=()=>{
-    if(!activeTable)return;
-    const first=activeTable.range.startCol;
-    setSlicerColumn(String(first));
-    setSlicerValues(tableColumnValues(activeTable,first,sheet.cells));
-    setSlicerOpen(true);
+    if(activeTable){
+      const range=activeTable.range,headers=Array.from({length:range.endCol-range.startCol+1},(_,index)=>getTableHeaderLabel(activeTable,range.startCol+index,sheet.cells));
+      setSlicerContext({kind:"table",tableId:activeTable.id,sourceSheetId:sheet.id,sourceRange:range,headers});
+      setSlicerColumn("0");setSlicerValues(tableColumnValues(activeTable,range.startCol,sheet.cells));setSlicerOpen(true);return;
+    }
+    if(activePivot&&workbook){
+      const source=workbook.sheets.find(item=>item.id===activePivot.sourceSheetId);if(!source)return;
+      const range=activePivot.sourceRange,headers=Array.from({length:range.endCol-range.startCol+1},(_,index)=>source.cells[addressOf(range.startRow,range.startCol+index)]?.raw||`Column ${index+1}`);
+      setSlicerContext({kind:"pivot",pivotTableId:activePivot.id,sourceSheetId:source.id,sourceRange:range,headers});
+      setSlicerColumn("0");setSlicerValues(uniqueValuesInColumn(source,range,range.startCol));setSlicerOpen(true);
+    }
   };
   const applySlicer=()=>{
-    if(!activeTable)return;
-    const column=Number(slicerColumn),allValues=tableColumnValues(activeTable,column,sheet.cells);
-    const filters={...(activeTable.filters??{})};
-    if(slicerValues.length===allValues.length)delete filters[column];
-    else filters[column]={...(filters[column]??{}),selectedValues:slicerValues};
-    const slicer={id:crypto.randomUUID(),tableId:activeTable.id,columnIndex:column,x:Math.max(20,window.innerWidth-340),y:110,width:270,height:280,multiSelect:true};
-    updateSheet(sheet.id,{tables:(sheet.tables??[]).map(table=>table.id===activeTable.id?{...table,filters}:table),slicers:[...(sheet.slicers??[]),slicer]});
+    if(!slicerContext||!slicerSourceSheet)return;
+    const field=Number(slicerColumn),column=slicerContext.sourceRange.startCol+field,allValues=slicerOptions;
+    const slicer={id:crypto.randomUUID(),tableId:slicerContext.tableId,pivotTableId:slicerContext.pivotTableId,sourceSheetId:slicerContext.sourceSheetId,sourceRange:slicerContext.sourceRange,fieldIndex:field,columnIndex:column,x:Math.max(20,window.innerWidth-340),y:110,width:270,height:280,multiSelect:true};
+    if(slicerContext.kind==="table"&&contextTable){
+      const filters={...(contextTable.filters??{})};
+      if(slicerValues.length===allValues.length)delete filters[column];
+      else filters[column]={...(filters[column]??{}),selectedValues:slicerValues};
+      updateSheet(sheet.id,{tables:(sheet.tables??[]).map(table=>table.id===contextTable.id?{...table,filters}:table),slicers:[...(sheet.slicers??[]),slicer]});
+    }else if(slicerContext.kind==="pivot"&&activePivot){
+      const filters={...(activePivot.filters??{})};
+      if(slicerValues.length===allValues.length)delete filters[field];else filters[field]=slicerValues;
+      const filterFields=slicerValues.length===allValues.length?(activePivot.filterFields??[]).filter(value=>value!==field):Array.from(new Set([...(activePivot.filterFields??[]),field]));
+      updateSheet(sheet.id,{pivotTables:(sheet.pivotTables??[]).map(pivot=>pivot.id===activePivot.id?{...pivot,filters,filterFields}:pivot),slicers:[...(sheet.slicers??[]),slicer]});
+    }
     setSlicerOpen(false);setShowSaved();
   };
   const importPicture=(file:File)=>{
@@ -964,11 +989,11 @@ export default function WorkbookEditor(){
       <div className="hidden items-center gap-1.5 rounded-full bg-[#edf8f0] px-3 py-1.5 text-[10px] font-semibold text-[#16864b] sm:flex">{savePulse?<Check size={12}/>:<Cloud size={12}/>} {savePulse?"Saved just now":"Saved locally"}</div>
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
-    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} pageSetup={pageSetup} activeCell={activeCell} workbooks={workbooks} currentWorkbookId={workbook.id} currentSheetProtected={!!sheet.isProtected} currentWorkbookProtected={!!workbook.isProtected} activeTable={activeTable} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)} onOpenFunctionLibrary={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}}/>
+    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} pageSetup={pageSetup} activeCell={activeCell} workbooks={workbooks} currentWorkbookId={workbook.id} currentSheetProtected={!!sheet.isProtected} currentWorkbookProtected={!!workbook.isProtected} activeTable={activeTable} activePivot={activePivot} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)} onOpenFunctionLibrary={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}}/>
     {showFormulaBar&&<FormulaBar readOnly={formulaBarReadOnly} spillGhost={!!spillOrigin} address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{if(!formulaBarReadOnly){setCell(activeCell,formulaValue);setShowSaved();}}} onCancel={()=>setFormulaValue(formulaBarRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>}
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} isReadOnly={isReadOnly} pageSetup={pageSetup} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} formulaBarDraft={formulaValue} onSelect={selectCell}/>
-      {(sheet.slicers??[]).map(slicer=><SlicerCard key={slicer.id} sheet={sheet} slicer={slicer}/>)}
+      {(sheet.slicers??[]).map(slicer=><SlicerCard key={slicer.id} sheet={sheet} sourceSheet={workbook.sheets.find(item=>item.id===(slicer.sourceSheetId??sheet.id))} slicer={slicer}/>)}
       <FormulaAuditOverlay workbook={workbook} sheet={sheet} activeCell={spillOrigin??activeCell} mode={auditMode}/>
       <CellImageOverlays sheet={sheet}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
@@ -1028,6 +1053,6 @@ export default function WorkbookEditor(){
     <NameManagerDialog open={nameManagerOpen} namedRanges={namedRanges} sheetName={sheet.name} onClose={()=>setNameManagerOpen(false)} onSave={ranges=>{updateWorkbook(workbook.id,{namedRanges:ranges});setShowSaved()}}/>
     <CellInsertDialog open={!!cellDialogKind} kind={cellDialogKind??"link"} initialValue={cellDialogKind==="comment"?(sheet.cells[activeCell]?.comment??""):(sheet.cells[activeCell]?.hyperlink??"")} initialText={cellDialogKind==="link"?(sheet.cells[activeCell]?.raw??""):""} onClose={()=>setCellDialogKind(null)} onSubmit={(value,secondary)=>{if(cellDialogKind==="link"){const url=value.trim(),label=secondary?.trim()||url;updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:label}),raw:label,hyperlink:url}}});}else{updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),comment:value}}});}setCellDialogKind(null);setShowSaved();}}/>
     {commentsPanelOpen&&<div className="grid-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setCommentsPanelOpen(false);}}><section className="grid-dialog comments-panel-dialog" role="dialog" aria-modal="true" aria-labelledby="comments-panel-title"><header><div><span>WORKBOOK REVIEW</span><h2 id="comments-panel-title">Comments</h2><p>{Object.values(sheet.cells).filter(cell=>cell.comment).length} cell comments in {sheet.name}</p></div><button type="button" onClick={()=>setCommentsPanelOpen(false)} aria-label="Close comments">×</button></header><div className="comments-panel-list">{Object.entries(sheet.cells).filter(([,cell])=>cell.comment).map(([address,cell])=><button type="button" key={address} className="comments-panel-item" onMouseDown={event=>event.preventDefault()} onClick={()=>{selectCell(address);setCommentsPanelOpen(false);}}><strong>{address}</strong><span>{cell.comment}</span></button>)}{!Object.values(sheet.cells).some(cell=>cell.comment)&&<p className="comments-panel-empty">No comments in this sheet yet. Use Insert → New Comment to add one.</p>}</div><footer><button type="button" onClick={()=>setCommentsPanelOpen(false)}>Close</button></footer></section></div>}
-    {slicerOpen&&activeTable&&<div className="grid-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setSlicerOpen(false);}}><section className="grid-dialog slicer-dialog" role="dialog" aria-modal="true" aria-labelledby="slicer-title"><header><div><span>TABLE FILTER</span><h2 id="slicer-title">Insert Slicer</h2><p>Choose a table column and the values to display.</p></div><button type="button" onClick={()=>setSlicerOpen(false)} aria-label="Close slicer">×</button></header><div className="slicer-dialog-fields"><label>Column<select value={slicerColumn} onChange={event=>{const col=Number(event.target.value);setSlicerColumn(event.target.value);setSlicerValues(tableColumnValues(activeTable,col,sheet.cells));}}>{Array.from({length:activeTable.range.endCol-activeTable.range.startCol+1},(_,offset)=>activeTable.range.startCol+offset).map(col=><option key={col} value={String(col)}>{getTableHeaderLabel(activeTable,col,sheet.cells)}</option>)}</select></label><div className="slicer-dialog-values">{tableColumnValues(activeTable,Number(slicerColumn),sheet.cells).map(value=><label key={value||"__blank"}><input type="checkbox" checked={slicerValues.includes(value)} onChange={event=>setSlicerValues(current=>event.target.checked?[...current,value]:current.filter(item=>item!==value))}/>{value||"(Blanks)"}</label>)}</div></div><footer><button type="button" className="grid-dialog-secondary" onClick={()=>setSlicerOpen(false)}>Cancel</button><button type="button" onClick={applySlicer}>Apply Slicer</button></footer></section></div>}
+    {slicerOpen&&slicerContext&&slicerSourceSheet&&<div className="grid-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setSlicerOpen(false);}}><section className="grid-dialog slicer-dialog" role="dialog" aria-modal="true" aria-labelledby="slicer-title"><header><div><span>{slicerContext.kind==="pivot"?"PIVOTTABLE FILTER":"TABLE FILTER"}</span><h2 id="slicer-title">Insert Slicer</h2><p>Choose a source column and the values to display.</p></div><button type="button" onClick={()=>setSlicerOpen(false)} aria-label="Close slicer">×</button></header><div className="slicer-dialog-fields"><label>Column<select value={slicerColumn} onChange={event=>{setSlicerColumn(event.target.value);const col=slicerContext.sourceRange.startCol+Number(event.target.value);setSlicerValues(contextTable?tableColumnValues(contextTable,col,slicerSourceSheet.cells):uniqueValuesInColumn(slicerSourceSheet,slicerContext.sourceRange,col));}}>{slicerContext.headers.map((label,index)=><option key={index} value={String(index)}>{label}</option>)}</select></label><div className="slicer-dialog-values">{slicerOptions.map(value=><label key={value||"__blank"}><input type="checkbox" checked={slicerValues.includes(value)} onChange={event=>setSlicerValues(current=>event.target.checked?[...current,value]:current.filter(item=>item!==value))}/>{value||"(Blanks)"}</label>)}</div></div><footer><button type="button" className="grid-dialog-secondary" onClick={()=>setSlicerOpen(false)}>Cancel</button><button type="button" onClick={applySlicer}>Apply Slicer</button></footer></section></div>}
   </main>;
 }
