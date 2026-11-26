@@ -19,6 +19,7 @@ import FormulaAuditOverlay from "../components/FormulaAuditOverlay";
 import FormulaDebuggerDialog from "../components/FormulaDebuggerDialog";
 import DataValidationDialog from "../components/DataValidationDialog";
 import ConditionalFormattingDialog from "../components/ConditionalFormattingDialog";
+import GoalSeekDialog from "../components/GoalSeekDialog";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
@@ -95,6 +96,7 @@ export default function WorkbookEditor(){
   const [formulaDebuggerOpen,setFormulaDebuggerOpen]=useState(false);
   const [dataValidationOpen,setDataValidationOpen]=useState(false);
   const [conditionalFormattingOpen,setConditionalFormattingOpen]=useState(false);
+  const [goalSeekOpen,setGoalSeekOpen]=useState(false);
   const [showFormulaBar,setShowFormulaBar]=useState(true);
   const openFileAsWorkbookRef=useRef(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
@@ -731,6 +733,8 @@ export default function WorkbookEditor(){
         const range=selectedRangeForRules;
         updateSheet(sheet.id,{conditionalFormattingRules:(sheet.conditionalFormattingRules??[]).filter(rule=>rule.range.endRow<range.startRow||rule.range.startRow>range.endRow||rule.range.endCol<range.startCol||rule.range.startCol>range.endCol)});break;
       }
+      case "goal-seek-open":setGoalSeekOpen(true);break;
+      case "refresh-all":calculateWorkbook();break;
       case "data-validation":setDataValidationOpen(true);break;
       case "clear-validation":{
         const range=selectedRangeForRules,cells={...sheet.cells};
@@ -958,6 +962,7 @@ export default function WorkbookEditor(){
       ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
     <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
+    <GoalSeekDialog open={goalSeekOpen} workbook={workbook} sheet={sheet} activeCell={activeCell} onClose={()=>setGoalSeekOpen(false)} onCommit={(address,value)=>{setCell(address,String(value));setShowSaved();}}/>
     <DataValidationDialog open={dataValidationOpen} range={selectedRangeForRules} onClose={()=>setDataValidationOpen(false)} onSave={rule=>{
       const listOptions=rule.type==="List"?getListValidationOptions(rule,sheet):[],cells={...sheet.cells};
       validationRangeAddresses(rule.range).forEach(address=>{const cell={...(cells[address]??{raw:""})};if(rule.type==="List")cell.validationOptions=listOptions;else delete cell.validationOptions;cells[address]=cell;});

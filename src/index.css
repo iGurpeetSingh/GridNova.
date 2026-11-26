@@ -749,3 +749,8 @@
 .advanced-rule-row>div{display:flex;flex:1;flex-direction:column;gap:2px}.advanced-rule-row strong{font-size:10px}.advanced-rule-row small{color:#797775;font-size:9px}
 .advanced-rule-row button{width:27px;height:26px;border:1px solid #E1DFDD;border-radius:4px;background:#fff;color:#605E5C;font-size:12px}.advanced-muted{color:#797775;font-size:10px}
 .conditional-format-icon{display:inline-flex;position:relative;z-index:1;align-items:center;margin:0 3px 0 4px;font-size:11px;font-weight:700;vertical-align:middle}
+
+.advanced-error{padding:9px 10px;border:1px solid #E5B4AA;border-radius:6px;background:#FFF1EE;color:#A4262C;font-size:10px;line-height:15px}
+.goal-seek-success{padding:9px 10px;border:1px solid #B8DCC4;border-radius:6px;background:#F1FAF4;color:#107C41;font-size:10px;font-weight:650}
+.goal-seek-summary{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px;border:1px solid #E5E5E5;border-radius:7px}
+.goal-seek-summary span{font-size:10px;color:#605E5C}.goal-seek-summary strong{font-size:11px;color:#242424;text-align:right}

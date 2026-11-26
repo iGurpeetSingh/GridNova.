@@ -156,6 +156,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
         <Group label="Import">{button("Import CSV / Excel",Upload,"import","green")}</Group>
         <Group label="Sort & filter">{button("Sort A–Z",SortAsc,"sort-az","blue")}{button("Sort Z–A",ArrowDownZA,"sort-za","blue")}{button(sheet.filters?"Remove filters":"Add filters",Filter,"filters","blue",sheet.filters)}{button("Remove duplicates",Eraser,"duplicates","rose")}</Group>
         <Group label="Data Tools">{button("Text to Columns",Columns3,"text-to-columns","blue")}{button("Data Validation",ListChecks,"data-validation","green")}{button("Clear Validation",Eraser,"clear-validation","rose")}</Group>
+        <Group label="Forecast">{button("Goal Seek",Calculator,"goal-seek-open","green")}{button("Refresh All",Redo2,"refresh-all","blue")}</Group>
       </>;
       case "View":return <>
         <Group label="Zoom"><Tool label="Zoom out" icon={ZoomOut} action="zoom-out" onAction={()=>setZoom(zoom-10)}/><span className="px-2 text-xs font-semibold text-[#526458]">{zoom}%</span><Tool label="Zoom in" icon={ZoomIn} action="zoom-in" onAction={()=>setZoom(zoom+10)}/>{drop("zoom",{label:"Zoom",value:`${zoom}% options`,options:["50%","75%","100%","125%","150%","175%","200%"],onPick:v=>setZoom(Number(v.replace("%","")))})}</Group>
