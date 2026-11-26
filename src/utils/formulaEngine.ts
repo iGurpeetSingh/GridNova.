@@ -154,7 +154,7 @@ function resolve(address: string, cells: CellMap, seen: Set<string>, tables: Exc
 
 function tokenize(source: string): string[] {
   const result: string[] = [];
-  const re = /\s*(>=|<=|<>|[()+*/^%=<>:&!,\-]|"(?:[^"]|"")*"|'(?:[^']|'')+'|(?:\d+\.?\d*|\.\d+)|\$?[A-Za-z_][A-Za-z0-9_.]*|\$?\d+)/gy;
+  const re = /\s*(>=|<=|<>|[()+*/^%=<>:&!,\-]|"(?:[^"]|"")*"|'(?:[^']|'')+'|(?:\d+\.?\d*|\.\d+)|\$?[A-Za-z]{1,3}\$?[1-9]\d*|\$?[A-Za-z_][A-Za-z0-9_.]*|\$?\d+)/gy;
   let pos = 0;
   while (pos < source.length) {
     re.lastIndex = pos;
