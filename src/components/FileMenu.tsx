@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
   ArrowLeft, ArrowRightFromLine, CalendarClock, Calculator, ChevronLeft, ChevronRight,
   CircleHelp, Copy, Download, FileClock, FileDown, FileJson, FilePlus2, FileSpreadsheet,
@@ -114,7 +114,7 @@ function PortalPanel({items,parentRef,root=false,mobile=false,depth,title,pathPr
     return()=>{window.removeEventListener("resize",place);window.removeEventListener("scroll",place,true)};
   },[parentRef,root,mobile,items.length]);
   useEffect(()=>{if(depth>0)requestAnimationFrame(()=>panelRef.current?.querySelector<HTMLButtonElement>(".file-menu-item:not(:disabled)")?.focus());},[depth]);
-  const handleKeyDown=(event:KeyboardEvent<HTMLDivElement>)=>{
+  const handleKeyDown=(event:ReactKeyboardEvent<HTMLDivElement>)=>{
     const buttons=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(".file-menu-item:not(:disabled)"));
     const current=buttons.indexOf(document.activeElement as HTMLButtonElement);
     if(event.key==="ArrowDown"||event.key==="ArrowUp"){
@@ -164,7 +164,7 @@ export default function FileMenu({workbooks,currentWorkbookId,currentSheetProtec
       if(rootRef.current?.contains(target)||(target instanceof Element&&target.closest("[data-file-menu-surface='true']")))return;
       close();
     };
-    const escape=(event:KeyboardEvent)=>{if(event.key==="Escape")close();};
+    const escape=(event:globalThis.KeyboardEvent)=>{if(event.key==="Escape")close();};
     document.addEventListener("pointerdown",outside);document.addEventListener("keydown",escape);
     requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>(".file-menu-root .file-menu-item")?.focus());
     return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape);};
