@@ -446,6 +446,27 @@ function lookupIndex(lookupValue: FormulaScalar, values: FormulaScalar[], matchM
   return bestIndex;
 }
 
+function matchIndex(lookupValue: FormulaScalar, values: FormulaScalar[], matchType: number): number {
+  if (matchType === 0) return lookupIndex(lookupValue, values, 0, 1);
+  if (matchType !== 1 && matchType !== -1) throw new FormulaError("#VALUE!");
+  const target = numberOf(lookupValue);
+  let bestIndex = -1;
+  let bestValue = matchType === 1 ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+  values.forEach((value, index) => {
+    const candidate = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(candidate)) return;
+    if (matchType === 1 && candidate <= target && candidate > bestValue) {
+      bestValue = candidate;
+      bestIndex = index;
+    }
+    if (matchType === -1 && candidate >= target && candidate < bestValue) {
+      bestValue = candidate;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
+}
+
 function evaluateCall(
   name: string,
   args: Ast[],
@@ -533,15 +554,23 @@ function evaluateCall(
     }
     case "SORTBY": {
       const source = matrix(0);
-      const byArray = flatten(get(1));
-      const sortOrder = num(2, 1);
-      if (byArray.length !== source.length) throw new FormulaError("#VALUE!");
-      return source.map((row, index) => ({ row, key: byArray[index], index }))
-        .sort((a, b) => {
-          const compare = typeof a.key === "number" && typeof b.key === "number"
-            ? a.key - b.key
-            : String(a.key).localeCompare(String(b.key), undefined, { numeric: true, sensitivity: "base" });
-          return compare * (sortOrder < 0 ? -1 : 1) || a.index - b.index;
+      const criteria: Array<{ values: FormulaScalar[]; order: number }> = [];
+      for (let index = 1; index < args.length; index += 2) {
+        const values = flat(index);
+        if (values.length !== source.length) throw new FormulaError("#VALUE!");
+        criteria.push({ values, order: args[index + 1] ? num(index + 1, 1) : 1 });
+      }
+      if (!criteria.length) throw new FormulaError("#VALUE!");
+      return source.map((row, index) => ({ row, index }))
+        .sort((left, right) => {
+          for (const criterion of criteria) {
+            const a = criterion.values[left.index], b = criterion.values[right.index];
+            const compare = typeof a === "number" && typeof b === "number"
+              ? a - b
+              : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+            if (compare !== 0) return compare * (criterion.order < 0 ? -1 : 1);
+          }
+          return left.index - right.index;
         }).map(item => item.row);
     }
     case "UNIQUE": {
@@ -602,8 +631,14 @@ function evaluateCall(
       const matchMode = num(4, 0), searchMode = num(5, 1);
       const index = lookupIndex(lookup, lookupValues, matchMode, searchMode);
       if (index < 0) return get(3, "#N/A");
-      if (returnMatrix.length === lookupValues.length && returnMatrix[0]?.length === 1) return returnMatrix[index]?.[0] ?? "#N/A";
-      if (returnMatrix[0]?.length === lookupValues.length) return returnMatrix.map(row => [row[index] ?? "#N/A"]);
+      if (returnMatrix.length === lookupValues.length) {
+        const matchingRow = returnMatrix[index] ?? ["#N/A"];
+        return matchingRow.length === 1 ? matchingRow[0] : [matchingRow];
+      }
+      if (returnMatrix[0]?.length === lookupValues.length) {
+        const matchingColumn = returnMatrix.map(row => [row[index] ?? "#N/A"]);
+        return matchingColumn.length === 1 ? matchingColumn[0][0] : matchingColumn;
+      }
       return flatten(returnMatrix)[index] ?? "#N/A";
     }
     case "XMATCH": {
@@ -621,7 +656,7 @@ function evaluateCall(
     case "MATCH": {
       const values = flat(1);
       const mode = num(2, 1);
-      const index = lookupIndex(scalar(0), values, mode === 0 ? 0 : mode === -1 ? -1 : 1, 1);
+      const index = matchIndex(scalar(0), values, mode);
       return index < 0 ? "#N/A" : index + 1;
     }
     case "VLOOKUP":
@@ -630,7 +665,7 @@ function evaluateCall(
       const index = Math.max(1, Math.trunc(num(2, 1)));
       const approximate = bool(3, true), horizontal = name === "HLOOKUP";
       const keys = horizontal ? (source[0] ?? []) : source.map(row => row[0] ?? "");
-      const match = lookupIndex(scalar(0), keys, approximate ? 1 : 0, 1);
+      const match = matchIndex(scalar(0), keys, approximate ? 1 : 0);
       if (match < 0) return "#N/A";
       return horizontal ? source[index - 1]?.[match] ?? "#REF!" : source[match]?.[index - 1] ?? "#REF!";
     }
