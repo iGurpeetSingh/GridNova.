@@ -24,7 +24,7 @@ import SparklineDialog from "../components/SparklineDialog";
 import PivotTableBuilderDialog from "../components/PivotTableBuilderDialog";
 import SlicerCard from "../components/SlicerCard";
 import { useWorkbookStore } from "../store/useWorkbookStore";
-import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
+import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
 import { addressOf, emptySheet, parseAddress } from "../types";
 import { numericValue, recalculate, getFormulaSpillState } from "../utils/formulaEngine";
