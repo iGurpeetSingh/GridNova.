@@ -118,11 +118,11 @@ export default function WorkbookEditor(){
   const sheet=workbook?.sheets.find(s=>s.id===activeSheetId)??workbook?.sheets[0];
   const isReadOnly=!!(sheet?.isProtected||workbook?.isProtected);
   const activeRaw=sheet?.cells[activeCell]?.raw??"";
+  const namedRanges=workbook?.namedRanges??{};
   const formulaSpillState=useMemo(()=>sheet?getFormulaSpillState(sheet.cells,sheet.tables??[],namedRanges,workbook?.sheets??[],sheet.name):{values:{},origins:{},ranges:{},errors:{}},[sheet?.cells,sheet?.tables,namedRanges,workbook?.sheets,sheet?.name]);
   const spillOrigin=formulaSpillState.origins[activeCell];
   const formulaBarReadOnly=isReadOnly||!!spillOrigin;
   const formulaBarRaw=spillOrigin?(sheet?.cells[spillOrigin]?.raw??""):activeRaw;
-  const namedRanges=workbook?.namedRanges??{};
   const calculationMode:CalculationMode=workbook?.calculationMode??"Automatic";
   useEffect(()=>{setFormulaValue(formulaBarRaw)},[formulaBarRaw,activeCell,activeSheetId]);
   const activeStyle=sheet?.cells[activeCell]?.style??{};

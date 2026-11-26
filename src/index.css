@@ -685,3 +685,8 @@
 @media(max-width:560px){.file-tools-backdrop{padding:8px}.file-tools-dialog{max-height:calc(100dvh - 16px)}.file-tools-shortcuts{grid-template-columns:1fr}}
 
 .file-tools-search{height:36px;width:100%;padding:0 10px;border:1px solid #C8C6C4;border-radius:5px;background:#fff;color:#242424;font:12px "Segoe UI Variable","Segoe UI",sans-serif}.file-tools-search:focus{outline:1.5px solid #0F6CBD;outline-offset:1px}
+
+/* Dynamic array spill visual treatment */
+.grid-cell.grid-spill-ghost{background:#F8FBFF!important}
+.grid-cell.grid-spill-ghost .spill-ghost-input{color:#53697F!important;font-style:italic!important}
+.formula-input-spill-ghost{color:#7B8794!important;font-style:italic!important}

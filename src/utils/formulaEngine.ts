@@ -211,6 +211,20 @@ const percentile=(values:number[],k:number)=>{
  const pos=(sorted.length-1)*k,lo=Math.floor(pos),hi=Math.ceil(pos);
  return sorted[lo]+(sorted[hi]-sorted[lo])*(pos-lo);
 };
+function binaryArray(left:Value,right:Value,apply:(a:Scalar,b:Scalar)=>Scalar):Value{
+  const leftArray=isArrayValue(left),rightArray=isArrayValue(right);
+  if(!leftArray&&!rightArray)return apply(left,right);
+  const leftValues=leftArray?left.values:[[left]],rightValues=rightArray?right.values:[[right]];
+  const rows=Math.max(leftValues.length,rightValues.length),cols=Math.max(0,...leftValues.map(row=>row.length),...rightValues.map(row=>row.length));
+  const leftScalar=!leftArray,rightScalar=!rightArray;
+  if(!leftScalar&&!rightScalar&&(leftValues.length!==rightValues.length||leftValues.some((row,index)=>row.length!==rightValues[index]?.length)))return "#VALUE!";
+  const values=Array.from({length:rows},(_,row)=>Array.from({length:cols},(_,col)=>{
+    const a=leftScalar?leftValues[0]?.[0]??"":leftValues[row]?.[col]??"";
+    const b=rightScalar?rightValues[0]?.[0]??"":rightValues[row]?.[col]??"";
+    return apply(a,b);
+  }));
+  return {__gridArray:true,values};
+}
 const criteriaMatches=(value:Value,criteria:Value):boolean=>{
  const condition=String(scalar(criteria)),op=condition.match(/^(>=|<=|<>|>|<|=)/)?.[0]??"=";
  const expected=condition.slice(op==="="&&!/^(>=|<=|<>|>|<|=)/.test(condition)?0:op.length);
@@ -246,10 +260,12 @@ class Parser {
   private compare():Value{
     let left=this.concat();
     while([">","<",">=","<=","=","<>"].includes(this.peek()??"")){
-      const op=this.take()!,right=this.concat(),a=scalar(left),b=scalar(right);
-      const an=Number(a),bn=Number(b),both=String(a).trim()!==""&&String(b).trim()!==""&&Number.isFinite(an)&&Number.isFinite(bn);
-      const x:string|number=both?an:String(a),y:string|number=both?bn:String(b);
-      switch(op){case ">":left=x>y;break;case "<":left=x<y;break;case ">=":left=x>=y;break;case "<=":left=x<=y;break;case "=":left=String(a).toLowerCase()===String(b).toLowerCase()||x===y;break;default:left=!(String(a).toLowerCase()===String(b).toLowerCase()||x===y);}
+      const op=this.take()!,right=this.concat();
+      left=binaryArray(left,right,(a,b)=>{
+        const an=Number(a),bn=Number(b),both=String(a).trim()!==""&&String(b).trim()!==""&&Number.isFinite(an)&&Number.isFinite(bn);
+        const x:string|number=both?an:String(a),y:string|number=both?bn:String(b);
+        switch(op){case ">":return x>y;case "<":return x<y;case ">=":return x>=y;case "<=":return x<=y;case "=":return String(a).toLowerCase()===String(b).toLowerCase()||x===y;default:return !(String(a).toLowerCase()===String(b).toLowerCase()||x===y);}
+      });
     }
     return left;
   }
