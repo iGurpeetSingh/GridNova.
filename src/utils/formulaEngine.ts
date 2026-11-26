@@ -141,9 +141,9 @@ function rangeValues(start: string, end: string, cells: CellMap, seen: Set<strin
 }
 
 function resolve(address: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): Value {
-  const key = address.toUpperCase(), cell = cells[key];
+  const key = (currentSheetName??"").toLowerCase()+"!"+address.toUpperCase(), cell = cells[address.toUpperCase()];
   if (!cell) return "";
-  if (seen.has(key)) throw new Error("#CIRCULAR!");
+  if (seen.has(key)) throw new Error("#CIRC!");
   if (cell.raw.startsWith("=")) {
     const next = new Set(seen); next.add(key);
     return evaluate(cell.raw, cells, next, tables, key, namedRanges,sheets,currentSheetName);
@@ -154,7 +154,7 @@ function resolve(address: string, cells: CellMap, seen: Set<string>, tables: Exc
 
 function tokenize(source: string): string[] {
   const result: string[] = [];
-  const re = /\s*(>=|<=|<>|[()+*/^%=<>:&!,\-]|"(?:[^"]|"")*"|'(?:[^']|'')+'|(?:\d+\.?\d*|\.\d+)|\$?[A-Za-z]{1,3}\$?[1-9]\d*|\$?[A-Za-z_][A-Za-z0-9_.]*|\$?\d+)/gy;
+  const re = /\s*(>=|<=|<>|[()+*/^%=<>:&!,#\-]|"(?:[^"]|"")*"|'(?:[^']|'')+'|(?:\d+\.?\d*|\.\d+)|\$?[A-Za-z]{1,3}\$?[1-9]\d*|\$?[A-Za-z_][A-Za-z0-9_.]*|\$?\d+)/gy;
   let pos = 0;
   while (pos < source.length) {
     re.lastIndex = pos;
@@ -237,7 +237,7 @@ const criteriaMatches=(value:Value,criteria:Value):boolean=>{
 
 class Parser {
   private i=0;
-  private variables=new Map<string,Scalar>();
+  private variables=new Map<string,Value>();
   constructor(private readonly tokens:string[],private readonly cells:CellMap,private readonly seen:Set<string>,private readonly tables:ExcelTableData[],private readonly namedRanges:Record<string,string>={},private readonly currentAddress?:string,private readonly sheets:SheetData[]=[],private readonly currentSheetName?:string){}
   private peek(){return this.tokens[this.i];}
   private take(){return this.tokens[this.i++];}
@@ -287,7 +287,20 @@ class Parser {
   }
   private postfix():Value{
     let value=this.primary();
-    while(this.match("%"))value=number(value)/100;
+    while(true){
+      if(this.match("%")){value=number(value)/100;continue;}
+      if(this.match("#")){
+        if(!isArrayValue(value)||!value.reference)return "#REF!";
+        const reference=value.reference,target=reference.sheetName?this.sheets.find(item=>item.name.toLowerCase()===reference.sheetName!.toLowerCase()):undefined;
+        const targetCells=target?.cells??this.cells,targetTables=target?.tables??this.tables;
+        const anchor=addressOf(reference.startRow,reference.startCol),source=targetCells[anchor];
+        if(!source?.raw.startsWith("="))return "#REF!";
+        const result=evaluate(source.raw,targetCells,this.seen,targetTables,anchor,this.namedRanges,this.sheets,target?.name??this.currentSheetName);
+        if(!isArrayValue(result))return "#REF!";
+        value=result;continue;
+      }
+      break;
+    }
     return value;
   }
   private readRangeArgument(forFunction?:string):Value[]|null{
@@ -320,9 +333,10 @@ class Parser {
     const targetCells=targetSheet?.cells??this.cells,targetTables=targetSheet?.tables??this.tables;
     const normalized=ref.replace(/\$/g,"").toUpperCase(),source=targetCells[normalized];
     if(!source)return "";
-    if(this.seen.has(normalized))return "#CIRCULAR!";
+    const key=(targetSheet?.name??this.currentSheetName??"").toLowerCase()+"!"+normalized;
+    if(this.seen.has(key))return "#CIRC!";
     if(source.raw.startsWith("=")){
-      const seen=new Set(this.seen);seen.add(normalized);
+      const seen=new Set(this.seen);seen.add(key);
       return evaluate(source.raw,targetCells,seen,targetTables,normalized,this.namedRanges,this.sheets,targetSheet?.name??this.currentSheetName);
     }
     const numericValue=Number(source.raw);
@@ -340,7 +354,7 @@ class Parser {
         if(!name||!/^[_A-Za-z][A-Za-z0-9_.]*$/.test(name)||name.includes("."))throw new Error("#VALUE!");
         if(!this.match(","))throw new Error("#PARSE!");
         const value=this.compare();
-        if(this.match(",")){this.variables.set(name.toUpperCase(),scalar(value));continue;}
+        if(this.match(",")){this.variables.set(name.toUpperCase(),value);continue;}
         if(!this.match(")"))throw new Error("#PARSE!");
         return value;
       }
@@ -354,7 +368,8 @@ class Parser {
       const sheetName=token.startsWith("'")?token.slice(1,-1).replace(/''/g,"'"):token,ref=this.take();
       if(!ref||!validReference(ref))throw new Error("#REF!");
       if(this.match(":")){const end=this.take();if(!end||!validReference(end))throw new Error("#REF!");const target=this.sheets.find(item=>item.name.toLowerCase()===sheetName.toLowerCase());if(!target)return "#REF!";return rangeValues(ref,end,target.cells,this.seen,target.tables??[],undefined,false,this.namedRanges,this.sheets,target.name);}
-      return this.resolveReference(ref,sheetName);
+      const target=this.sheets.find(item=>item.name.toLowerCase()===sheetName.toLowerCase());if(!target)return "#REF!";
+      return rangeValues(ref,ref,target.cells,this.seen,target.tables??[],undefined,false,this.namedRanges,this.sheets,target.name);
     }
     if(/^(?:\d+\.?\d*|\.\d+)$/.test(token))return Number(token);
     if(token.toUpperCase()==="TRUE")return true;
@@ -366,7 +381,7 @@ class Parser {
       if(!this.match(")")){do{args.push(this.argument(upper));}while(this.match(","));if(!this.match(")"))throw new Error("#PARSE!");}
       return this.call(upper,args);
     }
-    if(refPattern.test(token))return this.resolveReference(token);
+    if(refPattern.test(token))return rangeValues(token,token,this.cells,this.seen,this.tables,undefined,false,this.namedRanges,this.sheets,this.currentSheetName);
     if(this.variables.has(upper))return this.variables.get(upper)!;
     throw new Error("#NAME?");
   }
@@ -592,8 +607,36 @@ class Parser {
       case "MIRR":{const cash=list(0).map(number),finance=number(a[1]),reinvest=number(a[2]),n=cash.length;if(!n)return "#NUM!";let positive=0,negative=0;cash.forEach((v,i)=>{if(v>0)positive+=v*(1+reinvest)**(n-1-i);if(v<0)negative+=v/(1+finance)**i;});return Math.pow(-positive/negative,1/(n-1))-1;}
       case "XNPV":{const cash=list(1).map(number),dates=list(2).map(toSerial),rate=number(a[0]);if(!dates.length||dates.some(v=>!Number.isFinite(v)))return "#NUM!";return cash.reduce((acc,v,i)=>acc+v/(1+rate)**((dates[i]-dates[0])/365),0);}
       case "VLOOKUP":case "HLOOKUP":{const data=matrix(1),lookup=a[0],index=Math.trunc(number(a[2]))-1,approx=a[3]!==false;if(!data.length)return "#N/A";if(fn==="VLOOKUP"){const row=data.find(row=>String(row[0]).toLowerCase()===String(lookup).toLowerCase());if(row)return row[index]??"#REF!";if(approx){const sorted=[...data].sort((x,y)=>number(x[0])-number(y[0]));const row=[...sorted].reverse().find(x=>number(x[0])<=number(lookup));return row?.[index]??"#N/A";}}else{const header=data[0]??[],column=header.findIndex(v=>String(v).toLowerCase()===String(lookup).toLowerCase());if(column>=0)return data[index]?.[column]??"#REF!";}return "#N/A";}
-      case "XLOOKUP":case "XMATCH":case "MATCH":{const look=a[0],source=list(1),idx=source.findIndex(v=>String(v).toLowerCase()===String(look).toLowerCase());if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";const ret=list(2);if(idx>=0)return ret[idx]??"#N/A";return a[3]??"#N/A";}
-      case "INDEX":{const data=matrix(0),row=Math.max(1,number(a[1]))-1,col=Math.max(1,number(a[2]??1))-1;return data[row]?.[col]??"#REF!";}
+      case "XLOOKUP":case "XMATCH":case "MATCH":{
+        const look=a[0],source=list(1),matchMode=fn==="MATCH"?number(a[2]??1):number(a[3]??0),searchMode=fn==="MATCH"?1:number(a[4]??1);
+        const equals=(left:Value,right:Value)=>String(scalar(left)).toLowerCase()===String(scalar(right)).toLowerCase();
+        const wildcard=(pattern:string,value:string)=>{let expression="";for(let i=0;i<pattern.length;i++){const ch=pattern[i];if(ch==="~"&&i+1<pattern.length){expression+=pattern[++i].replace(/[.*+?^${}()|[\]\\]/g,"\\case "XLOOKUP":case "XMATCH":case "MATCH":{const look=a[0],source=list(1),idx=source.findIndex(v=>String(v).toLowerCase()===String(look).toLowerCase());if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";const ret=list(2);if(idx>=0)return ret[idx]??"#N/A";return a[3]??"#N/A";}
+      case "INDEX":{const data=matrix(0),row=Math.max(1,number(a[1]))-1,col=Math.max(1,number(a[2]??1))-1;return data[row]?.[col]??"#REF!";}");}else if(ch==="*")expression+=".*";else if(ch==="?")expression+=".";else expression+=ch.replace(/[.*+?^${}()|[\]\\]/g,"\\case "XLOOKUP":case "XMATCH":case "MATCH":{const look=a[0],source=list(1),idx=source.findIndex(v=>String(v).toLowerCase()===String(look).toLowerCase());if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";const ret=list(2);if(idx>=0)return ret[idx]??"#N/A";return a[3]??"#N/A";}
+      case "INDEX":{const data=matrix(0),row=Math.max(1,number(a[1]))-1,col=Math.max(1,number(a[2]??1))-1;return data[row]?.[col]??"#REF!";}");}return new RegExp("^"+expression+"$","i").test(value);};
+        const find=(values:Value[])=>{
+          const indices=Array.from({length:values.length},(_,index)=>index);if(searchMode===-1||searchMode===-2)indices.reverse();
+          if(matchMode===2){const idx=indices.find(index=>wildcard(String(look??""),String(values[index]??"")));return idx??-1;}
+          if(matchMode===0){const idx=indices.find(index=>equals(values[index],look));return idx??-1;}
+          let best=-1,bestDistance=Infinity;
+          for(const index of indices){const value=values[index],ln=Number(scalar(look)),vn=Number(scalar(value));if(!Number.isFinite(ln)||!Number.isFinite(vn))continue;
+            if(matchMode===-1&&vn<=ln&&ln-vn<bestDistance){best=index;bestDistance=ln-vn;}
+            if(matchMode===1&&vn>=ln&&vn-ln<bestDistance){best=index;bestDistance=vn-ln;}
+          }
+          return best;
+        };
+        const idx=find(source);
+        if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";
+        const result=matrix(2),returnValue=idx<0?(a[3]??"#N/A"):(result.length&&result[0].length>1?result[Math.min(idx,result.length-1)]?.[0]??"#N/A":result[idx]?.[0]??list(2)[idx]??"#N/A");
+        return returnValue;
+      }
+      case "INDEX":{
+        const data=matrix(0),row=Math.trunc(number(a[1]??0)),col=Math.trunc(number(a[2]??0));
+        if(row<0||col<0)return "#VALUE!";
+        if(row===0&&col===0)return {__gridArray:true,values:data};
+        if(row===0){const values=data.map(line=>line[col-1]??"");return {__gridArray:true,values:values.map(value=>[value])};}
+        if(col===0)return {__gridArray:true,values:[data[row-1]??[]]};
+        return data[row-1]?.[col-1]??"#REF!";
+      }
       case "LOOKUP":{const source=list(1),target=list(2),look=number(a[0]);let idx=-1;source.forEach((v,i)=>{if(number(v)<=look)idx=i;});return idx>=0?(target[idx]??source[idx]):"#N/A";}
       case "CHOOSE":{const idx=Math.trunc(number(a[0]));return a[idx]??"#VALUE!";}
       case "OFFSET":{
@@ -613,9 +656,59 @@ class Parser {
       case "ADDRESS":{const row=Math.max(1,number(a[0])),col=Math.max(1,number(a[1]));const abs=Math.trunc(number(a[2]??1)),a1=a[3]!==false;let n=col,label="";while(n){const rem=(n-1)%26;label=String.fromCharCode(65+rem)+label;n=Math.floor((n-1)/26);}return a1?(abs===1?"$":"")+label+(abs===1?"$":"")+row:(col===1?"":"R"+row)+"C"+col;}
       case "HYPERLINK":return a[1]??a[0]??"";
       case "TRANSPOSE":{const data=matrix(0),width=Math.max(0,...data.map(row=>row.length));return {__gridArray:true,values:Array.from({length:width},(_,col)=>data.map(row=>row[col]??""))};}
-      case "UNIQUE":{const data=matrix(0),byCol=!!a[1],source=byCol?data[0]?.map((_,col)=>data.map(row=>row[col]))??[]:data,seen=new Set<string>(),out=source.filter(row=>{const key=JSON.stringify(row);if(seen.has(key))return false;seen.add(key);return true;});const result=byCol?Array.from({length:out[0]?.length??0},(_,col)=>out.map(row=>row[col])):out;return {__gridArray:true,values:result};}
-      case "FILTER":{const data=matrix(0),include=list(1),filtered=data.filter((_,i)=>!!include[i]);return filtered.length?{__gridArray:true,values:filtered}:a[2]??"#CALC!";}
-      case "SORT":{const data=matrix(0),col=Math.max(1,number(a[1]??1))-1,order=number(a[2]??1);return {__gridArray:true,values:[...data].sort((x,y)=>{const left=x[col]??"",right=y[col]??"",ln=Number(left),rn=Number(right),both=String(left).trim()!==""&&String(right).trim()!==""&&Number.isFinite(ln)&&Number.isFinite(rn);const cmp=both?ln-rn:String(left).localeCompare(String(right),undefined,{numeric:true,sensitivity:"base"});return cmp*order;})};}
+      case "UNIQUE":{
+        const data=matrix(0),byCol=!!a[1],exactlyOnce=!!a[2];
+        const source=byCol?Array.from({length:Math.max(0,...data.map(row=>row.length))},(_,col)=>data.map(row=>row[col]??"")):data;
+        const counts=new Map<string,number>();source.forEach(row=>{const key=JSON.stringify(row);counts.set(key,(counts.get(key)??0)+1);});
+        const seenRows=new Set<string>(),out=source.filter(row=>{const key=JSON.stringify(row);if(exactlyOnce&&counts.get(key)!==1)return false;if(seenRows.has(key))return false;seenRows.add(key);return true;});
+        const result=byCol?Array.from({length:Math.max(0,...out.map(row=>row.length))},(_,col)=>out.map(row=>row[col]??"")):out;
+        return {__gridArray:true,values:result};
+      }
+      case "FILTER":{
+        const data=matrix(0),include=list(1),filtered=data.filter((_,index)=>Boolean(include[index]));
+        if(!filtered.length)return a[2]??"#CALC!";
+        return {__gridArray:true,values:filtered};
+      }
+      case "SORT":{
+        const data=matrix(0),sortIndex=Math.max(1,Math.trunc(number(a[1]??1)))-1,order=number(a[2]??1)>=0?1:-1,byCol=!!a[3];
+        if(byCol){const width=Math.max(0,...data.map(row=>row.length)),columns=Array.from({length:width},(_,col)=>data.map(row=>row[col]??""));columns.sort((left,right)=>{const x=left[sortIndex]??"",y=right[sortIndex]??"",nx=Number(x),ny=Number(y),both=String(x).trim()!==""&&String(y).trim()!==""&&Number.isFinite(nx)&&Number.isFinite(ny);return (both?nx-ny:String(x).localeCompare(String(y),undefined,{numeric:true,sensitivity:"base"}))*order;});return {__gridArray:true,values:Array.from({length:data.length},(_,row)=>columns.map(column=>column[row]??""))};}
+        return {__gridArray:true,values:[...data].sort((left,right)=>{const x=left[sortIndex]??"",y=right[sortIndex]??"",nx=Number(x),ny=Number(y),both=String(x).trim()!==""&&String(y).trim()!==""&&Number.isFinite(nx)&&Number.isFinite(ny);return (both?nx-ny:String(x).localeCompare(String(y),undefined,{numeric:true,sensitivity:"base"}))*order;})};
+      }
+      case "SORTBY":{
+        const data=matrix(0),sortKeys:{values:Value[];order:number}[]=[];
+        for(let index=1;index<args.length;index+=2)sortKeys.push({values:list(index),order:number(a[index+1]??1)>=0?1:-1});
+        const indexed=data.map((row,index)=>({row,index}));
+        indexed.sort((left,right)=>{
+          for(const key of sortKeys){const x=key.values[left.index]??"",y=key.values[right.index]??"",nx=Number(x),ny=Number(y),both=String(x).trim()!==""&&String(y).trim()!==""&&Number.isFinite(nx)&&Number.isFinite(ny),cmp=both?nx-ny:String(x).localeCompare(String(y),undefined,{numeric:true,sensitivity:"base"});if(cmp)return cmp*key.order;}
+          return left.index-right.index;
+        });
+        return {__gridArray:true,values:indexed.map(item=>item.row)};
+      }
+      case "SEQUENCE":{
+        const rows=Math.max(1,Math.trunc(number(a[0]??1))),cols=Math.max(1,Math.trunc(number(a[1]??1))),start=number(a[2]??1),step=number(a[3]??1);
+        if(rows*cols>100000)return "#NUM!";
+        return {__gridArray:true,values:Array.from({length:rows},(_,row)=>Array.from({length:cols},(_,col)=>start+(row*cols+col)*step))};
+      }
+      case "TAKE":case "DROP":{
+        const data=matrix(0),height=data.length,width=Math.max(0,...data.map(row=>row.length)),rows=Math.trunc(number(a[1]??0)),cols=Math.trunc(number(a[2]??0));
+        if(rows===0&&cols===0)return "#CALC!";
+        const sliceAxis=(length:number,count:number)=>{if(count===0)return [0,length];const take=Math.min(length,Math.abs(count));return count>0?[0,take]:[length-take,length];};
+        const [r0,r1]=fn==="TAKE"?sliceAxis(height,rows):rows===0?[0,height]:rows>0?[Math.min(height,rows),height]:[0,Math.max(0,height+rows)];
+        const [c0,c1]=fn==="TAKE"?sliceAxis(width,cols):cols===0?[0,width]:cols>0?[Math.min(width,cols),width]:[0,Math.max(0,width+cols)];
+        const out=data.slice(r0,r1).map(row=>row.slice(c0,c1));
+        return out.length&&out.some(row=>row.length)?{__gridArray:true,values:out}:"#CALC!";
+      }
+      case "HSTACK":case "VSTACK":{
+        const arrays=args.map((_,index)=>matrix(index));
+        if(fn==="VSTACK"){
+          const width=Math.max(0,...arrays.flatMap(value=>value.map(row=>row.length)));
+          const values=arrays.flatMap(value=>value.map(row=>Array.from({length:width},(_,col)=>row[col]??"#N/A")));
+          return {__gridArray:true,values};
+        }
+        const height=Math.max(0,...arrays.map(value=>value.length));
+        const values=Array.from({length:height},(_,row)=>arrays.flatMap(value=>Array.from({length:Math.max(0,...value.map(line=>line.length))},(_,col)=>value[row]?.[col]??"#N/A")));
+        return {__gridArray:true,values};
+      }
       case "MEDIAN":return nums.length?percentile(nums,0.5):"#NUM!";
       case "MODE":{const counts=new Map<number,number>();nums.forEach(v=>counts.set(v,(counts.get(v)??0)+1));const sorted=[...counts].sort((x,y)=>y[1]-x[1]);return sorted[0]?.[1]>1?sorted[0][0]:"#N/A";}
       case "LARGE":{const values=[...nums].sort((x,y)=>y-x);return values[number(a[1])-1]??"#NUM!";}
@@ -679,10 +772,11 @@ function roundDirected(value: number, digits: number, direction: "up" | "down"):
 
 export function evaluate(formula: string, cells: CellMap, seen = new Set<string>(), tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): Value {
   try {
+    const activeSeen=new Set(seen);if(currentAddress)activeSeen.add((currentSheetName??"").toLowerCase()+"!"+currentAddress.replace(/\\$/g,"").toUpperCase());
     const source = formula.startsWith("=") ? formula.slice(1) : formula;
     const structured = expandStructuredReferences(source, cells, tables, currentAddress);
     const expanded = expandNamedRanges(structured,namedRanges);
-    return new Parser(tokenize(expanded), cells, seen, tables, namedRanges,currentAddress,sheets,currentSheetName).parse();
+    return new Parser(tokenize(expanded), cells, activeSeen, tables, namedRanges,currentAddress,sheets,currentSheetName).parse();
   } catch (error) {
     return error instanceof Error ? error.message : "#ERROR!";
   }
