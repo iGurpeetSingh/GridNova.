@@ -127,6 +127,9 @@ export default function HomeRibbon({onAction,onFormat,style,sheet}:Props){
    {menu("conditional","Conditional Formatting",[
     {label:"Highlight Positive Values",icon:<span className="home-data-bars"><i/><i/><i/></span>,action:"conditional-positive"},
     {label:"Highlight Negative Values",icon:<span className="home-data-bars home-data-bars--red"><i/><i/><i/></span>,action:"conditional-negative"},
+    {label:"Data Bars…",icon:<span className="home-data-bars"><i/><i/><i/></span>,action:"conditional-data-bars"},
+    {label:"Color Scales & Icon Sets…",icon:<ListChecks size={17}/>,action:"conditional-format-open"},
+    {label:"Manage Rules…",icon:<ListChecks size={17}/>,action:"conditional-manage-rules"},
     {label:"Clear Conditional Formatting",icon:<Eraser size={17}/>,action:"conditional-clear"}
    ],<><span className="home-large-icon home-conditional-icon"><Table2 size={24}/><i/></span><span>Conditional<br/>Formatting</span><ChevronDown size={9}/></>,"home-large-menu-trigger")}
    {menu("format-table","Format As Table",[

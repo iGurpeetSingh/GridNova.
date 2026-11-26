@@ -17,6 +17,8 @@ import PageSetupDialog from "../components/PageSetupDialog";
 import FileToolsDialog, { type FileToolsMode, type FileVersionSnapshot } from "../components/FileToolsDialog";
 import FormulaAuditOverlay from "../components/FormulaAuditOverlay";
 import FormulaDebuggerDialog from "../components/FormulaDebuggerDialog";
+import DataValidationDialog from "../components/DataValidationDialog";
+import ConditionalFormattingDialog from "../components/ConditionalFormattingDialog";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
@@ -24,6 +26,7 @@ import { addressOf, emptySheet, parseAddress } from "../types";
 import { numericValue, recalculate, getFormulaSpillState } from "../utils/formulaEngine";
 import { recalculateWorkbookFull, recalculateWorkbookIncremental, getSheetCircularReferences, formatCircularReferenceLabel, dependencyNodeParts } from "../lib/dependency-graph";
 import { getTableAt, getTableHeaderLabel, getTablePalette, normalizeTableName, tableColumnValues } from "../utils/tableUtils";
+import { rangeAddresses as validationRangeAddresses, getListValidationOptions } from "../utils/dataValidation";
 
 
 type Tab = "File"|"Home"|"Insert"|"Share"|"Page Layout"|"Formulas"|"Data"|"Review"|"View"|"Help"|"Draw"|"Table Design";
@@ -90,6 +93,8 @@ export default function WorkbookEditor(){
   const [fileHistory,setFileHistory]=useState<FileVersionSnapshot[]>([]);
   const [auditMode,setAuditMode]=useState<"precedents"|"dependents"|null>(null);
   const [formulaDebuggerOpen,setFormulaDebuggerOpen]=useState(false);
+  const [dataValidationOpen,setDataValidationOpen]=useState(false);
+  const [conditionalFormattingOpen,setConditionalFormattingOpen]=useState(false);
   const [showFormulaBar,setShowFormulaBar]=useState(true);
   const openFileAsWorkbookRef=useRef(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
@@ -131,6 +136,7 @@ export default function WorkbookEditor(){
   const calculationMode:CalculationMode=workbook?.calculationMode??"Automatic";
   useEffect(()=>{setFormulaValue(formulaBarRaw)},[formulaBarRaw,activeCell,activeSheetId]);
   const activeStyle=sheet?.cells[activeCell]?.style??{};
+  const selectedRangeForRules:CellRange=selection?{startRow:Math.min(selection.startRow,selection.endRow),startCol:Math.min(selection.startCol,selection.endCol),endRow:Math.max(selection.startRow,selection.endRow),endCol:Math.max(selection.startCol,selection.endCol)}:{startRow:parseAddress(activeCell)?.row??0,startCol:parseAddress(activeCell)?.col??0,endRow:parseAddress(activeCell)?.row??0,endCol:parseAddress(activeCell)?.col??0};
   const selectedAddresses=useMemo(()=>{
     if(!selection)return [activeCell];
     const out:string[]=[];
@@ -716,6 +722,21 @@ export default function WorkbookEditor(){
       case "table-remove-duplicates":removeActiveTableDuplicates();break;
       case "table-convert-range":convertActiveTableToRange();break;
       case "insert-function":setFormulaLibraryCategory("All");setFormulaLibraryOpen(true);break;
+      case "conditional-positive":case "conditional-negative":{
+        const rule={id:crypto.randomUUID(),range:selectedRangeForRules,type:name==="conditional-positive"?"greaterThan" as const:"lessThan" as const,enabled:true,priority:(sheet.conditionalFormattingRules??[]).length+1,formula1:"0",backgroundColor:name==="conditional-positive"?"#E2F0D9":"#FCE4D6",fontColor:name==="conditional-positive"?"#256029":"#9C0006"};
+        updateSheet(sheet.id,{conditionalFormattingRules:[...(sheet.conditionalFormattingRules??[]),rule]});break;
+      }
+      case "conditional-format-open":case "conditional-manage-rules":case "conditional-data-bars":setConditionalFormattingOpen(true);break;
+      case "conditional-clear":{
+        const range=selectedRangeForRules;
+        updateSheet(sheet.id,{conditionalFormattingRules:(sheet.conditionalFormattingRules??[]).filter(rule=>rule.range.endRow<range.startRow||rule.range.startRow>range.endRow||rule.range.endCol<range.startCol||rule.range.startCol>range.endCol)});break;
+      }
+      case "data-validation":setDataValidationOpen(true);break;
+      case "clear-validation":{
+        const range=selectedRangeForRules,cells={...sheet.cells};
+        validationRangeAddresses(range).forEach(address=>{if(cells[address]){const cell={...cells[address]};delete cell.validationOptions;cells[address]=cell;}});
+        updateSheet(sheet.id,{validationRules:(sheet.validationRules??[]).filter(rule=>rule.range.endRow<range.startRow||rule.range.startRow>range.endRow||rule.range.endCol<range.startCol||rule.range.startCol>range.endCol),cells});break;
+      }
       case "trace-precedents":setAuditMode("precedents");break;
       case "trace-dependents":setAuditMode("dependents");break;
       case "remove-audit-arrows":setAuditMode(null);break;
@@ -937,6 +958,13 @@ export default function WorkbookEditor(){
       ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
     <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
+    <DataValidationDialog open={dataValidationOpen} range={selectedRangeForRules} onClose={()=>setDataValidationOpen(false)} onSave={rule=>{
+      const listOptions=rule.type==="List"?getListValidationOptions(rule,sheet):[],cells={...sheet.cells};
+      validationRangeAddresses(rule.range).forEach(address=>{const cell={...(cells[address]??{raw:""})};if(rule.type==="List")cell.validationOptions=listOptions;else delete cell.validationOptions;cells[address]=cell;});
+      const rules=[...(sheet.validationRules??[]).filter(item=>item.range.startRow!==rule.range.startRow||item.range.startCol!==rule.range.startCol||item.range.endRow!==rule.range.endRow||item.range.endCol!==rule.range.endCol),rule];
+      updateSheet(sheet.id,{validationRules:rules,cells});setShowSaved();
+    }}/>
+    <ConditionalFormattingDialog open={conditionalFormattingOpen} range={selectedRangeForRules} rules={sheet.conditionalFormattingRules??[]} onClose={()=>setConditionalFormattingOpen(false)} onSave={rules=>{updateSheet(sheet.id,{conditionalFormattingRules:rules});setShowSaved();}}/>
     <FormulaDebuggerDialog open={formulaDebuggerOpen} formula={sheet.cells[spillOrigin??activeCell]?.raw??""} cells={sheet.cells} tables={sheet.tables??[]} namedRanges={namedRanges} sheets={workbook.sheets} sheetName={sheet.name} address={spillOrigin??activeCell} onClose={()=>setFormulaDebuggerOpen(false)}/>
     <FileToolsDialog mode={fileToolsMode} workbook={workbook} history={fileHistory} showFormulaBar={showFormulaBar} autoSaveEnabled={autoSaveEnabled} gridlines={sheet.showGridlines} onClose={()=>setFileToolsMode(null)} onRestore={snapshot=>{
       const restored=snapshot.workbook;

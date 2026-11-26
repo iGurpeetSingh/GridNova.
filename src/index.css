@@ -727,3 +727,25 @@
 .formula-debug-dialog>footer button:disabled{opacity:.45;cursor:not-allowed}
 .formula-debug-dialog>footer .formula-debug-secondary{border-color:#C8C6C4;background:#fff;color:#323130}
 @media(max-width:560px){.formula-debug-backdrop{padding:8px}.formula-debug-dialog{max-height:calc(100dvh - 16px)}.formula-debug-dialog>footer{flex-wrap:wrap}}
+
+/* Rule configuration dialogs */
+.advanced-dialog-backdrop{position:fixed;inset:0;z-index:13020;display:grid;place-items:center;padding:16px;background:rgba(24,32,28,.28);backdrop-filter:blur(2px)}
+.advanced-dialog{width:min(560px,100%);max-height:min(90dvh,800px);display:flex;flex-direction:column;overflow:hidden;border:1px solid #E1DFDD;border-radius:13px;background:#fff;color:#242424;box-shadow:0 20px 58px rgba(0,0,0,.24);font-family:"Segoe UI Variable","Segoe UI",sans-serif}
+.advanced-dialog>header{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid #EBEBEB}
+.advanced-dialog>header>div:nth-child(2){flex:1;min-width:0}.advanced-dialog>header h2{margin:0;font-size:16px;font-weight:650}.advanced-dialog>header p{margin:3px 0 0;color:#797775;font-size:10px}
+.advanced-dialog>header button{width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:5px;background:#fff;color:#605E5C}
+.advanced-dialog-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;background:#EEF5FB;color:#0F6CBD}
+.advanced-dialog-body{display:flex;flex-direction:column;gap:11px;overflow:auto;padding:16px 18px}
+.advanced-field{display:flex;flex-direction:column;gap:5px;color:#605E5C;font-size:10px;font-weight:650}
+.advanced-field input,.advanced-field select,.advanced-field textarea{width:100%;min-height:34px;padding:7px 9px;border:1px solid #C8C6C4;border-radius:5px;background:#fff;color:#242424;font:12px "Segoe UI Variable","Segoe UI",sans-serif}
+.advanced-field small{color:#797775;font-size:9px;font-weight:400}
+.advanced-check{display:flex;align-items:center;gap:8px;color:#323130;font-size:10px}.advanced-check input,.advanced-rule-row>input{accent-color:#107C41}
+.advanced-subheading{padding-top:7px;border-top:1px solid #EBEBEB;color:#0F6CBD;font-size:10px;font-weight:700}
+.advanced-dialog>footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #EBEBEB}
+.advanced-dialog>footer button,.advanced-inline-add{min-height:34px;padding:0 14px;border:1px solid #0F6CBD;border-radius:5px;background:#0F6CBD;color:#fff;font-size:10px;font-weight:650}
+.advanced-dialog>footer .advanced-secondary{border-color:#C8C6C4;background:#fff;color:#323130}
+.advanced-color-pair{display:flex;gap:10px}.advanced-color-pair label{display:flex;flex:1;flex-direction:column;gap:4px;color:#605E5C;font-size:10px}.advanced-color-pair input,.advanced-color-pair select{width:100%;height:34px}
+.advanced-inline-add{align-self:flex-start}.advanced-rule-row{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #E5E5E5;border-radius:6px}
+.advanced-rule-row>div{display:flex;flex:1;flex-direction:column;gap:2px}.advanced-rule-row strong{font-size:10px}.advanced-rule-row small{color:#797775;font-size:9px}
+.advanced-rule-row button{width:27px;height:26px;border:1px solid #E1DFDD;border-radius:4px;background:#fff;color:#605E5C;font-size:12px}.advanced-muted{color:#797775;font-size:10px}
+.conditional-format-icon{display:inline-flex;position:relative;z-index:1;align-items:center;margin:0 3px 0 4px;font-size:11px;font-weight:700;vertical-align:middle}
