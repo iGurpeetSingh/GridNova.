@@ -139,7 +139,10 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
           {button("Clear Style",Eraser,"table-clear-style","rose")}
         </Group>
       </> : <Group label="Table Design">{button("Create Table",Table2,"format-table","green")}</Group>;
-      case "Review":return <Group label="Review">{button("New Comment",MessageSquare,"comment","blue")}{button("Protect Sheet",ShieldCheck,"protect-sheet","blue")}</Group>;
+      case "Review":return <>
+        <Group label="Comments">{button("New Comment",MessageSquare,"comment","blue")}{button("Previous Comment",ArrowUpToLine,"comment-previous","blue")}{button("Next Comment",ArrowDownToLine,"comment-next","blue")}{button("Delete Comment",Trash2,"comment-delete","rose")}{button("Show Comments",MessageSquare,"comments-panel","blue")}</Group>
+        <Group label="Proofing & Stats">{button("Workbook Statistics",Calculator,"workbook-stats","blue")}{button("Protect Sheet",ShieldCheck,"protect-sheet","blue")}</Group>
+      </>;
       case "Help":return <Group label="Help">{button("Keyboard shortcuts",FunctionSquare,"show-shortcuts","blue")}{button("Function help",Search,"insert-function","blue")}</Group>;
       case "Draw":return <Group label="Drawing">{button("Add comment",MessageSquare,"comment","blue")}</Group>;
       case "Page Layout":return <>

@@ -509,3 +509,9 @@
 
 .validation-cell-select{width:100%;height:100%;min-width:0;border:0;border-radius:0;background-color:transparent;padding:0 5px;outline-offset:-2px;appearance:auto}
 .validation-cell-select:focus{outline:1px solid #107C41}
+
+.workbook-stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:18px 20px}
+.workbook-stats-grid>div{display:flex;flex-direction:column;gap:4px;padding:13px;border:1px solid #E5E5E5;border-radius:8px;background:#FAFAFA}
+.workbook-stats-grid strong{font-size:20px;font-weight:750;color:#107C41;font-variant-numeric:tabular-nums}
+.workbook-stats-grid span{font-size:11px;color:#605E5C}
+@media(max-width:520px){.workbook-stats-grid{grid-template-columns:1fr 1fr;padding:12px}}

@@ -75,6 +75,7 @@ export default function WorkbookEditor(){
   const [calculationToast,setCalculationToast]=useState("");
   const [cellDialogKind,setCellDialogKind]=useState<"link"|"comment"|null>(null);
   const [commentsPanelOpen,setCommentsPanelOpen]=useState(false);
+  const [workbookStatsOpen,setWorkbookStatsOpen]=useState(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
   const [slicerColumn,setSlicerColumn]=useState("0");
   const [slicerValues,setSlicerValues]=useState<string[]>([]);
@@ -107,6 +108,20 @@ export default function WorkbookEditor(){
   },[sheet,selectedAddresses,namedRanges,workbook?.sheets]);
   const activePosition = parseAddress(activeCell);
   const activeTable = activePosition && sheet ? getTableAt(sheet.tables, activePosition.row, activePosition.col) ?? null : null;
+  const workbookStats=useMemo(()=>{
+    const sheets=workbook?.sheets??[];
+    const allCells=sheets.flatMap(item=>Object.values(item.cells));
+    return {
+      worksheets:sheets.length,
+      usedCells:allCells.filter(cell=>cell.raw!==""||cell.checkbox||cell.datePicker).length,
+      formulas:allCells.filter(cell=>cell.raw.startsWith("=")).length,
+      comments:allCells.filter(cell=>!!cell.comment).length,
+      tables:sheets.reduce((total,item)=>total+(item.tables?.length??0),0),
+      charts:workbook?.charts.length??0,
+      drawings:workbook?.elements?.length??0,
+      namedRanges:Object.keys(workbook?.namedRanges??{}).length
+    };
+  },[workbook]);
   const suggestedTableRange = useMemo(() => {
     if (!sheet) return "A1:D10";
     if (selection) return rangeLabel({ startRow: Math.min(selection.startRow, selection.endRow), startCol: Math.min(selection.startCol, selection.endCol), endRow: Math.max(selection.startRow, selection.endRow), endCol: Math.max(selection.startCol, selection.endCol) });
@@ -590,6 +605,20 @@ export default function WorkbookEditor(){
       case "text-box":insertFloatingElement({type:"text",text:"Type text here",fontSize:16,color:"#323130",width:280,height:110,fill:"#ffffff",stroke:"#0F6CBD"});break;
       case "slicer":openSlicer();break;
       case "comments-panel":setCommentsPanelOpen(true);break;
+      case "workbook-stats":setWorkbookStatsOpen(true);break;
+      case "comment-delete":{
+        const cell=sheet.cells[activeCell];if(!cell?.comment){window.alert("The active cell has no comment.");break;}
+        const cells={...sheet.cells},nextCell={...cell};delete nextCell.comment;cells[activeCell]=nextCell;updateCells(cells);break;
+      }
+      case "comment-next":case "comment-previous":{
+        const addresses=Object.entries(sheet.cells).filter(([,cell])=>!!cell.comment).map(([address])=>address).sort((a,b)=>{
+          const pa=parseAddress(a)!,pb=parseAddress(b)!;return pa.row-pb.row||pa.col-pb.col;
+        });
+        if(!addresses.length){window.alert("There are no comments in this sheet.");break;}
+        const current=addresses.indexOf(activeCell),step=name==="comment-next"?1:-1;
+        const target=current<0?(step>0?addresses[0]:addresses.at(-1)!):addresses[(current+step+addresses.length)%addresses.length];
+        selectCell(target);break;
+      }
       case "chart-bar":case "chart-line":case "chart-pie":{
         const type=name.replace("chart-","") as FloatingChartData["type"];
         const title=type==="bar"?"Sales by category":type==="line"?"Trend":"Distribution";
@@ -735,6 +764,9 @@ export default function WorkbookEditor(){
     <SheetBar sheets={workbook.sheets} activeId={sheet.id} onSelect={setActiveSheet} onAdd={addSheet} onRename={renameSheet} onDelete={id=>{if(window.confirm("Delete this sheet?"))deleteSheet(id)}}/>
     {calculationToast&&<div role="status" className="formula-calculation-toast">{calculationToast}</div>}
     <footer className="no-print flex h-8 shrink-0 items-center justify-between border-t border-[#e2e9e4] bg-white px-4 text-[10px] text-[#829087]"><div className="flex items-center gap-4"><span>Ready</span><span>Count: <b className="text-[#52665a]">{stats.count}</b></span><span>Sum: <b className="text-[#52665a]">{stats.sum.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span><span>Average: <b className="text-[#52665a]">{stats.average.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span></div><div>{sheet.showGridlines?"Gridlines on":"Gridlines off"} · {zoom}%</div></footer>
+    {workbookStatsOpen&&<div className="grid-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setWorkbookStatsOpen(false);}}><section className="grid-dialog workbook-stats-dialog" role="dialog" aria-modal="true" aria-labelledby="workbook-stats-title"><header><div><span>WORKBOOK INSIGHTS</span><h2 id="workbook-stats-title">Workbook Statistics</h2><p>Live counts across all worksheets in this workbook</p></div><button type="button" onClick={()=>setWorkbookStatsOpen(false)} aria-label="Close statistics">×</button></header><div className="workbook-stats-grid">{[
+      ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
+    ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
     <ShareModal open={shareOpen} onClose={()=>setShareOpen(false)} workbookId={workbook.id} title={workbook.title} onExport={exportFile}/>
     <TableRangeDialog open={tableDialogOpen} title={tableDialogMode==="resize"?"Resize Table":"Create Table"} initialRange={tableDialogMode==="resize"&&activeTable?rangeLabel(activeTable.range):suggestedTableRange} initialHasHeaders={tableDialogMode==="resize"?(activeTable?.hasHeaders??true):true} submitLabel={tableDialogMode==="resize"?"Resize":"OK"} onClose={()=>setTableDialogOpen(false)} onSubmit={submitTableRange}/>
     <FormulaLibraryDialog open={formulaLibraryOpen} initialCategory={formulaLibraryCategory} onClose={()=>setFormulaLibraryOpen(false)} onInsert={formula=>{setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true)}}/>
