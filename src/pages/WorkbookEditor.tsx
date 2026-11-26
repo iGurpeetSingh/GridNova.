@@ -102,7 +102,7 @@ export default function WorkbookEditor(){
   },[selection,activeCell]);
   const stats=useMemo(()=>{
     if(!sheet)return {count:0,sum:0,average:0};
-    const vals=selectedAddresses.map(a=>numericValue(sheet.cells[a]?.raw??"",sheet.cells,sheet.tables??[],a,namedRanges)).filter((v):v is number=>v!==null);
+    const vals=selectedAddresses.map(a=>numericValue(sheet.cells[a]?.raw??"",sheet.cells,sheet.tables??[],a,namedRanges,workbook.sheets,sheet.name)).filter((v):v is number=>v!==null);
     return {count:vals.length,sum:vals.reduce((a,b)=>a+b,0),average:vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0};
   },[sheet,selectedAddresses,namedRanges]);
   const activePosition = parseAddress(activeCell);
@@ -339,7 +339,7 @@ export default function WorkbookEditor(){
     for(let row=source.startRow+1;row<=source.endRow;row++){
       const key=sheet.cells[addressOf(row,source.startCol)]?.raw?.trim()||"(blank)";
       const raw=sheet.cells[addressOf(row,source.startCol+1)]?.raw??"";
-      const numeric=numericValue(raw,sheet.cells,sheet.tables??[],addressOf(row,source.startCol+1))??0;
+      const numeric=numericValue(raw,sheet.cells,sheet.tables??[],addressOf(row,source.startCol+1),namedRanges,workbook.sheets,sheet.name)??0;
       const existing=groups.get(key)??{count:0,total:0};
       existing.count+=1;existing.total+=numeric;groups.set(key,existing);
     }
@@ -368,7 +368,7 @@ export default function WorkbookEditor(){
     const rows=Array.from({length:Math.max(0,sheet.rowCount-1)},(_,i)=>i+1);
     rows.sort((a,b)=>{
       const av=sheet.cells[addressOf(a,p.col)]?.raw??"",bv=sheet.cells[addressOf(b,p.col)]?.raw??"";
-      const an=numericValue(av,sheet.cells,sheet.tables??[],addressOf(a,p.col)),bn=numericValue(bv,sheet.cells,sheet.tables??[],addressOf(b,p.col));
+      const an=numericValue(av,sheet.cells,sheet.tables??[],addressOf(a,p.col),namedRanges,workbook.sheets,sheet.name),bn=numericValue(bv,sheet.cells,sheet.tables??[],addressOf(b,p.col),namedRanges,workbook.sheets,sheet.name);
       const cmp=an!==null&&bn!==null?an-bn:av.localeCompare(bv,undefined,{numeric:true,sensitivity:"base"});
       return descending?-cmp:cmp;
     });
@@ -383,17 +383,17 @@ export default function WorkbookEditor(){
     window.setTimeout(()=>setCalculationToast(current=>current===message?"":current),1800);
   };
   const updateCalculationMode=(mode:CalculationMode)=>{
-    const nextSheets=workbook.sheets.map(item=>({...item,cells:recalculate(item.cells,item.tables??[],namedRanges)}));
+    const nextSheets=workbook.sheets.map(item=>({...item,cells:recalculate(item.cells,item.tables??[],namedRanges,workbook.sheets,item.name)}));
     updateWorkbook(workbook.id,{calculationMode:mode,sheets:nextSheets});
     showCalculationToast(`Calculation mode: ${mode}`);
   };
   const calculateWorkbook=()=>{
-    const nextSheets=workbook.sheets.map(item=>({...item,cells:recalculate(item.cells,item.tables??[],namedRanges)}));
+    const nextSheets=workbook.sheets.map(item=>({...item,cells:recalculate(item.cells,item.tables??[],namedRanges,workbook.sheets,item.name)}));
     updateWorkbook(workbook.id,{sheets:nextSheets});
     showCalculationToast("Workbook calculated");
   };
   const calculateActiveSheet=()=>{
-    const nextCells=recalculate(sheet.cells,sheet.tables??[],namedRanges);
+    const nextCells=recalculate(sheet.cells,sheet.tables??[],namedRanges,workbook.sheets,sheet.name);
     updateSheet(sheet.id,{cells:nextCells});
     showCalculationToast(`${sheet.name} calculated`);
   };
@@ -481,7 +481,7 @@ export default function WorkbookEditor(){
       case "conditional-positive":case "conditional-negative":{
         const cells={...sheet.cells};
         selectedAddresses.forEach(a=>{
-          const numeric=numericValue(cells[a]?.raw??"",cells,sheet.tables??[],a);
+          const numeric=numericValue(cells[a]?.raw??"",cells,sheet.tables??[],a,namedRanges,workbook.sheets,sheet.name);
           if(numeric===null||numeric===undefined)return;
           const color=name==="conditional-positive"?(numeric>=0?"#E2F0D9":"#FCE4D6"):(numeric<0?"#F4CCCC":"#FFF2CC");
           cells[a]={...(cells[a]??{raw:""}),style:{...(cells[a]?.style??{}),backgroundColor:color,color:name==="conditional-positive"?(numeric>=0?"#006100":"#9C0006"):(numeric<0?"#9C0006":"#7F6000")}};
@@ -656,7 +656,7 @@ export default function WorkbookEditor(){
     <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation} activeTable={activeTable} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)} onOpenFunctionLibrary={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}}/>
     <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}} onCancel={()=>setFormulaValue(activeRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <SpreadsheetGrid sheet={sheet} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} onSelect={selectCell}/>
+      <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} onSelect={selectCell}/>
       <CellImageOverlays sheet={sheet}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
       {(workbook.elements??[]).map(element=><FloatingElement key={element.id} element={element} onUpdate={updateElement} onDelete={deleteElement}/>)}
