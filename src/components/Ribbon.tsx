@@ -30,7 +30,7 @@ interface Props {
   orientation:"portrait"|"landscape"; setOrientation:(v:"portrait"|"landscape")=>void;
   activeTable?: ExcelTableData | null;
   calculationMode?:CalculationMode;onCalculationModeChange:(mode:CalculationMode)=>void;
-  onOpenNameManager:()=>void;
+  onOpenNameManager:()=>void;onOpenFunctionLibrary:()=>void;
 }
 const baseTabs:Tab[]=["File","Home","Insert","Share","Page Layout","Formulas","Data","Review","View","Help","Draw"];
 const tones:Record<string,string>={green:"#107c41",blue:"#3b82f6",indigo:"#6366f1",amber:"#e59a23",purple:"#8b5cf6",rose:"#e45a56",pink:"#e66aa8"};
@@ -64,7 +64,7 @@ function Group({label,children}:{label:string;children:ReactNode}){
 function InsertGroup({label,children}:{label:string;children:ReactNode}){
   return <section aria-label={label} className="insert-ribbon-group"><div className="insert-ribbon-group-content">{children}</div><div className="insert-ribbon-caption">{label}</div></section>;
 }
-export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation,activeTable=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager}:Props){
+export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation,activeTable=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager,onOpenFunctionLibrary}:Props){
   const tabs = activeTable ? [...baseTabs, "Table Design" as Tab] : baseTabs;
   const [openMenu,setOpenMenu]=useState<string|null>(null);
   const [collapsed,setCollapsed]=useState(false);
@@ -146,7 +146,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
         <Group label="Page setup"><Tool label="Portrait" icon={FileText} action="orientation-portrait" onAction={onAction} tone="blue" active={orientation==="portrait"}/><Tool label="Landscape" icon={FileText} action="orientation-landscape" onAction={onAction} tone="blue" active={orientation==="landscape"}/></Group>
         <Group label="Sheet options">{button(sheet.showGridlines?"Hide gridlines":"Show gridlines",Grid2X2,"gridlines","green",!sheet.showGridlines)}{button(sheet.showHeadings?"Hide headings":"Show headings",Rows3,"headings","blue",!sheet.showHeadings)}</Group>
       </>;
-      case "Formulas":return <FormulaRibbon onAction={onAction} showFormulas={showFormulas} setShowFormulas={setShowFormulas} calculationMode={calculationMode} onCalculationModeChange={onCalculationModeChange} onOpenNameManager={onOpenNameManager}/>;
+      case "Formulas":return <FormulaRibbon onAction={onAction} showFormulas={showFormulas} setShowFormulas={setShowFormulas} calculationMode={calculationMode} onCalculationModeChange={onCalculationModeChange} onOpenNameManager={onOpenNameManager} onOpenFunctionLibrary={onOpenFunctionLibrary}/>;
       case "Data":return <>
         <Group label="Import">{button("Import CSV / Excel",Upload,"import","green")}</Group>
         <Group label="Sort & filter">{button("Sort A–Z",SortAsc,"sort-az","blue")}{button("Sort Z–A",ArrowDownZA,"sort-za","blue")}{button(sheet.filters?"Remove filters":"Add filters",Filter,"filters","blue",sheet.filters)}{button("Remove duplicates",Eraser,"duplicates","rose")}</Group>
