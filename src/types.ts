@@ -59,6 +59,7 @@ export interface SheetData {
   freezeTopRow: boolean; filters: boolean; hiddenRows?: number[]; hiddenColumns?: number[];
   tables?: ExcelTableData[];
   pageSetup?: SheetPageSetup;
+  isProtected?:boolean;
 }
 export type ChartType = "column" | "line" | "scatter" | "pie" | "bar" | "statistical" | "combo" | "treemap";
 export interface FloatingChartData {
@@ -81,8 +82,10 @@ export interface WorkbookData {
   namedRanges?: NamedRanges;
   calculationMode?: CalculationMode;
   createdAt: number; modifiedAt: number; orientation: "portrait" | "landscape";
+  isProtected?:boolean;
+  regionalSettings?:{currency:"INR"|"USD"|"EUR";dateFormat:"DD/MM/YYYY"|"MM/DD/YYYY"|"YYYY-MM-DD"};
 }
-export type TemplateId = "blank" | "budget" | "sales" | "project";
+export type TemplateId = "blank" | "budget" | "sales" | "project" | "sales-dashboard" | "gst-invoice" | "attendance-tracker";
 export interface CellRange { startRow: number; startCol: number; endRow: number; endCol: number; }
 export interface ClipboardCell { raw: string; style?: CellStyle; }
 export interface ClipboardData { cells: ClipboardCell[][]; source?: string; }

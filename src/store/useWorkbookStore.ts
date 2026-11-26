@@ -4,10 +4,10 @@ import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingCh
 import { addressOf, columnLabel, emptySheet, emptyWorkbook, parseAddress } from "../types";
 
 interface Store {
-  workbooks: WorkbookData[]; activeWorkbookId: string | null; activeSheetId: string | null;
+  workbooks: WorkbookData[]; activeWorkbookId: string | null; activeSheetId: string | null; autoSaveEnabled:boolean;
   activeCell: string; selection: CellRange | null; clipboard: ClipboardData | null;
   showFormulas: boolean; zoom: number; undoStack: WorkbookData[][]; redoStack: WorkbookData[][];
-  createWorkbook: (template?: TemplateId) => string; deleteWorkbook: (id: string) => void;
+  createWorkbook: (template?: TemplateId) => string; importWorkbook:(workbook:WorkbookData)=>string; deleteWorkbook: (id: string) => void;
   duplicateWorkbook: (id: string) => string | null; renameWorkbook: (id: string, title: string) => void;
   updateWorkbook: (id: string, changes: Partial<WorkbookData>) => void;
   setActiveWorkbook: (id: string | null) => void; setActiveSheet: (id: string) => void;
@@ -19,18 +19,18 @@ interface Store {
   updateSheet: (id: string, changes: Partial<SheetData>) => void;
   addChart: (chart: FloatingChartData) => void; updateChart: (id: string, changes: Partial<FloatingChartData>) => void; deleteChart: (id: string) => void;
   addElement: (element: FloatingElementData) => void; updateElement: (id: string, changes: Partial<FloatingElementData>) => void; deleteElement: (id: string) => void;
-  setShowFormulas: (v: boolean) => void; setZoom: (v: number) => void; setOrientation: (v: "portrait" | "landscape") => void;
+  setShowFormulas: (v: boolean) => void; setZoom: (v: number) => void; setOrientation: (v: "portrait" | "landscape") => void; setAutoSaveEnabled:(enabled:boolean)=>void;
   undo: () => void; redo: () => void;
 }
 const clone = <T,>(v: T): T => structuredClone(v);
 const makeTemplate = (kind: TemplateId): WorkbookData => {
-  const titles: Record<TemplateId, string> = { blank: "Untitled Workbook", budget: "Monthly Budget", sales: "Sales Tracker", project: "Project Schedule" };
+  const titles: Record<TemplateId, string> = { blank: "Untitled Workbook", budget: "Monthly Budget", sales: "Sales Tracker", project: "Project Schedule", "sales-dashboard":"Sales Dashboard", "gst-invoice":"GST Invoice", "attendance-tracker":"Attendance Tracker" };
   const wb = emptyWorkbook(titles[kind]); const s = wb.sheets[0];
   const put = (address: string, raw: string, style?: CellStyle) => { s.cells[address] = { raw, style }; };
   const header: CellStyle = { bold: true, color: "#ffffff", backgroundColor: "#128451", fontSize: 11, align: "left" };
   if (kind === "budget") {
     [["Category","Planned","Actual","Difference"],["Housing","18000","17500","=B2-C2"],["Food","8000","7600","=B3-C3"],["Travel","4000","2500","=B4-C4"],["Utilities","3000","2900","=B5-C5"],["Total","=SUM(B2:B5)","=SUM(C2:C5)","=SUM(D2:D5)"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:ri===5?{bold:true,backgroundColor:"#e8f5ee"}:ci>0?{numberFormat:"Currency ₹"}:undefined)));
-  } else if (kind === "sales") {
+  } else if (kind === "sales" || kind === "sales-dashboard") {
     [["Product","Units","Unit Price","Revenue","Share"],["Nova Desk","12","4500","=B2*C2","=D2/SUM(D2:D5)"],["Orbit Lamp","18","1800","=B3*C3","=D3/SUM(D2:D5)"],["Cloud Chair","7","6200","=B4*C4","=D4/SUM(D2:D5)"],["Pulse Stand","21","950","=B5*C5","=D5/SUM(D2:D5)"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:ci===4?{numberFormat:"Percentage %"}:ci===2||ci===3?{numberFormat:"Currency ₹"}:undefined)));
   } else if (kind === "project") {
     [["Task","Owner","Start Date","Due Date","Status","Done"],["Discovery","Maya","2026-11-03","2026-11-07","Complete","TRUE"],["Wireframes","Arjun","2026-11-08","2026-11-14","In Progress","FALSE"],["Development","Sam","2026-11-15","2026-11-28","Not Started","FALSE"],["QA","Maya","2026-11-29","2026-12-04","Not Started","FALSE"]].forEach((r,ri)=>r.forEach((v,ci)=>put(addressOf(ri,ci),v,ri===0?header:undefined)));
@@ -39,6 +39,36 @@ const makeTemplate = (kind: TemplateId): WorkbookData => {
       s.cells[`D${row}`]={...s.cells[`D${row}`],datePicker:true};
       s.cells[`F${row}`]={...s.cells[`F${row}`],checkbox:true};
     }
+  } else if(kind==="gst-invoice"){
+    const rows=[
+      ["GST TAX INVOICE","","","","","",""],
+      ["Invoice No","INV-2026-001","Invoice Date","2026-11-26","GSTIN","07AAAAA0000A1Z5",""],
+      ["Bill To","Example Customer","","","","",""],
+      ["Item","HSN/SAC","Qty","Rate (₹)","Taxable Value (₹)","GST 18% (₹)","Total (₹)"],
+      ["Web Development","998314","1","25000","=C5*D5","=E5*18%","=E5+F5"],
+      ["UI Design","998391","2","7500","=C6*D6","=E6*18%","=E6+F6"],
+      ["Subtotal","","","","=SUM(E5:E6)","=SUM(F5:F6)","=SUM(G5:G6)"],
+      ["Grand Total","","","","","","=G7"]
+    ];
+    rows.forEach((row,ri)=>row.forEach((value,ci)=>put(addressOf(ri,ci),value,ri===0?{bold:true,fontSize:18,color:"#ffffff",backgroundColor:"#0F6CBD"}:ri===3?header:ri>=6?{bold:true,backgroundColor:"#EAF2F8"}:undefined)));
+    for(let col=3;col<=6;col++)for(let row=4;row<=7;row++){
+      const key=addressOf(row,col);if(s.cells[key])s.cells[key].style={...(s.cells[key].style??{}),numberFormat:"Currency ₹"};
+    }
+    s.rowCount=30;s.columnCount=7;
+  } else if(kind==="attendance-tracker"){
+    const rows=[
+      ["ATTENDANCE TRACKER","","","","","",""],
+      ["Employee","Employee ID","Date","Status","Check In","Check Out","Hours"],
+      ["Aarav","EMP-001","2026-11-26","Present","9","18","=F3-E3"],
+      ["Diya","EMP-002","2026-11-26","Present","9.25","18.17","=F4-E4"],
+      ["Kabir","EMP-003","2026-11-26","Leave","","","=0"],
+      ["Meera","EMP-004","2026-11-26","Absent","","","=0"],
+      ["Summary","Present","=COUNTIF(D3:D6,\"Present\")","Absent","=COUNTIF(D3:D6,\"Absent\")","Leave","=COUNTIF(D3:D6,\"Leave\")"]
+    ];
+    rows.forEach((row,ri)=>row.forEach((value,ci)=>put(addressOf(ri,ci),value,ri===0?{bold:true,fontSize:17,color:"#ffffff",backgroundColor:"#107C41"}:ri===1?header:ri===6?{bold:true,backgroundColor:"#E8F5EE"}:undefined)));
+    for(let row=2;row<=5;row++){s.cells[addressOf(row,2)]={...s.cells[addressOf(row,2)],datePicker:true};s.cells[addressOf(row,3)]={...s.cells[addressOf(row,3)],validationOptions:["Present","Absent","Leave","Holiday"]};}
+    s.rowCount=40;s.columnCount=7;
+  }
   }
   wb.modifiedAt = Date.now(); return wb;
 };
@@ -50,12 +80,20 @@ const mutateActive = (s: Store, updater: (w: WorkbookData, sh: SheetData) => Wor
   return { ...snapshot(s), workbooks: s.workbooks.map(item => item.id === w.id ? { ...updater(w, sh), modifiedAt: Date.now() } : item) };
 };
 export const useWorkbookStore = create<Store>()(persist((set, get) => ({
-  workbooks: [], activeWorkbookId: null, activeSheetId: null, activeCell: "A1", selection: null,
+  workbooks: [], activeWorkbookId: null, activeSheetId: null, activeCell: "A1", selection: null, autoSaveEnabled:true,
   clipboard: null, showFormulas: false, zoom: 100, undoStack: [], redoStack: [],
   createWorkbook: (template = "blank") => {
     const wb = makeTemplate(template);
     set(s => ({ workbooks: [wb, ...s.workbooks], activeWorkbookId: wb.id, activeSheetId: wb.sheets[0].id, activeCell: "A1", selection: null }));
     return wb.id;
+  },
+  importWorkbook: source => {
+    const copy=clone(source);
+    copy.id=crypto.randomUUID();copy.title=copy.title||"Imported Workbook";copy.createdAt=Date.now();copy.modifiedAt=Date.now();
+    copy.sheets=(copy.sheets??[]).map(sh=>({...sh,id:crypto.randomUUID()}));
+    if(!copy.sheets.length)copy.sheets=[emptySheet()];
+    set(state=>({workbooks:[copy,...state.workbooks],activeWorkbookId:copy.id,activeSheetId:copy.sheets[0].id,activeCell:"A1",selection:null}));
+    return copy.id;
   },
   deleteWorkbook: id => set(s => {
     const list = s.workbooks.filter(w => w.id !== id);
@@ -119,6 +157,7 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
   deleteElement: id => set(s=>mutateActive(s,w=>({...w,elements:(w.elements??[]).filter(element=>element.id!==id)}))),
   setShowFormulas: v=>set({showFormulas:v}), setZoom:v=>set({zoom:Math.max(50,Math.min(200,v))}),
   setOrientation: v=>set(s=>{const w=activeWorkbook(s);return w?{workbooks:s.workbooks.map(x=>x.id===w.id?{...x,orientation:v,modifiedAt:Date.now()}:x)}:{};}),
+  setAutoSaveEnabled:enabled=>set({autoSaveEnabled:enabled}),
   undo: ()=>set(s=>{const prev=s.undoStack.at(-1);if(!prev)return {};return {workbooks:prev,undoStack:s.undoStack.slice(0,-1),redoStack:[...s.redoStack,clone(s.workbooks)]};}),
   redo: ()=>set(s=>{const next=s.redoStack.at(-1);if(!next)return {};return {workbooks:next,redoStack:s.redoStack.slice(0,-1),undoStack:[...s.undoStack,clone(s.workbooks)]};}),
-}),{name:"gridnova-excel-storage",version:1,partialize:s=>({workbooks:s.workbooks,zoom:s.zoom})}));
+}),{name:"gridnova-excel-storage",version:2,partialize:s=>({workbooks:s.autoSaveEnabled?s.workbooks:[],zoom:s.zoom,autoSaveEnabled:s.autoSaveEnabled})}));
