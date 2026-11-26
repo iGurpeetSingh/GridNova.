@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FunctionSquare, Search, X } from "lucide-react";
-import { FORMULA_CATALOG, FORMULA_CATEGORIES, IMPLEMENTED_FORMULA_COUNT } from "../data/formulaCatalog";
+import { FORMULA_CATALOG, FORMULA_CATEGORIES, IMPLEMENTED_FORMULA_COUNT } from "../lib/formula-catalog";
 
 interface Props { open: boolean; onClose: () => void; onInsert: (formula: string) => void; initialCategory?:string; }
 export default function FormulaLibraryDialog({ open, onClose, onInsert, initialCategory="All" }: Props) {
