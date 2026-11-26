@@ -21,6 +21,7 @@ import DataValidationDialog from "../components/DataValidationDialog";
 import ConditionalFormattingDialog from "../components/ConditionalFormattingDialog";
 import GoalSeekDialog from "../components/GoalSeekDialog";
 import SparklineDialog from "../components/SparklineDialog";
+import PivotTableBuilderDialog from "../components/PivotTableBuilderDialog";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
@@ -29,6 +30,7 @@ import { numericValue, recalculate, getFormulaSpillState } from "../utils/formul
 import { recalculateWorkbookFull, recalculateWorkbookIncremental, getSheetCircularReferences, formatCircularReferenceLabel, dependencyNodeParts } from "../lib/dependency-graph";
 import { getTableAt, getTableHeaderLabel, getTablePalette, normalizeTableName, tableColumnValues } from "../utils/tableUtils";
 import { rangeAddresses as validationRangeAddresses, getListValidationOptions } from "../utils/dataValidation";
+import { buildPivotTable, refreshWorkbookPivots } from "../utils/pivotEngine";
 
 
 type Tab = "File"|"Home"|"Insert"|"Share"|"Page Layout"|"Formulas"|"Data"|"Review"|"View"|"Help"|"Draw"|"Table Design";
@@ -100,6 +102,8 @@ export default function WorkbookEditor(){
   const [goalSeekOpen,setGoalSeekOpen]=useState(false);
   const [sparklineOpen,setSparklineOpen]=useState(false);
   const [sparklineType,setSparklineType]=useState<"line"|"column"|"win-loss">("line");
+  const [pivotBuilderOpen,setPivotBuilderOpen]=useState(false);
+  const [pivotSourceRange,setPivotSourceRange]=useState<CellRange|null>(null);
   const [showFormulaBar,setShowFormulaBar]=useState(true);
   const openFileAsWorkbookRef=useRef(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
