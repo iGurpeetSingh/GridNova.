@@ -15,7 +15,7 @@ function PageSetupGlyph(){return <svg viewBox="0 0 32 32" aria-hidden="true"><pa
 function PrintAreaGlyph(){return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6.5 2.75h12l6 6V28H6.5z" fill="#fff" stroke="#323130" strokeWidth="1.45" strokeLinejoin="round"/><path d="M18.5 2.9V9h6" fill="none" stroke="#323130" strokeWidth="1.35"/><rect x="9.5" y="11.5" width="11.5" height="12" rx=".5" fill="none" stroke="#0F6CBD" strokeWidth="1.65"/><path d="M11 14h8.5M11 16.5h8.5" stroke="#8A8886" strokeWidth="1" strokeLinecap="round"/><g transform="translate(15 19)"><path d="M2.5 3h10a1.6 1.6 0 0 1 1.6 1.6V10H1V4.6A1.6 1.6 0 0 1 2.5 3Z" fill="#323130"/><path d="M4 1h7v4H4z" fill="#fff" stroke="#323130" strokeWidth="1.1"/><path d="M4 7h7v5H4z" fill="#fff" stroke="#323130" strokeWidth="1"/></g></svg>}
 function BreaksGlyph(){return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 2.75h12l6 6V28H7z" fill="#fff" stroke="#323130" strokeWidth="1.45" strokeLinejoin="round"/><path d="M19 2.9V9h6" fill="none" stroke="#323130" strokeWidth="1.35"/><path d="M10 12h12M10 17h12M10 22h12" stroke="#A19F9D" strokeWidth="1" strokeLinecap="round"/><path d="M7.8 16h16.5" stroke="#0F6CBD" strokeWidth="1.9" strokeDasharray="2.4 1.9" strokeLinecap="round"/></svg>}
 function RtlGlyph(){return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6.5 2.75h12l6 6V28h-18z" fill="#fff" stroke="#323130" strokeWidth="1.45" strokeLinejoin="round"/><path d="M18.5 2.9V9h6" fill="none" stroke="#323130" strokeWidth="1.35"/><path d="M21 14H10m0 0 4-4m-4 4 4 4" fill="none" stroke="#0F6CBD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M20 21h-9" stroke="#A19F9D" strokeWidth="1.15" strokeLinecap="round"/></svg>}
-export default function PageLayoutRibbon({settings,activeCell,hasPrintArea,hasBreakAtActive,hasAnyBreaks,onOpenPageSetup,onSetPrintArea,onClearPrintArea,onInsertBreak,onRemoveBreak,onResetBreaks}:Props){
+export default function PageLayoutRibbon({settings,hasPrintArea,hasBreakAtActive,hasAnyBreaks,onAction}:Props){
   const [openMenu,setOpenMenu]=useState<MenuKey|null>(null);
   const printAnchor=useRef<HTMLButtonElement>(null),breakAnchor=useRef<HTMLButtonElement>(null),panel=useRef<HTMLDivElement>(null);
   const [position,setPosition]=useState({left:8,top:8});
@@ -43,15 +43,15 @@ export default function PageLayoutRibbon({settings,activeCell,hasPrintArea,hasBr
     document.addEventListener("pointerdown",outside);document.addEventListener("keydown",escape);
     return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape)};
   },[openMenu]);
-  const run=(fn:()=>void)=>{fn();setOpenMenu(null)};
+  const run=(action:string)=>{onAction(action);setOpenMenu(null)};
   const toggle=(key:MenuKey)=>setOpenMenu(current=>current===key?null:key);
   const menuItems=openMenu==="print"?[
-    {label:"Set Print Area",description:"Use the currently selected range",icon:<FilePlus2 size={17}/>,disabled:false,run:()=>onAction("print-area-set")},
-    {label:"Clear Print Area",description:hasPrintArea?"Remove the saved print range":"No print area is set",icon:<Trash2 size={17}/>,disabled:!hasPrintArea,run:()=>onAction("print-area-clear")}
+    {label:"Set Print Area",description:"Use the currently selected range",icon:<FilePlus2 size={17}/>,disabled:false,action:"print-area-set"},
+    {label:"Clear Print Area",description:hasPrintArea?"Remove the saved print range":"No print area is set",icon:<Trash2 size={17}/>,disabled:!hasPrintArea,action:"print-area-clear"}
   ]:[
-    {label:"Insert Page Break",description:"Add a break above and to the left of the active cell",icon:<Scissors size={17}/>,disabled:false,run:()=>onAction("page-break-insert")},
-    {label:"Remove Page Break",description:"Remove the active row and column break",icon:<Trash2 size={17}/>,disabled:!hasBreakAtActive,run:()=>onAction("page-break-remove")},
-    {label:"Reset All Page Breaks",description:"Remove every manual break on this sheet",icon:<RotateCcw size={17}/>,disabled:!hasAnyBreaks,run:()=>onAction("page-break-reset")}
+    {label:"Insert Page Break",description:"Add a break above and to the left of the active cell",icon:<Scissors size={17}/>,disabled:false,action:"page-break-insert"},
+    {label:"Remove Page Break",description:"Remove the active row and column break",icon:<Trash2 size={17}/>,disabled:!hasBreakAtActive,action:"page-break-remove"},
+    {label:"Reset All Page Breaks",description:"Remove every manual break on this sheet",icon:<RotateCcw size={17}/>,disabled:!hasAnyBreaks,action:"page-break-reset"}
   ];
   return <div className="page-layout-ribbon">
     <section className="page-layout-group page-layout-group-setup" aria-label="Page Setup">
@@ -77,7 +77,7 @@ export default function PageLayoutRibbon({settings,activeCell,hasPrintArea,hasBr
       <div className="page-layout-group-caption">Sheet Options</div>
     </section>
     {openMenu&&createPortal(<div ref={panel} role="menu" aria-label={openMenu==="print"?"Print Area":"Page Breaks"} className="page-layout-menu" style={{left:position.left,top:position.top}}>
-      {menuItems.map(item=><button key={item.label} type="button" role="menuitem" disabled={item.disabled} className="page-layout-menu-item" onMouseDown={event=>event.preventDefault()} onClick={()=>run(item.run)}>
+      {menuItems.map(item=><button key={item.label} type="button" role="menuitem" disabled={item.disabled} className="page-layout-menu-item" onMouseDown={event=>event.preventDefault()} onClick={()=>run(item.action)}>
         <span className="page-layout-menu-icon">{item.icon}</span><span className="page-layout-menu-copy"><strong>{item.label}</strong><small>{item.description}</small></span>
       </button>)}
     </div>,document.body)}
