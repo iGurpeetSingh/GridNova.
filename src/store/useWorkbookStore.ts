@@ -70,7 +70,6 @@ const makeTemplate = (kind: TemplateId): WorkbookData => {
     rows.forEach((row,ri)=>row.forEach((value,ci)=>put(addressOf(ri,ci),value,ri===0?{bold:true,fontSize:17,color:"#ffffff",backgroundColor:"#107C41"}:ri===1?header:ri===6?{bold:true,backgroundColor:"#E8F5EE"}:undefined)));
     for(let row=2;row<=5;row++){s.cells[addressOf(row,2)]={...s.cells[addressOf(row,2)],datePicker:true};s.cells[addressOf(row,3)]={...s.cells[addressOf(row,3)],validationOptions:["Present","Absent","Leave","Holiday"]};}
     s.rowCount=40;s.columnCount=7;
-  }
   } else if(kind==="advanced-demo"){
     const rows=[
       ["Order ID","Region","Product","Units","Unit Price","Revenue","Payment Status","Month"],
@@ -180,7 +179,7 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
     const targets=addresses?.length?addresses:[s.activeCell];
     return mutateActive(s,(w,ss)=>({...w,sheets:w.sheets.map(x=>x.id===ss.id?{...x,cells:targets.reduce((acc,a)=>{const key=a.toUpperCase();acc[key]={...(acc[key]??{raw:""}),style:{...(acc[key]?.style??{}),...style}};return acc;},{...x.cells})}:x)}));
   }),
-  clearCell: address => set(s=>mutateActive(s,(w,sh)=>({...w,sheets:w.sheets.map(x=>x.id===sh.id?{...x,cells:{...x.cells,[address]:{raw:""}}}:x)}))),
+  clearCell: address => set(s=>{const sh=activeSheet(s);if(!sh)return {};const result=mutateActive(s,(w,active)=>({...w,sheets:w.sheets.map(x=>x.id===active.id?{...x,cells:{...x.cells,[address.toUpperCase()]:{raw:""}}}:x)}));return recalculateAfterMutation(s,result,sh.id,[address.toUpperCase()]);}),
   clearFormat: address => set(s=>mutateActive(s,(w,sh)=>({...w,sheets:w.sheets.map(x=>x.id===sh.id?{...x,cells:{...x.cells,[address]:{...(x.cells[address]??{raw:""}),style:{}}}}:x)}))),
   setSelection: (range,activeCell) => set(s=>({selection:range,activeCell:activeCell??s.activeCell})),
   setClipboard: clipboard => set({clipboard}),
