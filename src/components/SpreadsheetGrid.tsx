@@ -88,6 +88,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const fillDragRef = useRef<FillDragState | null>(null);
   const pointerPosition = useRef({ x: 0, y: 0 });
   const lastDragAddress = useRef<string | null>(null);
+  const suppressHeaderClick = useRef(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -119,6 +120,12 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     (sheet.tables ?? []).every(table => tableFilterPasses(table, row, sheet.cells))
   ), [sheet.rowCount, sheet.cells, sheet.tables, columnFilters, hiddenRows]);
   const bounds = selection ? clampRange(selection) : { startRow: active.row, endRow: active.row, startCol: active.col, endCol: active.col };
+  const headerBounds = interactionState === "FILLING" && fillDrag ? clampRange(fillDrag.target) : bounds;
+  const isFullRowSelection = headerBounds.startCol === 0 && headerBounds.endCol >= Math.max(25, sheet.columnCount - 1);
+  const isFullColumnSelection = headerBounds.startRow === 0 && headerBounds.endRow >= Math.max(99, sheet.rowCount - 1);
+  const isEntireSheetSelection = isFullRowSelection && isFullColumnSelection;
+  const showColumnHeaderSelection = !isFullRowSelection || isEntireSheetSelection;
+  const showRowHeaderSelection = !isFullColumnSelection || isEntireSheetSelection;
   const selected = (row: number, col: number) => row >= bounds.startRow && row <= bounds.endRow && col >= bounds.startCol && col <= bounds.endCol;
   const setRange = (range: CellRange, address = addressOf(range.endRow, range.endCol)) => onSelect(address, range);
   const openTableFilter = (event: ReactMouseEvent<HTMLButtonElement>, tableId: string, col: number) => {
@@ -330,6 +337,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   };
   const beginRange = (row: number, col: number, event: ReactPointerEvent<HTMLInputElement>) => {
     event.preventDefault();
+    suppressHeaderClick.current = true;
     const anchor = event.shiftKey ? active : { row, col };
     setEditingAddress(null); setInteractionState("SELECTING");
     pointerPosition.current = { x: event.clientX, y: event.clientY };
@@ -369,6 +377,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   };
   const beginFillDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault(); event.stopPropagation();
+    suppressHeaderClick.current = true;
     setEditingAddress(null); setInteractionState("FILLING");
     const source = clampRange(bounds);
     fillSource.current = source; fillAxis.current = null; fillModifier.current = event.ctrlKey || event.altKey;
@@ -780,8 +789,14 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   useEffect(() => {
     if (interactionState !== "SELECTING" && interactionState !== "FILLING") return;
     const onMove = (event: globalThis.PointerEvent) => interactionHandlersRef.current.update(event.clientX, event.clientY);
-    const onUp = () => interactionHandlersRef.current.finish();
-    window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
+    const onUp = () => {
+      interactionHandlersRef.current.finish();
+      // Suppress the synthetic click if the pointer was released over a header.
+      window.requestAnimationFrame(() => { suppressHeaderClick.current = false; });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onUp, true);
     let frame = 0;
     const autoScroll = () => {
       const viewport = gridRef.current;
@@ -794,22 +809,27 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       frame = requestAnimationFrame(autoScroll);
     };
     frame = requestAnimationFrame(autoScroll);
-    return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); cancelAnimationFrame(frame); };
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onUp, true);
+      cancelAnimationFrame(frame);
+    };
   }, [interactionState]);
 
   return <div ref={gridRef} className={`sheet-scroll relative ${interactionState === "EDITING" ? "grid-editing" : "grid-not-editing select-none"}`} onContextMenu={event => showContextMenu(event, "cell", active.row, active.col)} onClick={() => menu && setMenu(null)}>
     <div ref={canvasRef} className="grid-canvas" style={{ zoom: zoom / 100, minWidth: "max-content" }}>
-      <table className="border-collapse table-fixed" style={{ minWidth: "100%" }}>
+      <table className="border-separate border-spacing-0 table-fixed" style={{ minWidth: "100%" }}>
         <colgroup>{sheet.showHeadings && <col style={{ width: 48 }} />}{columns.map(col => <col key={col} style={{ width: resizePreview?.axis === "column" && resizePreview.index === col ? resizePreview.value : sheet.columnWidths[col] ?? 110 }} />)}</colgroup>
         {sheet.showHeadings && <thead className="sticky top-0 z-20"><tr>
           <th className="grid-corner sticky left-0 z-20" title="Select all cells"><button aria-label="Select all cells" onClick={() => { setRange({ startRow: 0, startCol: 0, endRow: Math.max(99, sheet.rowCount - 1), endCol: Math.max(25, sheet.columnCount - 1) }, "A1"); focusCell(0, 0); }}>◢</button></th>
-          {columns.map(col => <th key={col} className={`grid-column-heading ${col >= bounds.startCol && col <= bounds.endCol ? "is-selected" : ""}`} onClick={event => { const first = event.shiftKey ? active.col : col; setRange({ startRow: 0, endRow: Math.max(99, sheet.rowCount - 1), startCol: Math.min(first, col), endCol: Math.max(first, col) }, addressOf(0, col)); focusCell(0, col); }} onContextMenu={event => showContextMenu(event, "column", col)}>
+          {columns.map(col => { const headerActive = col >= headerBounds.startCol && col <= headerBounds.endCol && showColumnHeaderSelection; return <th key={col} className="grid-column-heading" style={{ backgroundColor: headerActive ? "#E6E6E6" : "#F8F9FA", color: headerActive ? "#107C41" : "#444746", fontWeight: headerActive ? 600 : 400, borderTop: headerActive ? "1px solid #D4D4D4" : 0, borderRight: "1px solid #D4D4D4", borderBottom: "1px solid #D4D4D4", borderLeft: 0, boxShadow: headerActive ? "inset 0 -2px 0 0 #107C41" : "none" }} onClick={event => { if (suppressHeaderClick.current) { event.preventDefault(); event.stopPropagation(); suppressHeaderClick.current = false; return; } const first = event.shiftKey ? active.col : col; setRange({ startRow: 0, endRow: Math.max(99, sheet.rowCount - 1), startCol: Math.min(first, col), endCol: Math.max(first, col) }, addressOf(0, col)); focusCell(0, col); }} onContextMenu={event => showContextMenu(event, "column", col)}>
             {sheet.filters ? <div className="grid-filter-heading"><span>{columnLabel(col)}</span><select aria-label={`Filter ${columnLabel(col)}`} value={columnFilters[col] ?? ""} onChange={event => setColumnFilters(value => ({ ...value, [col]: event.target.value }))}><option value="">All</option>{Array.from(new Set(rows.map(row => sheet.cells[addressOf(row, col)]?.raw ?? "").filter(Boolean))).sort().map(value => <option key={value} value={value}>{value}</option>)}</select><Filter size={10}/></div> : columnLabel(col)}
             <span className="grid-column-resize" role="separator" aria-label={`Resize column ${columnLabel(col)}`} onMouseDown={event => beginResize(event, "column", col)} onDoubleClick={() => autoFitColumn(col)} />
-          </th>)}
+          </th>; })}
         </tr></thead>}
         <tbody>{rows.map(row => <tr key={row}>
-          {sheet.showHeadings && <th className={`grid-row-heading ${row >= bounds.startRow && row <= bounds.endRow ? "is-selected" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27 }} onClick={event => { const first = event.shiftKey ? active.row : row; setRange({ startRow: Math.min(first, row), endRow: Math.max(first, row), startCol: 0, endCol: Math.max(25, sheet.columnCount - 1) }, addressOf(row, 0)); focusCell(row, 0); }} onContextMenu={event => showContextMenu(event, "row", row)}>{row + 1}<span className="grid-row-resize" role="separator" aria-label={`Resize row ${row + 1}`} onMouseDown={event => beginResize(event, "row", row)} onDoubleClick={() => autoFitRow(row)} /></th>}
+          {sheet.showHeadings && <th className="grid-row-heading" style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27, backgroundColor: row >= headerBounds.startRow && row <= headerBounds.endRow && showRowHeaderSelection ? "#E6E6E6" : "#F8F9FA", color: row >= headerBounds.startRow && row <= headerBounds.endRow && showRowHeaderSelection ? "#107C41" : "#444746", fontWeight: row >= headerBounds.startRow && row <= headerBounds.endRow && showRowHeaderSelection ? 600 : 400, borderTop: 0, borderRight: "1px solid #D4D4D4", borderBottom: "1px solid #D4D4D4", borderLeft: 0, boxShadow: row >= headerBounds.startRow && row <= headerBounds.endRow && showRowHeaderSelection ? "inset -2px 0 0 0 #107C41" : "none" }} onClick={event => { if (suppressHeaderClick.current) { event.preventDefault(); event.stopPropagation(); suppressHeaderClick.current = false; return; } const first = event.shiftKey ? active.row : row; setRange({ startRow: Math.min(first, row), endRow: Math.max(first, row), startCol: 0, endCol: Math.max(25, sheet.columnCount - 1) }, addressOf(row, 0)); focusCell(row, 0); }} onContextMenu={event => showContextMenu(event, "row", row)}>{row + 1}<span className="grid-row-resize" role="separator" aria-label={`Resize row ${row + 1}`} onMouseDown={event => beginResize(event, "row", row)} onDoubleClick={() => autoFitRow(row)} /></th>}
           {columns.map(col => {
             const address = addressOf(row, col), cell = sheet.cells[address];
              const rawDisplay = formatCellValue(cell?.raw ?? "", sheet.cells, showFormulas, cell?.style, sheet.tables ?? [], address, namedRanges, formulaSheets, sheet.name);
