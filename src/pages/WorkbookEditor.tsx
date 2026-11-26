@@ -22,6 +22,7 @@ import ConditionalFormattingDialog from "../components/ConditionalFormattingDial
 import GoalSeekDialog from "../components/GoalSeekDialog";
 import SparklineDialog from "../components/SparklineDialog";
 import PivotTableBuilderDialog from "../components/PivotTableBuilderDialog";
+import SlicerCard from "../components/SlicerCard";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
@@ -389,7 +390,8 @@ export default function WorkbookEditor(){
     const filters={...(activeTable.filters??{})};
     if(slicerValues.length===allValues.length)delete filters[column];
     else filters[column]={...(filters[column]??{}),selectedValues:slicerValues};
-    updateSheet(sheet.id,{tables:(sheet.tables??[]).map(table=>table.id===activeTable.id?{...table,filters}:table)});
+    const slicer={id:crypto.randomUUID(),tableId:activeTable.id,columnIndex:column,x:Math.max(20,window.innerWidth-340),y:110,width:270,height:280,multiSelect:true};
+    updateSheet(sheet.id,{tables:(sheet.tables??[]).map(table=>table.id===activeTable.id?{...table,filters}:table),slicers:[...(sheet.slicers??[]),slicer]});
     setSlicerOpen(false);setShowSaved();
   };
   const importPicture=(file:File)=>{
@@ -963,6 +965,7 @@ export default function WorkbookEditor(){
     {showFormulaBar&&<FormulaBar readOnly={formulaBarReadOnly} spillGhost={!!spillOrigin} address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{if(!formulaBarReadOnly){setCell(activeCell,formulaValue);setShowSaved();}}} onCancel={()=>setFormulaValue(formulaBarRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>}
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} isReadOnly={isReadOnly} pageSetup={pageSetup} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} formulaBarDraft={formulaValue} onSelect={selectCell}/>
+      {(sheet.slicers??[]).map(slicer=><SlicerCard key={slicer.id} sheet={sheet} slicer={slicer}/>)}
       <FormulaAuditOverlay workbook={workbook} sheet={sheet} activeCell={spillOrigin??activeCell} mode={auditMode}/>
       <CellImageOverlays sheet={sheet}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
