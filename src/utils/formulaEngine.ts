@@ -301,20 +301,21 @@ class Parser {
     if(this.match("^"))return Math.pow(number(left),number(this.unary()));
     return left;
   }
+  private resolveSpillReference(value:Value):Value{
+    if(!isArrayValue(value)||!value.reference)return "#REF!";
+    const reference=value.reference;
+    const target=reference.sheetName?this.sheets.find(item=>item.name.toLowerCase()===reference.sheetName!.toLowerCase()):undefined;
+    const targetCells=target?.cells??this.cells,targetTables=target?.tables??this.tables;
+    const anchor=addressOf(reference.startRow,reference.startCol),source=targetCells[anchor];
+    if(!source?.raw.startsWith("="))return "#REF!";
+    const result=evaluate(source.raw,targetCells,this.seen,targetTables,anchor,this.namedRanges,this.sheets,target?.name??this.currentSheetName);
+    return isArrayValue(result)?result:"#REF!";
+  }
   private postfix():Value{
     let value=this.primary();
     while(true){
       if(this.match("%")){value=number(value)/100;continue;}
-      if(this.match("#")){
-        if(!isArrayValue(value)||!value.reference)return "#REF!";
-        const reference=value.reference,target=reference.sheetName?this.sheets.find(item=>item.name.toLowerCase()===reference.sheetName!.toLowerCase()):undefined;
-        const targetCells=target?.cells??this.cells,targetTables=target?.tables??this.tables;
-        const anchor=addressOf(reference.startRow,reference.startCol),source=targetCells[anchor];
-        if(!source?.raw.startsWith("="))return "#REF!";
-        const result=evaluate(source.raw,targetCells,this.seen,targetTables,anchor,this.namedRanges,this.sheets,target?.name??this.currentSheetName);
-        if(!isArrayValue(result))return "#REF!";
-        value=result;continue;
-      }
+      if(this.match("#")){value=this.resolveSpillReference(value);if(typeof value==="string"&&value.startsWith("#"))return value;continue;}
       break;
     }
     return value;
@@ -336,10 +337,17 @@ class Parser {
       return [rangeValues(start,finish,targetSheet?.cells??this.cells,this.seen,targetSheet?.tables??this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges,this.sheets,targetSheet?.name??this.currentSheetName)];
     }
     if(sheetName&&start&&refPattern.test(start)){
-      this.i++;return [rangeValues(start,start,this.sheets.find(item=>item.name.toLowerCase()===sheetName!.toLowerCase())?.cells??this.cells,this.seen,this.sheets.find(item=>item.name.toLowerCase()===sheetName!.toLowerCase())?.tables??this.tables,undefined,false,this.namedRanges,this.sheets,sheetName)];
+      this.i++;
+      const target=this.sheets.find(item=>item.name.toLowerCase()===sheetName!.toLowerCase());
+      let value=rangeValues(start,start,target?.cells??this.cells,this.seen,target?.tables??this.tables,undefined,false,this.namedRanges,this.sheets,target?.name??sheetName);
+      if(this.match("#"))value=this.resolveSpillReference(value);
+      return [value];
     }
     if(!sheetName&&start&&refPattern.test(start)){
-      this.i++;return [rangeValues(start,start,this.cells,this.seen,this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges,this.sheets,this.currentSheetName)];
+      this.i++;
+      let value=rangeValues(start,start,this.cells,this.seen,this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges,this.sheets,this.currentSheetName);
+      if(this.match("#"))value=this.resolveSpillReference(value);
+      return [value];
     }
     this.i=save;return null;
   }
