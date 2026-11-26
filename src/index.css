@@ -601,8 +601,11 @@
 .grid-print-area-overlay{position:absolute;z-index:22;box-sizing:border-box;border:2px dashed #605E5C;pointer-events:none;background:rgba(96,94,92,.015)}
 .grid-print-area-badge{position:absolute;top:-22px;left:0;padding:2px 6px;border-radius:3px;background:#323130;color:#fff;font-size:9px;line-height:14px;white-space:nowrap;opacity:0;transition:opacity .12s}
 .sheet-scroll:has(.grid-print-area-member:hover) .grid-print-area-badge{opacity:1}
-.grid-page-break-row>td{border-top:2px dashed #0F6CBD!important}
-.grid-cell[data-page-break-column-before="true"],.grid-column-heading[data-page-break-column-before="true"]{border-left:2px dashed #0F6CBD!important;position:relative}
+.grid-page-break-row>td{border-top:0!important;position:relative}
+.grid-page-break-row>td:before{content:"";position:absolute;left:0;right:0;top:-1px;border-top:2px dashed #0F6CBD;pointer-events:none;z-index:12}
+.grid-cell[data-page-break-column-before="true"],.grid-column-heading[data-page-break-column-before="true"]{border-left:0!important;position:relative}
+.grid-cell[data-page-break-column-before="true"]:before,.grid-column-heading[data-page-break-column-before="true"]:before{content:"";position:absolute;left:-1px;top:0;bottom:0;border-left:2px dashed #0F6CBD;pointer-events:none;z-index:12}
+#gridnova-print-grid[dir="rtl"] .grid-cell[data-page-break-column-before="true"]:before,#gridnova-print-grid[dir="rtl"] .grid-column-heading[data-page-break-column-before="true"]:before{left:auto;right:-1px}
 @media(max-width:560px){
   .page-setup-dialog{max-height:calc(100dvh - 20px)}
   .page-setup-content{padding:13px;gap:12px}
