@@ -15,7 +15,7 @@ function valuesFor(rule:ConditionalFormattingRule,sheet:SheetData):number[]{
   }
   return values;
 }
-export interface ConditionalCellStyle { background?:string; color?:string; dataBar?:{color:string;percent:number}; icon?:{text:string;color:string}; }
+export interface ConditionalCellStyle { background?:string; color?:string; dataBar?:{color:string;percent:number;gradient:boolean}; icon?:{text:string;color:string}; }
 export function conditionalStyleForCell(sheet:SheetData,address:string):ConditionalCellStyle{
   const result:ConditionalCellStyle={};
   const rules=[...(sheet.conditionalFormattingRules??[])].filter(rule=>rule.enabled&&contains(rule.range,address)).sort((a,b)=>a.priority-b.priority);
@@ -24,13 +24,16 @@ export function conditionalStyleForCell(sheet:SheetData,address:string):Conditio
     const numbers=valuesFor(rule,sheet),min=numbers.length?Math.min(...numbers):0,max=numbers.length?Math.max(...numbers):0,avg=numbers.length?numbers.reduce((sum,n)=>sum+n,0)/numbers.length:0;
     if(rule.type==="dataBar"&&value!==null){
       const percent=max===min?100:Math.max(0,Math.min(100,(value-min)/(max-min)*100));
-      result.dataBar={color:rule.color??"#63A5DB",percent};
+      result.dataBar={color:rule.color??"#63A5DB",percent,gradient:rule.gradient!==false};
     }else if(rule.type==="colorScale"&&value!==null){
       const ratio=max===min?0.5:(value-min)/(max-min);
       if(rule.midColor){result.background=ratio<=.5?colorMix(rule.minColor??"#F8696B",rule.midColor,ratio*2):colorMix(rule.midColor,rule.maxColor??"#63BE7B",(ratio-.5)*2);}
       else result.background=colorMix(rule.minColor??"#F8696B",rule.maxColor??"#63BE7B",ratio);
     }else if(rule.type==="iconSet"&&value!==null){
-      const percent=max===min?0.5:(value-min)/(max-min),style=rule.iconStyle??"arrows";
+      const sorted=[...numbers].sort((a,b)=>a-b);
+      const lower=sorted[Math.floor(Math.max(0,sorted.length-1)*0.33)]??min;
+      const upper=sorted[Math.floor(Math.max(0,sorted.length-1)*0.67)]??max;
+      const percent=value>=upper?1:value>=lower?0.5:0,style=rule.iconStyle??"arrows";
       result.icon=style==="trafficLights"?{text:percent>=.67?"●":percent>=.34?"●":"●",color:percent>=.67?"#107C41":percent>=.34?"#E3A008":"#C4314B"}:style==="checks"?{text:percent>=.67?"✓":percent>=.34?"−":"×",color:percent>=.67?"#107C41":percent>=.34?"#C28A00":"#C4314B"}:{text:percent>=.67?"↑":percent>=.34?"→":"↓",color:percent>=.67?"#107C41":percent>=.34?"#C28A00":"#C4314B"};
     }else if(rule.type==="greaterThan"&&value!==null&&value>Number(rule.formula1)){result.background=rule.backgroundColor??"#E2F0D9";result.color=rule.fontColor??"#256029";}
     else if(rule.type==="lessThan"&&value!==null&&value<Number(rule.formula1)){result.background=rule.backgroundColor??"#FCE4D6";result.color=rule.fontColor??"#9C0006";}
@@ -68,7 +71,7 @@ export function buildConditionalFormattingMap(sheet:SheetData):Record<string,Con
     addresses.forEach((address,index)=>{
       const raw=rawValues[index],value=numericValue(raw,sheet.cells,sheet.tables??[],address);
       const style:ConditionalCellStyle={};
-      if(rule.type==="dataBar"&&value!==null)style.dataBar={color:rule.color??"#63A5DB",percent:max===min?100:Math.max(0,Math.min(100,(value-min)/(max-min)*100))};
+      if(rule.type==="dataBar"&&value!==null)style.dataBar={color:rule.color??"#63A5DB",percent:max===min?100:Math.max(0,Math.min(100,(value-min)/(max-min)*100)),gradient:rule.gradient!==false};
       else if(rule.type==="colorScale"&&value!==null){const ratio=max===min?0.5:(value-min)/(max-min);style.background=rule.midColor?(ratio<=.5?colorMix(rule.minColor??"#F8696B",rule.midColor,ratio*2):colorMix(rule.midColor,rule.maxColor??"#63BE7B",(ratio-.5)*2)):colorMix(rule.minColor??"#F8696B",rule.maxColor??"#63BE7B",ratio);}
       else if(rule.type==="iconSet"&&value!==null){const ratio=max===min?.5:(value-min)/(max-min),kind=rule.iconStyle??"arrows";style.icon=kind==="trafficLights"?{text:"●",color:ratio>=.67?"#107C41":ratio>=.34?"#E3A008":"#C4314B"}:kind==="checks"?{text:ratio>=.67?"✓":ratio>=.34?"−":"×",color:ratio>=.67?"#107C41":ratio>=.34?"#C28A00":"#C4314B"}:{text:ratio>=.67?"↑":ratio>=.34?"→":"↓",color:ratio>=.67?"#107C41":ratio>=.34?"#C28A00":"#C4314B"};}
       else if(rule.type==="greaterThan"&&value!==null&&value>Number(rule.formula1)){style.background=rule.backgroundColor??"#E2F0D9";style.color=rule.fontColor??"#256029";}
