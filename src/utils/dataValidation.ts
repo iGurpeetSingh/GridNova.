@@ -64,3 +64,13 @@ export function validateCellValue(rule:DataValidationRule,value:string,sheet:She
   }
   return {valid,message:valid?"":rule.errorMessage||"The value you entered doesn't meet this cell's data validation rules."};
 }
+
+export interface CellValidationState { rule:DataValidationRule; options:string[]; }
+export function buildValidationMap(sheet:SheetData):Record<string,CellValidationState>{
+  const result:Record<string,CellValidationState>={};
+  for(const rule of sheet.validationRules??[]){
+    const options=rule.type==="List"?getListValidationOptions(rule,sheet):[];
+    for(const address of rangeAddresses(rule.range))result[address]={rule,options};
+  }
+  return result;
+}
