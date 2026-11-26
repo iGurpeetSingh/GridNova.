@@ -17,9 +17,11 @@ export interface FloatingChartData {
   id: string; type: "bar" | "line" | "pie"; title: string; range: string;
   x: number; y: number; width: number; height: number;
 }
+export interface NamedRangeData { reference: string; sheetId?: string; }
 export interface WorkbookData {
   id: string; title: string; sheets: SheetData[]; charts: FloatingChartData[];
   createdAt: number; modifiedAt: number; orientation: "portrait" | "landscape";
+  namedRanges?: Record<string, NamedRangeData>;
 }
 export type TemplateId = "blank" | "budget" | "sales" | "project";
 export interface CellRange { startRow: number; startCol: number; endRow: number; endCol: number; }
@@ -54,6 +56,6 @@ export const emptySheet = (name = "Sheet 1"): SheetData => ({
   showHeadings: true, freezeTopRow: false, filters: false,
 });
 export const emptyWorkbook = (title = "Untitled Workbook"): WorkbookData => ({
-  id: crypto.randomUUID(), title, sheets: [emptySheet()], charts: [],
+  id: crypto.randomUUID(), title, sheets: [emptySheet()], charts: [], namedRanges: {},
   createdAt: Date.now(), modifiedAt: Date.now(), orientation: "portrait",
 });
