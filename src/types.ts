@@ -53,6 +53,34 @@ export const DEFAULT_PAGE_SETUP:SheetPageSetup = {
   scalingMode:"none",scalingPercent:100,printGridlines:false,printHeadings:false,
   header:"",footer:"",printArea:null,rowBreaks:[],columnBreaks:[],isRtl:false
 };
+export type DataValidationType="List"|"Whole Number"|"Decimal"|"Date"|"Text Length"|"Custom Formula";
+export type DataValidationOperator="between"|"not between"|"equal to"|"not equal to"|"greater than"|"less than"|"greater than or equal to"|"less than or equal to";
+export interface DataValidationRule {
+  id:string; range:CellRange; type:DataValidationType; operator?:DataValidationOperator;
+  formula1?:string; formula2?:string; listSource?:string;
+  allowBlank?:boolean; showInputMessage?:boolean; inputTitle?:string; inputMessage?:string;
+  showErrorAlert?:boolean; errorStyle?:"Stop"|"Warning"|"Information"; errorTitle?:string; errorMessage?:string;
+}
+export type ConditionalRuleType="dataBar"|"colorScale"|"iconSet"|"greaterThan"|"lessThan"|"between"|"equalTo"|"textContains"|"duplicateValues"|"uniqueValues"|"topBottom"|"aboveAverage"|"belowAverage";
+export interface ConditionalFormattingRule {
+  id:string; range:CellRange; type:ConditionalRuleType; enabled:boolean; priority:number;
+  formula1?:string; formula2?:string; text?:string; top?:boolean; count?:number;
+  color?:string; backgroundColor?:string; fontColor?:string;
+  minColor?:string; midColor?:string; maxColor?:string; iconStyle?:"arrows"|"trafficLights"|"checks";
+  gradient?:boolean;
+}
+export interface SparklineData {
+  id:string; type:"line"|"column"|"win-loss"; dataRange:string; location:string;
+  color:string; negativeColor:string; showHighPoint:boolean; showLowPoint:boolean; showMarkers:boolean;
+}
+export type PivotAggregation="Sum"|"Count"|"Average"|"Max"|"Min";
+export interface PivotTableDefinition {
+  id:string; name:string; sourceSheetId:string; sourceRange:CellRange;
+  rowFields:number[]; columnFields:number[]; valueField:number; aggregation:PivotAggregation; filterFields:number[];
+  filters?:Record<number,string[]>; showRowGrandTotals:boolean; showColumnGrandTotals:boolean;
+  destinationSheetId:string; destinationCell:string;
+  outputRange?:CellRange;
+}
 export interface SheetData {
   id: string; name: string; cells: CellMap; rowCount: number; columnCount: number;
   columnWidths: Record<number, number>; rowHeights?: Record<number, number>; showGridlines: boolean; showHeadings: boolean;
@@ -60,6 +88,10 @@ export interface SheetData {
   tables?: ExcelTableData[];
   pageSetup?: SheetPageSetup;
   isProtected?:boolean;
+  validationRules?:DataValidationRule[];
+  conditionalFormattingRules?:ConditionalFormattingRule[];
+  sparklines?:Record<string,SparklineData>;
+  pivotTables?:PivotTableDefinition[];
 }
 export type ChartType = "column" | "line" | "scatter" | "pie" | "bar" | "statistical" | "combo" | "treemap";
 export interface FloatingChartData {
