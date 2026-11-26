@@ -20,6 +20,7 @@ export interface SheetCalculation {
   values: Record<string, FormulaScalar>;
   spillMatrices: Record<string, FormulaMatrix>;
   spillOrigins: Record<string, SpillOrigin>;
+  spillCandidates: Record<string, CellRange>;
   ghostCells: Record<string, SpillGhostCell>;
   errors: Record<string, string>;
   circular: string[];
@@ -64,6 +65,7 @@ function emptySheetCalculation(sheetId: string): SheetCalculation {
     values: {},
     spillMatrices: {},
     spillOrigins: {},
+    spillCandidates: {},
     ghostCells: {},
     errors: {},
     circular: [],
@@ -85,71 +87,92 @@ function spillBounds(origin: string, matrix: FormulaMatrix): CellRange | null {
 /**
  * Calculates formula cells in dependency order and materializes dynamic-array
  * spill results as virtual grid cells. The source CellMaps are never mutated.
- *
- * The dependency graph is rebuilt from workbook formulas so that edits to
- * formulas, cross-sheet references and cleared source cells cannot leave stale
- * edges behind. The graph exposes an incremental plan for callers that retain
- * it between edits; this pure workbook calculation currently creates a complete
- * snapshot to guarantee that spill collisions and removed spills are cleared.
+ * The graph can be retained between edits through calculateWorkbookIncremental
+ * so only downstream formula cells are recalculated after a cell change.
  */
-export function calculateWorkbook(
-  sourceSheets: SheetData[],
-  options: CalculationOptions = {},
-): WorkbookCalculation {
-  const sheets = sourceSheets ?? [];
-  const cellMaps: Record<string, CellMap> = {};
-  for (const sheet of sheets) cellMaps[sheet.id] = sheet.cells ?? {};
-
-  const sheetNameToId = normalizeSheetLookup(sheets);
-  const graph = DependencyGraph.fromSheets(
+function buildGraph(sheets: SheetData[], options: CalculationOptions): DependencyGraph {
+  return DependencyGraph.fromSheets(
     sheets.map(sheet => ({ id: sheet.id, name: sheet.name, cells: sheet.cells })),
     {
       namedRanges: options.namedRanges,
       maxExpandedRangeCells: options.maxDependencyRangeCells,
     },
   );
+}
 
-  const formulaNodes: string[] = [];
+function formulaNodes(sheets: SheetData[]): string[] {
+  const nodes: string[] = [];
   for (const sheet of sheets) {
     for (const [address, cell] of Object.entries(sheet.cells ?? {})) {
-      if (isFormulaCell(cell?.raw)) formulaNodes.push(nodeKey(sheet.id, address));
+      if (isFormulaCell(cell?.raw)) nodes.push(nodeKey(sheet.id, address));
     }
   }
+  return nodes;
+}
 
-  const plan = graph.plan(formulaNodes, true);
-  const result: WorkbookCalculation = {
-    sheets: Object.fromEntries(sheets.map(sheet => [sheet.id, emptySheetCalculation(sheet.id)])),
-    graph,
-    plan,
+function cloneSheetCalculation(previous: SheetCalculation, sheetId: string): SheetCalculation {
+  return {
+    sheetId,
+    values: { ...previous.values },
+    spillMatrices: { ...previous.spillMatrices },
+    spillOrigins: { ...previous.spillOrigins },
+    spillCandidates: { ...previous.spillCandidates },
+    ghostCells: { ...previous.ghostCells },
+    errors: { ...previous.errors },
+    circular: [...previous.circular],
+    blocked: [...previous.blocked],
   };
+}
+
+function clearCalculatedNode(calculation: SheetCalculation, address: string): void {
+  delete calculation.values[address];
+  delete calculation.spillMatrices[address];
+  delete calculation.spillOrigins[address];
+  delete calculation.spillCandidates[address];
+  delete calculation.errors[address];
+  calculation.circular = calculation.circular.filter(item => item !== address);
+  calculation.blocked = calculation.blocked.filter(item => item !== address);
+  for (const [ghostAddress, ghost] of Object.entries(calculation.ghostCells)) {
+    if (ghost.origin === address) delete calculation.ghostCells[ghostAddress];
+  }
+}
+
+function applyCalculationPlan(
+  sheets: SheetData[],
+  options: CalculationOptions,
+  result: WorkbookCalculation,
+  plan: DependencyPlan,
+): void {
+  const cellMaps: Record<string, CellMap> = {};
+  for (const sheet of sheets) cellMaps[sheet.id] = sheet.cells ?? {};
+  const sheetNameToId = normalizeSheetLookup(sheets);
 
   for (const node of plan.circular) {
-    const separator = node.lastIndexOf("!");
-    const sheetId = node.slice(0, separator);
-    const address = node.slice(separator + 1);
+    const splitAt = node.lastIndexOf("!");
+    const sheetId = node.slice(0, splitAt);
+    const address = node.slice(splitAt + 1);
     const target = result.sheets[sheetId];
     if (!target) continue;
     target.values[address] = "#CIRC!";
     target.errors[address] = "#CIRC!";
-    target.circular.push(address);
+    if (!target.circular.includes(address)) target.circular.push(address);
   }
 
   for (const node of plan.blocked) {
-    const separator = node.lastIndexOf("!");
-    const sheetId = node.slice(0, separator);
-    const address = node.slice(separator + 1);
+    const splitAt = node.lastIndexOf("!");
+    const sheetId = node.slice(0, splitAt);
+    const address = node.slice(splitAt + 1);
     const target = result.sheets[sheetId];
     if (!target) continue;
     target.values[address] = "#CIRC!";
     target.errors[address] = "#CIRC!";
-    target.blocked.push(address);
+    if (!target.blocked.includes(address)) target.blocked.push(address);
   }
 
-  const orderedNodes = plan.order;
-  for (const node of orderedNodes) {
-    const separator = node.lastIndexOf("!");
-    const sheetId = node.slice(0, separator);
-    const address = node.slice(separator + 1);
+  for (const node of plan.order) {
+    const splitAt = node.lastIndexOf("!");
+    const sheetId = node.slice(0, splitAt);
+    const address = node.slice(splitAt + 1);
     const sheet = sheets.find(item => item.id === sheetId);
     const sheetResult = result.sheets[sheetId];
     const raw = sheet?.cells?.[address]?.raw ?? "";
@@ -178,9 +201,6 @@ export function calculateWorkbook(
       continue;
     }
 
-    // Normalize ragged outputs to a rectangle. Excel's array results are
-    // rectangular, while this also prevents undefined grid values if a helper
-    // function accidentally returns ragged rows.
     const normalized = matrix.map(row => Array.from({ length: width }, (_, column) => row[column] ?? "#N/A"));
     const bounds = spillBounds(address, normalized);
     if (!bounds) {
@@ -203,6 +223,9 @@ export function calculateWorkbook(
       continue;
     }
 
+    // Retain the intended footprint even when blocked, so clearing an
+    // obstructing cell can invalidate this origin and immediately re-spill.
+    sheetResult.spillCandidates[address] = bounds;
     let collision = false;
     for (let row = bounds.startRow; row <= bounds.endRow && !collision; row++) {
       for (let column = bounds.startCol; column <= bounds.endCol; column++) {
@@ -237,7 +260,103 @@ export function calculateWorkbook(
       }
     }
   }
+}
 
+export function calculateWorkbook(
+  sourceSheets: SheetData[],
+  options: CalculationOptions = {},
+): WorkbookCalculation {
+  const sheets = sourceSheets ?? [];
+  const graph = buildGraph(sheets, options);
+  const plan = graph.plan(formulaNodes(sheets), true);
+  const result: WorkbookCalculation = {
+    sheets: Object.fromEntries(sheets.map(sheet => [sheet.id, emptySheetCalculation(sheet.id)])),
+    graph,
+    plan,
+  };
+  applyCalculationPlan(sheets, options, result, plan);
+  return result;
+}
+
+export function changedCellNodes(previousSheets: SheetData[], nextSheets: SheetData[]): string[] {
+  const previousById = new Map(previousSheets.map(sheet => [sheet.id, sheet]));
+  const changed = new Set<string>();
+  for (const sheet of nextSheets) {
+    const previous = previousById.get(sheet.id);
+    const before = previous?.cells ?? {};
+    const after = sheet.cells ?? {};
+    const addresses = new Set([...Object.keys(before), ...Object.keys(after)]);
+    for (const address of addresses) {
+      if ((before[address]?.raw ?? "") !== (after[address]?.raw ?? "")) {
+        changed.add(nodeKey(sheet.id, address));
+      }
+    }
+  }
+  return [...changed];
+}
+
+export function hasSameSheetStructure(previousSheets: SheetData[], nextSheets: SheetData[]): boolean {
+  return previousSheets.length === nextSheets.length &&
+    previousSheets.every((sheet, index) =>
+      sheet.id === nextSheets[index]?.id && sheet.name === nextSheets[index]?.name,
+    );
+}
+
+/**
+ * Rebuilds the dependency graph for the edited workbook, invalidates the
+ * changed cells and their downstream formula dependents, then evaluates only
+ * that topological subset. Previous spill footprints are watched as well so
+ * edits inside a blocked spill range recalculate its origin.
+ */
+export function calculateWorkbookIncremental(
+  sourceSheets: SheetData[],
+  previous: WorkbookCalculation,
+  changedNodes: Iterable<string>,
+  options: CalculationOptions = {},
+): WorkbookCalculation {
+  const sheets = sourceSheets ?? [];
+  const graph = buildGraph(sheets, options);
+  const roots = new Set(changedNodes);
+
+  // A spill obstruction is not a formula precedent, but editing it changes
+  // whether the array origin can spill. Add every affected origin as a root.
+  for (const [sheetId, oldCalculation] of Object.entries(previous.sheets)) {
+    for (const [origin, range] of Object.entries(oldCalculation.spillCandidates)) {
+      const obstructorChanged = [...roots].some(node => {
+        const separator = node.lastIndexOf("!");
+        if (node.slice(0, separator) !== sheetId) return false;
+        const address = node.slice(separator + 1);
+        const point = parseAddress(address);
+        return !!point && address !== origin &&
+          point.row >= range.startRow && point.row <= range.endRow &&
+          point.col >= range.startCol && point.col <= range.endCol;
+      });
+      if (obstructorChanged) roots.add(nodeKey(sheetId, origin));
+    }
+  }
+
+  const plan = graph.plan(roots, true);
+  const nextResults: Record<string, SheetCalculation> = {};
+  for (const sheet of sheets) {
+    const oldCalculation = previous.sheets[sheet.id];
+    nextResults[sheet.id] = oldCalculation
+      ? cloneSheetCalculation(oldCalculation, sheet.id)
+      : emptySheetCalculation(sheet.id);
+  }
+  const result: WorkbookCalculation = { sheets: nextResults, graph, plan };
+
+  // Remove cached results from every changed formula/source and every
+  // dependent formula before evaluating the affected subgraph.
+  const clearNodes = new Set([...roots, ...plan.affected]);
+  for (const node of clearNodes) {
+    const separator = node.lastIndexOf("!");
+    const sheetId = node.slice(0, separator);
+    const address = node.slice(separator + 1);
+    const calculation = result.sheets[sheetId];
+    if (calculation) clearCalculatedNode(calculation, address);
+  }
+
+  applyCalculationPlan(sheets, options, result, plan);
   return result;
 }
 
