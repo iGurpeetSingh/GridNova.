@@ -793,3 +793,10 @@
 .validation-portal-empty{display:block;padding:10px;color:#797775;font-size:10px}
 .validation-input-tip{position:fixed;z-index:9999;width:min(240px,calc(100vw - 16px));display:flex;flex-direction:column;gap:3px;padding:9px 11px;border:1px solid #E2C77A;border-radius:6px;background:#FFF8DB;color:#4A3B16;box-shadow:0 3px 14px rgba(0,0,0,.12);font-family:"Segoe UI Variable","Segoe UI",sans-serif}
 .validation-input-tip strong{font-size:10px}.validation-input-tip span{font-size:10px;line-height:14px}
+
+.advanced-data-bar-themes{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:#605E5C;font-size:10px}
+.advanced-data-bar-themes span{width:100%;font-weight:650}
+.advanced-data-bar-themes button{width:25px;height:25px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #C8C6C4}
+.advanced-data-bar-themes button.is-active{box-shadow:0 0 0 2px #0F6CBD}
+.advanced-edit-actions{display:flex;align-items:center;gap:8px}
+.advanced-inline-cancel{min-height:34px;padding:0 12px;border:1px solid #C8C6C4;border-radius:5px;background:#fff;color:#323130;font-size:10px}
