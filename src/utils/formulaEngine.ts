@@ -599,6 +599,29 @@ class Parser {
 }
 function validReference(token:string){return refPattern.test(token)||columnPattern.test(token)||rowPattern.test(token);}
 
+function formatText(value:number,format:string,original?:Value):string{
+ const date=toDate(typeof original==="number"?original:value);
+ if(/[dy]/i.test(format)&&date){
+  const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const month=months[date.getUTCMonth()],replacements:Record<string,string>={
+   "yyyy":String(date.getUTCFullYear()),"yy":String(date.getUTCFullYear()).slice(-2),
+   "mmmm":month,"mmm":month.slice(0,3),"mm":String(date.getUTCMonth()+1).padStart(2,"0"),
+   "m":String(date.getUTCMonth()+1),"dd":String(date.getUTCDate()).padStart(2,"0"),"d":String(date.getUTCDate()),
+   "hh":String(date.getUTCHours()).padStart(2,"0"),"h":String(date.getUTCHours()),
+   "ss":String(date.getUTCSeconds()).padStart(2,"0")
+  };
+  return format.replace(/AM\/PM|yyyy|mmmm|mmm|yy|mm|dd|hh|ss|m|d|h/gi,token=>{
+   if(token.toUpperCase()==="AM/PM")return date.getUTCHours()<12?"AM":"PM";
+   return replacements[token.toLowerCase()]??token;
+  });
+ }
+ if(format.includes("%"))return new Intl.NumberFormat("en-US",{style:"percent",maximumFractionDigits:(format.split(".")[1]??"").replace(/[^0]/g,"").length}).format(value);
+ const decimals=format.match(/\\.([0#]+)/)?.[1].length??0;
+ const grouped=format.includes(",");
+ if(/^[\$₹€£]/.test(format)){const currency=format[0];return currency+new Intl.NumberFormat("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals,useGrouping:grouped}).format(value);}
+ return new Intl.NumberFormat("en-US",{minimumFractionDigits:format.includes(".")?decimals:0,maximumFractionDigits:decimals,useGrouping:grouped}).format(value);
+}
+
 function roundTo(value: number, digits: number): number { const factor = Math.pow(10, digits); return Math.round((value + Number.EPSILON) * factor) / factor; }
 function roundDirected(value: number, digits: number, direction: "up" | "down"): number {
   const factor = Math.pow(10, digits), scaled = value * factor;
@@ -615,28 +638,30 @@ export function evaluate(formula: string, cells: CellMap, seen = new Set<string>
     return error instanceof Error ? error.message : "#ERROR!";
   }
 }
-export function displayValue(raw: string, cells: CellMap, showFormula = false, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): string {
+export function displayValue(raw: string, cells: CellMap, showFormula = false, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): string {
   if (!raw.startsWith("=")) return raw;
-  return showFormula ? raw : String(evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges,sheets,currentSheetName));
+  return showFormula ? raw : String(scalar(evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges,sheets,currentSheetName)));
 }
-export function numericValue(raw: string, cells: CellMap, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): number | null {
+export function numericValue(raw: string, cells: CellMap, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): number | null {
   const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges,sheets,currentSheetName) : raw;
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+  const result=scalar(value);
+  if (typeof result === "number") return Number.isFinite(result) ? result : null;
+  if (typeof result === "string" && result.trim() !== "" && Number.isFinite(Number(result))) return Number(result);
   return null;
 }
-export function recalculate(cells: CellMap, tables:ExcelTableData[]=[], namedRanges:Record<string,string>={}): CellMap {
+export function recalculate(cells: CellMap, tables:ExcelTableData[]=[], namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): CellMap {
   const next={...cells};
   for(const [address,cell] of Object.entries(cells)){
     if(!cell.raw.startsWith("="))continue;
-    const value=evaluate(cell.raw,cells,new Set(),tables,address,namedRanges);
-    next[address]={...cell,cachedValue:String(value)};
+    const value=evaluate(cell.raw,cells,new Set(),tables,address,namedRanges,sheets,currentSheetName);
+    next[address]={...cell,cachedValue:String(scalar(value))};
   }
   return next;
 }
 export function formatCellValue(raw: string, cells: CellMap, showFormula: boolean, style?: CellStyle, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): string {
   if (showFormula && raw.startsWith("=")) return raw;
-  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges,sheets,currentSheetName) : raw;
+  const evaluated = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges,sheets,currentSheetName) : raw;
+  const value=scalar(evaluated);
   if (typeof value === "string" && value.startsWith("#")) return value;
   const n = typeof value === "number" ? value : (String(value).trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null);
   switch (style?.numberFormat) {
@@ -645,8 +670,8 @@ export function formatCellValue(raw: string, cells: CellMap, showFormula: boolea
     case "Currency $": return n === null ? String(value) : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: style?.decimalPlaces ?? 2 }).format(n);
     case "Number": return n === null ? String(value) : new Intl.NumberFormat("en-IN", { maximumFractionDigits: style?.decimalPlaces ?? 2 }).format(n);
     case "Date": {
-      const date = new Date(String(value));
-      return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+      const date = toDate(value);
+      return date ? date.toLocaleDateString() : String(value);
     }
     default: return String(value ?? "");
   }
