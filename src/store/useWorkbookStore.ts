@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingChartData, FloatingElementData, SheetData, TemplateId, WorkbookData, PivotTableDefinition } from "../types";
 import { addressOf, columnLabel, emptySheet, emptyWorkbook, parseAddress } from "../types";
-import { recalculateWorkbookIncremental } from "../lib/dependency-graph";
+import { recalculateWorkbookFull, recalculateWorkbookIncremental } from "../lib/dependency-graph";
 import { refreshWorkbookPivots } from "../utils/pivotEngine";
 
 interface Store {
@@ -157,7 +157,15 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
     set(s => ({ workbooks: [copy, ...s.workbooks] })); return copy.id;
   },
   renameWorkbook: (id,title) => set(s => ({ workbooks: s.workbooks.map(w => w.id === id ? { ...w,title: title.trim() || w.title,modifiedAt:Date.now() } : w) })),
-  updateWorkbook: (id,changes) => set(s => ({ workbooks:s.workbooks.map(w=>w.id===id?{...w,...changes,modifiedAt:Date.now()}:w) })),
+  updateWorkbook: (id,changes) => set(s=>{
+    const result=s.workbooks.map(item=>item.id===id?{...item,...changes,modifiedAt:Date.now()}:item);
+    const changed=result.find(item=>item.id===id);
+    if(changes.namedRanges&&changed&&changed.calculationMode!=="Manual"){
+      const recalculated=recalculateWorkbookFull(changed).workbook;
+      return {...snapshot(s),workbooks:result.map(item=>item.id===id?recalculated:item)};
+    }
+    return {...(changes.namedRanges?snapshot(s):{}),workbooks:result};
+  }),
   setActiveWorkbook: id => set(s => { const w = s.workbooks.find(x => x.id === id); return { activeWorkbookId:id, activeSheetId:w?.sheets[0]?.id ?? null, activeCell:"A1",selection:null }; }),
   setActiveSheet: id => set({ activeSheetId:id,activeCell:"A1",selection:null }),
   addSheet: () => set(s => {
