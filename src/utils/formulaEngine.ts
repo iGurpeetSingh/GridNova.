@@ -107,7 +107,7 @@ function expandNamedRanges(source:string,namedRanges:Record<string,string>={}):s
   return output;
 }
 
-function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string, ignoreFiltered = false, namedRanges:Record<string,string>={}): ArrayValue {
+function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string, ignoreFiltered = false, namedRanges:Record<string,string>={}, sheets:SheetData[]=[], currentSheetName?:string): ArrayValue {
   const clean=(value:string)=>value.replace(/\$/g,"").toUpperCase();
   const parseAxis=(value:string,other:string)=>{
     const p=parseAddress(clean(value));
@@ -129,20 +129,20 @@ function rangeValues(start: string, end: string, cells: CellMap, seen: Set<strin
     const row:Scalar[]=[];
     for(let col=startCol;col<=endCol;col++){
       const table=ignoreFiltered?getTableAt(tables,r,col):undefined;
-      row.push(table&&!tableFilterPasses(table,r,cells)?"":scalar(resolve(addressOf(r,col),cells,seen,tables,namedRanges)));
+      row.push(table&&!tableFilterPasses(table,r,cells)?"":scalar(resolve(addressOf(r,col),cells,seen,tables,namedRanges,sheets,currentSheetName)));
     }
     matrix.push(row);
   }
   return {__gridArray:true,values:matrix};
 }
 
-function resolve(address: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], namedRanges:Record<string,string>={}): Value {
+function resolve(address: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): Value {
   const key = address.toUpperCase(), cell = cells[key];
   if (!cell) return "";
   if (seen.has(key)) throw new Error("#CIRCULAR!");
   if (cell.raw.startsWith("=")) {
     const next = new Set(seen); next.add(key);
-    return evaluate(cell.raw, cells, next, tables, key, namedRanges);
+    return evaluate(cell.raw, cells, next, tables, key, namedRanges,sheets,currentSheetName);
   }
   const n = Number(cell.raw);
   return cell.raw.trim() !== "" && Number.isFinite(n) ? n : cell.raw;
@@ -225,7 +225,7 @@ const criteriaMatches=(value:Value,criteria:Value):boolean=>{
 class Parser {
   private i=0;
   private variables=new Map<string,Scalar>();
-  constructor(private readonly tokens:string[],private readonly cells:CellMap,private readonly seen:Set<string>,private readonly tables:ExcelTableData[],private readonly namedRanges:Record<string,string>={},private readonly currentAddress?:string){}
+  constructor(private readonly tokens:string[],private readonly cells:CellMap,private readonly seen:Set<string>,private readonly tables:ExcelTableData[],private readonly namedRanges:Record<string,string>={},private readonly currentAddress?:string,private readonly sheets:SheetData[]=[],private readonly currentSheetName?:string){}
   private peek(){return this.tokens[this.i];}
   private take(){return this.tokens[this.i++];}
   private match(v:string){if(this.peek()===v){this.i++;return true;}return false;}
@@ -289,7 +289,9 @@ class Parser {
     if(start&&colon===":"&&validReference(start)){
       this.i+=2;const finish=this.take();
       if(!finish||!validReference(finish)){this.i=save;throw new Error("#REF!");}
-      return [rangeValues(start,finish,this.cells,this.seen,this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges)];
+      const targetSheet=sheetName?this.sheets.find(item=>item.name.toLowerCase()===sheetName!.toLowerCase()):undefined;
+      if(sheetName&&!targetSheet){this.i=save;throw new Error("#REF!");}
+      return [rangeValues(start,finish,targetSheet?.cells??this.cells,this.seen,targetSheet?.tables??this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges,this.sheets,targetSheet?.name??this.currentSheetName)];
     }
     if(sheetName&&start&&refPattern.test(start)){
       this.i++;return [this.resolveReference(start,sheetName)];
@@ -297,12 +299,15 @@ class Parser {
     this.i=save;return null;
   }
   private resolveReference(ref:string,sheetName?:string):Value{
-    const normalized=ref.replace(/\$/g,"").toUpperCase(),source=this.cells[normalized];
+    const targetSheet=sheetName?this.sheets.find(item=>item.name.toLowerCase()===sheetName.toLowerCase()):undefined;
+    if(sheetName&&!targetSheet)return "#REF!";
+    const targetCells=targetSheet?.cells??this.cells,targetTables=targetSheet?.tables??this.tables;
+    const normalized=ref.replace(/\$/g,"").toUpperCase(),source=targetCells[normalized];
     if(!source)return "";
     if(this.seen.has(normalized))return "#CIRCULAR!";
     if(source.raw.startsWith("=")){
       const seen=new Set(this.seen);seen.add(normalized);
-      return evaluate(source.raw,this.cells,seen,this.tables,normalized,this.namedRanges,undefined,sheetName);
+      return evaluate(source.raw,targetCells,seen,targetTables,normalized,this.namedRanges,this.sheets,targetSheet?.name??this.currentSheetName);
     }
     const numericValue=Number(source.raw);
     return source.raw.trim()!==""&&Number.isFinite(numericValue)?numericValue:source.raw;
@@ -329,10 +334,10 @@ class Parser {
     const token=this.take();if(!token)throw new Error("#PARSE!");
     if(token==="("){const value=this.compare();if(!this.match(")"))throw new Error("#PARSE!");return value;}
     if(/^"(?:[^"]|"")*"$/.test(token))return token.slice(1,-1).replace(/""/g,'"');
-    if(/^'(?:[^']|'')+'$/.test(token)&&this.match("!")){
-      const sheetName=token.slice(1,-1).replace(/''/g,"'"),ref=this.take();
+    if((/^'(?:[^']|'')+'$/.test(token)||/^[A-Za-z_][A-Za-z0-9_ ]*$/.test(token))&&this.match("!")){
+      const sheetName=token.startsWith("'")?token.slice(1,-1).replace(/''/g,"'"):token,ref=this.take();
       if(!ref||!validReference(ref))throw new Error("#REF!");
-      if(this.match(":")){const end=this.take();if(!end||!validReference(end))throw new Error("#REF!");return rangeValues(ref,end,this.cells,this.seen,this.tables,undefined,false,this.namedRanges);}
+      if(this.match(":")){const end=this.take();if(!end||!validReference(end))throw new Error("#REF!");const target=this.sheets.find(item=>item.name.toLowerCase()===sheetName.toLowerCase());if(!target)return "#REF!";return rangeValues(ref,end,target.cells,this.seen,target.tables??[],undefined,false,this.namedRanges,this.sheets,target.name);}
       return this.resolveReference(ref,sheetName);
     }
     if(/^(?:\d+\.?\d*|\.\d+)$/.test(token))return Number(token);
@@ -600,22 +605,22 @@ function roundDirected(value: number, digits: number, direction: "up" | "down"):
   return (direction === "up" ? (scaled >= 0 ? Math.ceil(scaled) : Math.floor(scaled)) : (scaled >= 0 ? Math.floor(scaled) : Math.ceil(scaled))) / factor;
 }
 
-export function evaluate(formula: string, cells: CellMap, seen = new Set<string>(), tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): Value {
+export function evaluate(formula: string, cells: CellMap, seen = new Set<string>(), tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): Value {
   try {
     const source = formula.startsWith("=") ? formula.slice(1) : formula;
     const structured = expandStructuredReferences(source, cells, tables, currentAddress);
     const expanded = expandNamedRanges(structured,namedRanges);
-    return new Parser(tokenize(expanded), cells, seen, tables, namedRanges).parse();
+    return new Parser(tokenize(expanded), cells, seen, tables, namedRanges,currentAddress,sheets,currentSheetName).parse();
   } catch (error) {
     return error instanceof Error ? error.message : "#ERROR!";
   }
 }
 export function displayValue(raw: string, cells: CellMap, showFormula = false, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): string {
   if (!raw.startsWith("=")) return raw;
-  return showFormula ? raw : String(evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges));
+  return showFormula ? raw : String(evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges,sheets,currentSheetName));
 }
 export function numericValue(raw: string, cells: CellMap, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): number | null {
-  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges) : raw;
+  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges,sheets,currentSheetName) : raw;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
   return null;
@@ -629,9 +634,9 @@ export function recalculate(cells: CellMap, tables:ExcelTableData[]=[], namedRan
   }
   return next;
 }
-export function formatCellValue(raw: string, cells: CellMap, showFormula: boolean, style?: CellStyle, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={}): string {
+export function formatCellValue(raw: string, cells: CellMap, showFormula: boolean, style?: CellStyle, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): string {
   if (showFormula && raw.startsWith("=")) return raw;
-  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges) : raw;
+  const value = raw.startsWith("=") ? evaluate(raw, cells, new Set(), tables, currentAddress, namedRanges,sheets,currentSheetName) : raw;
   if (typeof value === "string" && value.startsWith("#")) return value;
   const n = typeof value === "number" ? value : (String(value).trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null);
   switch (style?.numberFormat) {
