@@ -545,7 +545,11 @@ class Parser {
         return {__gridArray:true,values:matrix.map(row=>Array.from({length:width},(_,index)=>row[index]??""))};
       }
       case "TEXT":return formatText(number(a[0]),text(a[1]),a[0]);
-      case "DATE":{let year=Math.trunc(number(a[0]));if(year<1900)year+=1900;return serialFromDate(new Date(Date.UTC(year,Math.trunc(number(a[1]))-1,Math.trunc(number(a[2]))));}
+      case "DATE":{
+        let year=Math.trunc(number(a[0]));if(year<1900)year+=1900;
+        const month=Math.trunc(number(a[1]))-1,day=Math.trunc(number(a[2]));
+        return serialFromDate(new Date(Date.UTC(year,month,day)));
+      }
       case "DATEVALUE":{const date=toDate(a[0]);return date?serialFromDate(date):"#VALUE!";}
       case "TODAY":return serialFromDate(new Date());
       case "NOW":{const now=new Date();return serialFromDate(now)+(now.getUTCHours()*3600+now.getUTCMinutes()*60+now.getUTCSeconds())/86400;}
