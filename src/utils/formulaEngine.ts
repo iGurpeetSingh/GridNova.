@@ -771,25 +771,43 @@ function evaluateAst(node: Ast, context: FormulaContext, seen: Set<string>, scop
       return node.operator === "-" ? -numberOf(value) : numberOf(value);
     }
     case "binary": {
-      const left = first(evaluateAst(node.left, context, seen, scope));
-      const right = first(evaluateAst(node.right, context, seen, scope));
-      const leftNumber = typeof left === "number" ? left : Number(left);
-      const rightNumber = typeof right === "number" ? right : Number(right);
-      switch (node.operator) {
-        case "+": return numberOf(left) + numberOf(right);
-        case "-": return numberOf(left) - numberOf(right);
-        case "*": return numberOf(left) * numberOf(right);
-        case "/": if (numberOf(right) === 0) throw new FormulaError("#DIV/0!"); return numberOf(left) / numberOf(right);
-        case "^": return Math.pow(numberOf(left), numberOf(right));
-        case "&": return String(left) + String(right);
-        case "=": return String(left).toLocaleLowerCase() === String(right).toLocaleLowerCase();
-        case "<>": return String(left).toLocaleLowerCase() !== String(right).toLocaleLowerCase();
-        case ">": return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? leftNumber > rightNumber : String(left) > String(right);
-        case "<": return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? leftNumber < rightNumber : String(left) < String(right);
-        case ">=": return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? leftNumber >= rightNumber : String(left) >= String(right);
-        case "<=": return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? leftNumber <= rightNumber : String(left) <= String(right);
-        default: throw new FormulaError("#VALUE!");
-      }
+      const leftValue = evaluateAst(node.left, context, seen, scope);
+      const rightValue = evaluateAst(node.right, context, seen, scope);
+      const apply = (left: FormulaScalar, right: FormulaScalar): FormulaScalar => {
+        const leftNumber = typeof left === "number" ? left : Number(left);
+        const rightNumber = typeof right === "number" ? right : Number(right);
+        switch (node.operator) {
+          case "+": return numberOf(left) + numberOf(right);
+          case "-": return numberOf(left) - numberOf(right);
+          case "*": return numberOf(left) * numberOf(right);
+          case "/": if (numberOf(right) === 0) throw new FormulaError("#DIV/0!"); return numberOf(left) / numberOf(right);
+          case "^": return Math.pow(numberOf(left), numberOf(right));
+          case "&": return String(left) + String(right);
+          case "=": return String(left).toLocaleLowerCase() === String(right).toLocaleLowerCase();
+          case "<>": return String(left).toLocaleLowerCase() !== String(right).toLocaleLowerCase();
+          case ">": return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? leftNumber > rightNumber : String(left) > String(right);
+          case "<": return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? leftNumber < rightNumber : String(left) < String(right);
+          case ">=": return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? leftNumber >= rightNumber : String(left) >= String(right);
+          case "<=": return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? leftNumber <= rightNumber : String(left) <= String(right);
+          default: throw new FormulaError("#VALUE!");
+        }
+      };
+      if (!isMatrix(leftValue) && !isMatrix(rightValue)) return apply(leftValue, rightValue);
+      const leftMatrix = matrixOf(leftValue), rightMatrix = matrixOf(rightValue);
+      const rows = Math.max(leftMatrix.length, rightMatrix.length);
+      const columns = Math.max(leftMatrix[0]?.length ?? 0, rightMatrix[0]?.length ?? 0);
+      const canBroadcast = (matrix: FormulaMatrix) =>
+        (matrix.length === rows || matrix.length === 1) &&
+        ((matrix[0]?.length ?? 0) === columns || (matrix[0]?.length ?? 0) === 1);
+      if (!canBroadcast(leftMatrix) || !canBroadcast(rightMatrix)) throw new FormulaError("#VALUE!");
+      return Array.from({ length: rows }, (_, row) =>
+        Array.from({ length: columns }, (_, column) =>
+          apply(
+            leftMatrix[leftMatrix.length === 1 ? 0 : row]?.[leftMatrix[0]?.length === 1 ? 0 : column] ?? 0,
+            rightMatrix[rightMatrix.length === 1 ? 0 : row]?.[rightMatrix[0]?.length === 1 ? 0 : column] ?? 0,
+          ),
+        ),
+      );
     }
     case "call": return evaluateCall(node.name, node.args, context, seen, scope);
   }
