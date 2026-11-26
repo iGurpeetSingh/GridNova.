@@ -14,8 +14,9 @@ import CellInsertDialog from "../components/CellInsertDialog";
 import FloatingElement from "../components/FloatingElement";
 import CellImageOverlays from "../components/CellImageOverlays";
 import PageSetupDialog from "../components/PageSetupDialog";
+import FileToolsDialog, { type FileToolsMode, type FileVersionSnapshot } from "../components/FileToolsDialog";
 import { useWorkbookStore } from "../store/useWorkbookStore";
-import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup } from "../types";
+import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue, recalculate } from "../utils/formulaEngine";
@@ -46,6 +47,10 @@ export default function WorkbookEditor(){
   const showFormulas=useWorkbookStore(s=>s.showFormulas);
   const zoom=useWorkbookStore(s=>s.zoom);
   const clipboard=useWorkbookStore(s=>s.clipboard);
+  const autoSaveEnabled=useWorkbookStore(s=>s.autoSaveEnabled);
+  const setAutoSaveEnabled=useWorkbookStore(s=>s.setAutoSaveEnabled);
+  const duplicateWorkbook=useWorkbookStore(s=>s.duplicateWorkbook);
+  const importWorkbook=useWorkbookStore(s=>s.importWorkbook);
   const setActiveWorkbook=useWorkbookStore(s=>s.setActiveWorkbook);
   const setActiveSheet=useWorkbookStore(s=>s.setActiveSheet);
   const setSelection=useWorkbookStore(s=>s.setSelection);
@@ -78,6 +83,10 @@ export default function WorkbookEditor(){
   const [commentsPanelOpen,setCommentsPanelOpen]=useState(false);
   const [workbookStatsOpen,setWorkbookStatsOpen]=useState(false);
   const [pageSetupOpen,setPageSetupOpen]=useState(false);
+  const [fileToolsMode,setFileToolsMode]=useState<FileToolsMode|null>(null);
+  const [fileHistory,setFileHistory]=useState<FileVersionSnapshot[]>([]);
+  const [showFormulaBar,setShowFormulaBar]=useState(true);
+  const openFileAsWorkbookRef=useRef(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
   const [slicerColumn,setSlicerColumn]=useState("0");
   const [slicerValues,setSlicerValues]=useState<string[]>([]);
@@ -90,7 +99,23 @@ export default function WorkbookEditor(){
   const setShowSaved=()=>{setSavePulse(true);window.setTimeout(()=>setSavePulse(false),1400)};
   useEffect(()=>{if(id&&activeWorkbookId!==id)setActiveWorkbook(id)},[id,activeWorkbookId,setActiveWorkbook]);
   useEffect(()=>{setTitleValue(workbook?.title??"")},[workbook?.title]);
+  useEffect(()=>{
+    if(!workbook||!autoSaveEnabled)return;
+    const snapshotWorkbook=workbook;
+    const timer=window.setTimeout(()=>{
+      try{
+        const key="gridnova-version-history-"+snapshotWorkbook.id;
+        const previous=JSON.parse(window.localStorage.getItem(key)??"[]") as FileVersionSnapshot[];
+        if(previous[0]?.workbook?.modifiedAt!==snapshotWorkbook.modifiedAt){
+          const next=[{id:crypto.randomUUID(),savedAt:Date.now(),workbook:structuredClone(snapshotWorkbook)},...previous].slice(0,20);
+          window.localStorage.setItem(key,JSON.stringify(next));setFileHistory(next);
+        }
+      }catch(error){console.warn("Unable to save local workbook history",error);}
+    },900);
+    return()=>window.clearTimeout(timer);
+  },[workbook?.id,workbook?.modifiedAt,autoSaveEnabled]);
   const sheet=workbook?.sheets.find(s=>s.id===activeSheetId)??workbook?.sheets[0];
+  const isReadOnly=!!(sheet?.isProtected||workbook?.isProtected);
   const activeRaw=sheet?.cells[activeCell]?.raw??"";
   const namedRanges=workbook?.namedRanges??{};
   const calculationMode:CalculationMode=workbook?.calculationMode??"Automatic";
@@ -163,6 +188,7 @@ export default function WorkbookEditor(){
   };
   const updateCells=(cells:typeof sheet.cells)=>updateSheet(sheet.id,{cells});
   const applyCellFormat=(style:Partial<CellStyle>)=>{
+    if(isReadOnly){window.alert("This worksheet is protected. Unprotect it from File → Info to make changes.");return;}
     if(style.border==="outer"){
       const startRow=selection?Math.min(selection.startRow,selection.endRow):parseAddress(activeCell)?.row??0;
       const endRow=selection?Math.max(selection.startRow,selection.endRow):startRow;
@@ -452,8 +478,64 @@ export default function WorkbookEditor(){
       window.print();
     });
   };
+  const exportJsonBackup=()=>{
+    const payload={format:"gridnova-workbook-v1",exportedAt:new Date().toISOString(),workbook};
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
+    const url=URL.createObjectURL(blob),anchor=document.createElement("a");
+    anchor.href=url;anchor.download=`${workbook.title.replace(/[\\/:*?"<>|]/g,"-")}.json`;anchor.click();
+    window.setTimeout(()=>URL.revokeObjectURL(url),1000);setShowSaved();
+  };
   const action=(name:string)=>{
+    if(isReadOnly&&!name.startsWith("file-")){window.alert("This worksheet or workbook is protected. Unprotect it from File → Info to edit.");return;}
     switch(name){
+      case "file-new-blank":{
+        if(!window.confirm("Create a new blank workbook? Your current workbook will remain saved in Recent Workbooks."))break;
+        const created=useWorkbookStore.getState().createWorkbook("blank");navigate(`/workbook/${created}`);break;
+      }
+      case "file-template":{
+        const template=name.slice("file-template:".length) as TemplateId;
+        const created=useWorkbookStore.getState().createWorkbook(template);navigate(`/workbook/${created}`);break;
+      }
+      case "file-open-device":openFileAsWorkbookRef.current=true;fileRef.current?.click();break;
+      case "file-open-workbook":{
+        const workbookId=name.slice("file-open-workbook:".length);
+        if(workbooks.some(item=>item.id===workbookId)){setActiveWorkbook(workbookId);navigate(`/workbook/${workbookId}`);}
+        break;
+      }
+      case "file-share-open":setShareOpen(true);break;
+      case "file-share-copy-link":void copyShareLink("workbook");break;
+      case "file-embed-open":setFileToolsMode("embed");break;
+      case "file-save-copy":{
+        const copyId=duplicateWorkbook(workbook.id);
+        if(copyId){updateWorkbook(copyId,{title:workbook.title+" copy"});navigate(`/workbook/${copyId}`);window.alert("A local copy was created in Recent Workbooks.");}
+        break;
+      }
+      case "file-copy-xlsx":void exportFile("xlsx");break;
+      case "file-duplicate-sheet":{
+        const copy=structuredClone(sheet);copy.id=crypto.randomUUID();
+        const baseName=sheet.name+" Copy";let nextName=baseName,index=2;
+        while(workbook.sheets.some(item=>item.name.toLowerCase()===nextName.toLowerCase()))nextName=baseName+" "+(index++);
+        copy.name=nextName;
+        updateWorkbook(workbook.id,{sheets:[...workbook.sheets,copy]});setActiveSheet(copy.id);setShowSaved();break;
+      }
+      case "file-export-xlsx":void exportFile("xlsx");break;
+      case "file-export-csv":void exportFile("csv");break;
+      case "file-export-pdf":void exportFile("pdf");break;
+      case "file-export-json":exportJsonBackup();break;
+      case "file-print":setPageSetupOpen(true);break;
+      case "file-history-open":{
+        try{const saved=JSON.parse(window.localStorage.getItem("gridnova-version-history-"+workbook.id)??"[]") as FileVersionSnapshot[];setFileHistory(saved);}
+        catch{setFileHistory([]);}
+        setFileToolsMode("history");break;
+      }
+      case "file-workbook-stats":setWorkbookStatsOpen(true);break;
+      case "file-protect-sheet":updateSheet(sheet.id,{isProtected:!sheet.isProtected});window.alert(sheet.isProtected?"Worksheet protection removed.":"Worksheet protected. Cell editing is now disabled.");break;
+      case "file-protect-workbook":updateWorkbook(workbook.id,{isProtected:!workbook.isProtected});window.alert(workbook.isProtected?"Workbook protection removed.":"Workbook protected. Cell editing is now disabled.");break;
+      case "file-rename":setRenaming(true);break;
+      case "file-regional-open":setFileToolsMode("regional");break;
+      case "file-calculation-open":setFileToolsMode("calculation");break;
+      case "file-display-open":setFileToolsMode("display");break;
+      case "file-shortcuts-open":setFileToolsMode("shortcuts");break;
       case "page-setup-open":setPageSetupOpen(true);break;
       case "print-area-set":{
         const selected=selection?{startRow:Math.min(selection.startRow,selection.endRow),startCol:Math.min(selection.startCol,selection.endCol),endRow:Math.max(selection.startRow,selection.endRow),endCol:Math.max(selection.startCol,selection.endCol)}:{startRow:parseAddress(activeCell)?.row??0,startCol:parseAddress(activeCell)?.col??0,endRow:parseAddress(activeCell)?.row??0,endCol:parseAddress(activeCell)?.col??0};
@@ -781,11 +863,24 @@ export default function WorkbookEditor(){
     setShowSaved();
   };
   const importFile=async(file:File)=>{
+    const openAsWorkbook=openFileAsWorkbookRef.current;openFileAsWorkbookRef.current=false;
     try{
       const ext=file.name.split(".").pop()?.toLowerCase();
+      if(ext==="json"){
+        const parsed=JSON.parse(await file.text()) as {workbook?:WorkbookData}|WorkbookData;
+        const source=("workbook" in parsed?parsed.workbook:parsed) as WorkbookData;
+        if(!source||!Array.isArray(source.sheets)||!source.sheets.length)throw new Error("This JSON file is not a valid GridNova workbook backup.");
+        const importedId=importWorkbook(source);navigate(`/workbook/${importedId}`);setShowSaved();return;
+      }
       const tools=await import("../utils/exportUtils");
       const rows=ext==="csv"?await tools.importCsvText(await file.text()):await tools.importExcelFile(file);
-      updateSheet(sheet.id,{cells:tools.rowsToCells(rows),rowCount:Math.max(100,rows.length),columnCount:Math.max(26,...rows.map(r=>r.length))});
+      const cells=tools.rowsToCells(rows),rowCount=Math.max(100,rows.length),columnCount=Math.max(26,...rows.map(r=>r.length));
+      if(openAsWorkbook){
+        const created=useWorkbookStore.getState().createWorkbook("blank");
+        const newSheetId=useWorkbookStore.getState().activeSheetId;
+        if(newSheetId)useWorkbookStore.getState().updateSheet(newSheetId,{cells,rowCount,columnCount});
+        navigate(`/workbook/${created}`);
+      }else updateSheet(sheet.id,{cells,rowCount,columnCount});
       selectCell("A1");setShowSaved();
     }catch(e){window.alert(e instanceof Error?e.message:"Unable to import this file.");}
     finally{if(fileRef.current)fileRef.current.value="";}
@@ -798,14 +893,14 @@ export default function WorkbookEditor(){
       <div className="hidden items-center gap-1.5 rounded-full bg-[#edf8f0] px-3 py-1.5 text-[10px] font-semibold text-[#16864b] sm:flex">{savePulse?<Check size={12}/>:<Cloud size={12}/>} {savePulse?"Saved just now":"Saved locally"}</div>
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
-    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} pageSetup={pageSetup} activeCell={activeCell} activeTable={activeTable} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)} onOpenFunctionLibrary={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}}/>
-    <FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{setCell(activeCell,formulaValue);setShowSaved()}} onCancel={()=>setFormulaValue(activeRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>
+    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} pageSetup={pageSetup} activeCell={activeCell} workbooks={workbooks} currentWorkbookId={workbook.id} activeTable={activeTable} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)} onOpenFunctionLibrary={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}}/>
+    {showFormulaBar&&<FormulaBar address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{if(!isReadOnly){setCell(activeCell,formulaValue);setShowSaved();}}} onCancel={()=>setFormulaValue(activeRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>}
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} pageSetup={pageSetup} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} formulaBarDraft={formulaValue} onSelect={selectCell}/>
+      <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} isReadOnly={isReadOnly} pageSetup={pageSetup} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} formulaBarDraft={formulaValue} onSelect={selectCell}/>
       <CellImageOverlays sheet={sheet}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
       {(workbook.elements??[]).map(element=><FloatingElement key={element.id} element={element} onUpdate={updateElement} onDelete={deleteElement}/>)}
-      <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void importFile(f)}}/>
+      <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.json,application/json" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void importFile(f)}}/>
       <input ref={pictureRef} type="file" accept="image/*" className="hidden" onChange={event=>{const file=event.target.files?.[0];if(file)importPicture(file);if(pictureRef.current)pictureRef.current.value="";}}/>
     </div>
     <SheetBar sheets={workbook.sheets} activeId={sheet.id} onSelect={setActiveSheet} onAdd={addSheet} onRename={renameSheet} onDelete={id=>{if(window.confirm("Delete this sheet?"))deleteSheet(id)}}/>
@@ -815,6 +910,12 @@ export default function WorkbookEditor(){
       ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
     <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
+    <FileToolsDialog mode={fileToolsMode} workbook={workbook} history={fileHistory} showFormulaBar={showFormulaBar} autoSaveEnabled={autoSaveEnabled} gridlines={sheet.showGridlines} onClose={()=>setFileToolsMode(null)} onRestore={snapshot=>{
+      const restored=snapshot.workbook;
+      updateWorkbook(workbook.id,{title:restored.title,sheets:structuredClone(restored.sheets),charts:structuredClone(restored.charts??[]),elements:structuredClone(restored.elements??[]),namedRanges:structuredClone(restored.namedRanges??{}),calculationMode:restored.calculationMode,isProtected:restored.isProtected,regionalSettings:restored.regionalSettings,orientation:restored.orientation});
+      if(restored.sheets[0])setActiveSheet(restored.sheets[0].id);
+      setFileToolsMode(null);setShowSaved();
+    }} onRegionalChange={value=>{updateWorkbook(workbook.id,{regionalSettings:value});setShowSaved();}} onCalculationChange={value=>{updateWorkbook(workbook.id,{calculationMode:value});setShowSaved();}} onGridlinesChange={()=>updateSheet(sheet.id,{showGridlines:!sheet.showGridlines})} onFormulaBarChange={()=>setShowFormulaBar(value=>!value)} onAutoSaveChange={()=>setAutoSaveEnabled(!autoSaveEnabled)}/>
     <ShareModal open={shareOpen} onClose={()=>setShareOpen(false)} workbookId={workbook.id} title={workbook.title} onExport={exportFile}/>
     <TableRangeDialog open={tableDialogOpen} title={tableDialogMode==="resize"?"Resize Table":"Create Table"} initialRange={tableDialogMode==="resize"&&activeTable?rangeLabel(activeTable.range):suggestedTableRange} initialHasHeaders={tableDialogMode==="resize"?(activeTable?.hasHeaders??true):true} submitLabel={tableDialogMode==="resize"?"Resize":"OK"} onClose={()=>setTableDialogOpen(false)} onSubmit={submitTableRange}/>
     <FormulaLibraryDialog open={formulaLibraryOpen} initialCategory={formulaLibraryCategory} onClose={()=>setFormulaLibraryOpen(false)} onInsert={formula=>{setCell(activeCell,formula);setFormulaValue(formula);setFormulaBarFocused(true)}}/>
