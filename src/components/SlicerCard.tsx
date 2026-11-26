@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { FilterX, Grip, Plus, X } from "lucide-react";
 import type { SheetData, SlicerCardData } from "../types";
+import { addressOf } from "../types";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import { tableColumnValues } from "../utils/tableUtils";
 interface Props { sheet:SheetData; slicer:SlicerCardData; }
@@ -37,7 +38,7 @@ export default function SlicerCard({sheet,slicer}:Props){
     else filters[slicer.columnIndex]={...(filters[slicer.columnIndex]??{}),selectedValues:next};
     updateSheet(sheet.id,{tables:(sheet.tables??[]).map(item=>item.id===table.id?{...item,filters}:item)});
   };
-  const begin=(kind:"move"|"resize")=>(event:React.PointerEvent)=>{
+  const begin=(kind:"move"|"resize")=>(event:ReactPointerEvent)=>{
     event.preventDefault();event.stopPropagation();
     drag.current={kind,pointerX:event.clientX,pointerY:event.clientY,left:box.x,top:box.y,width:box.width,height:box.height};
   };
@@ -47,9 +48,9 @@ export default function SlicerCard({sheet,slicer}:Props){
     setSelected(next);
   };
   return <section className="floating-slicer-card" style={{left:box.x,top:box.y,width:box.width,height:box.height}} aria-label={`Slicer ${table.name} ${slicer.columnIndex+1}`}>
-    <header className="floating-slicer-header" onPointerDown={begin("move")}><div><Grip size={13}/><strong>{table.name} · {tableColumnValues(table,slicer.columnIndex,sheet.cells).slice(0,1).join("")?sheet.cells[addressOf(table.range.startRow,slicer.columnIndex)]?.raw??"Field": "Field"}</strong></div><button type="button" title="Clear Filter" onPointerDown={event=>event.stopPropagation()} onClick={()=>setSelected(values)}><FilterX size={14}/></button><button type="button" title="Close slicer" onPointerDown={event=>event.stopPropagation()} onClick={()=>updateSheet(sheet.id,{slicers:(sheet.slicers??[]).filter(item=>item.id!==slicer.id)})}><X size={14}/></button></header>
+    <header className="floating-slicer-header" onPointerDown={begin("move")}><div><Grip size={13}/><strong>{table.name} · {label}</strong></div><button type="button" title="Clear Filter" onPointerDown={event=>event.stopPropagation()} onClick={()=>setSelected(values)}><FilterX size={14}/></button><button type="button" title="Close slicer" onPointerDown={event=>event.stopPropagation()} onClick={()=>updateSheet(sheet.id,{slicers:(sheet.slicers??[]).filter(item=>item.id!==slicer.id)})}><X size={14}/></button></header>
     <div className="floating-slicer-toolbar"><button type="button" className={slicer.multiSelect?"is-active":""} onClick={()=>updateSheet(sheet.id,{slicers:(sheet.slicers??[]).map(item=>item.id===slicer.id?{...item,multiSelect:!item.multiSelect}:item)})}>Multi-select</button><span>{active.length===values.length?"All items":`${active.length} selected`}</span></div>
     <div className="floating-slicer-values">{values.map(value=><button key={value} type="button" aria-pressed={active.includes(value)} className={active.includes(value)?"is-selected":""} onClick={()=>toggle(value)}>{value||"(blank)"}</button>)}</div>
-    <button type="button" className="floating-slicer-resize" aria-label="Resize slicer" onPointerDown={begin("resize)}><Plus size={11}/></button>
+    <button type="button" className="floating-slicer-resize" aria-label="Resize slicer" onPointerDown={begin("resize")}><Plus size={11}/></button>
   </section>;
 }
