@@ -241,8 +241,8 @@ export class DependencyGraph {
   getDownstream(nodes: Iterable<DependencyNode>): Set<DependencyNode> {
     const affected = new Set<DependencyNode>();
     const queue = Array.from(nodes);
-    while (queue.length) {
-      const current = queue.shift()!;
+    for (let index = 0; index < queue.length; index++) {
+      const current = queue[index];
       for (const dependent of this.dependents.get(current) ?? []) {
         if (affected.has(dependent)) continue;
         affected.add(dependent);
