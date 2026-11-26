@@ -608,9 +608,52 @@ class Parser {
       case "XNPV":{const cash=list(1).map(number),dates=list(2).map(toSerial),rate=number(a[0]);if(!dates.length||dates.some(v=>!Number.isFinite(v)))return "#NUM!";return cash.reduce((acc,v,i)=>acc+v/(1+rate)**((dates[i]-dates[0])/365),0);}
       case "VLOOKUP":case "HLOOKUP":{const data=matrix(1),lookup=a[0],index=Math.trunc(number(a[2]))-1,approx=a[3]!==false;if(!data.length)return "#N/A";if(fn==="VLOOKUP"){const row=data.find(row=>String(row[0]).toLowerCase()===String(lookup).toLowerCase());if(row)return row[index]??"#REF!";if(approx){const sorted=[...data].sort((x,y)=>number(x[0])-number(y[0]));const row=[...sorted].reverse().find(x=>number(x[0])<=number(lookup));return row?.[index]??"#N/A";}}else{const header=data[0]??[],column=header.findIndex(v=>String(v).toLowerCase()===String(lookup).toLowerCase());if(column>=0)return data[index]?.[column]??"#REF!";}return "#N/A";}
       case "XLOOKUP":case "XMATCH":case "MATCH":{
-        const look=a[0],source=list(1),matchMode=fn==="MATCH"?number(a[2]??1):number(a[3]??0),searchMode=fn==="MATCH"?1:number(a[4]??1);
-        const equals=(left:Value,right:Value)=>String(scalar(left)).toLowerCase()===String(scalar(right)).toLowerCase();
-        const wildcard=(pattern:string,value:string)=>{let expression="";for(let i=0;i<pattern.length;i++){const ch=pattern[i];if(ch==="~"&&i+1<pattern.length){expression+=pattern[++i].replace(/[.*+?^${}()|[\]\\]/g,"\\case "XLOOKUP":case "XMATCH":case "MATCH":{const look=a[0],source=list(1),idx=source.findIndex(v=>String(v).toLowerCase()===String(look).toLowerCase());if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";const ret=list(2);if(idx>=0)return ret[idx]??"#N/A";return a[3]??"#N/A";}
+        const look=a[0],lookupMatrix=matrix(1),horizontal=lookupMatrix.length===1;
+        const source=horizontal?(lookupMatrix[0]??[]):lookupMatrix.map(row=>row[0]??"");
+        const matchMode=fn==="MATCH"?number(a[2]??1):number(a[3]??0);
+        const searchMode=fn==="MATCH"?1:number(a[4]??1);
+        const valueText=(value:Value)=>String(scalar(value)).toLowerCase();
+        const wildcardMatches=(pattern:string,candidate:string)=>{
+          const p=pattern.toLowerCase(),v=candidate.toLowerCase();
+          let pi=0,vi=0,star=-1,starValue=0;
+          while(vi<v.length){
+            if(pi<p.length&&p[pi]==="~"&&pi+1<p.length){pi++;if(p[pi]===v[vi]){pi++;vi++;continue;}}
+            else if(pi<p.length&&(p[pi]==="?"||p[pi]===v[vi])){pi++;vi++;continue;}
+            else if(pi<p.length&&p[pi]==="*"){star=pi++;starValue=vi;continue;}
+            if(star>=0){pi=star+1;vi=++starValue;continue;}
+            return false;
+          }
+          while(p[pi]==="*")pi++;
+          return pi===p.length;
+        };
+        const find=(values:Value[])=>{
+          const indices=Array.from({length:values.length},(_,index)=>index);
+          if(searchMode===-1||searchMode===-2)indices.reverse();
+          if(matchMode===2){const idx=indices.find(index=>wildcardMatches(String(look??""),valueText(values[index])));return idx??-1;}
+          const exact=indices.find(index=>valueText(values[index])===valueText(look));if(exact!==undefined)return exact;
+          if(matchMode===0)return -1;
+          const isMatch=fn==="MATCH",wantSmaller=isMatch?matchMode===1:matchMode===-1;
+          let best=-1,bestDistance=Infinity;
+          for(const index of indices){
+            const left=Number(scalar(values[index])),right=Number(scalar(look));
+            if(!Number.isFinite(left)||!Number.isFinite(right))continue;
+            const valid=wantSmaller?left<=right:left>=right;
+            const distance=Math.abs(right-left);
+            if(valid&&distance<bestDistance){best=index;bestDistance=distance;}
+          }
+          return best;
+        };
+        const idx=find(source);
+        if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";
+        if(idx<0)return a[3]??"#N/A";
+        const result=matrix(2);
+        if(horizontal){
+          if(result.length>1)return {__gridArray:true,values:result.map(row=>[row[idx]??""])};
+          return result[0]?.[idx]??"#N/A";
+        }
+        const row=result[idx]??[];
+        return result[0]?.length>1?{__gridArray:true,values:[row]}:(row[0]??"#N/A");
+      }
       case "INDEX":{const data=matrix(0),row=Math.max(1,number(a[1]))-1,col=Math.max(1,number(a[2]??1))-1;return data[row]?.[col]??"#REF!";}");}else if(ch==="*")expression+=".*";else if(ch==="?")expression+=".";else expression+=ch.replace(/[.*+?^${}()|[\]\\]/g,"\\case "XLOOKUP":case "XMATCH":case "MATCH":{const look=a[0],source=list(1),idx=source.findIndex(v=>String(v).toLowerCase()===String(look).toLowerCase());if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";const ret=list(2);if(idx>=0)return ret[idx]??"#N/A";return a[3]??"#N/A";}
       case "INDEX":{const data=matrix(0),row=Math.max(1,number(a[1]))-1,col=Math.max(1,number(a[2]??1))-1;return data[row]?.[col]??"#REF!";}");}return new RegExp("^"+expression+"$","i").test(value);};
         const find=(values:Value[])=>{
