@@ -499,7 +499,21 @@ export default function WorkbookEditor(){
       case "cell-style-good":setStyle({bold:false,color:"#006100",backgroundColor:"#E2F0D9"},selectedAddresses);break;
       case "cell-style-bad":setStyle({bold:false,color:"#9C0006",backgroundColor:"#FCE4D6"},selectedAddresses);break;
       case "cell-style-neutral":setStyle({bold:false,color:"#7F6000",backgroundColor:"#FFF2CC"},selectedAddresses);break;
-      case "cell-style-heading":setStyle({bold:true,color:"#FFFFFF",backgroundColor:"#1F4E78"},selectedAddresses);break;
+      case "cell-style-heading":case "cell-style-heading-1":setStyle({bold:true,fontSize:14,color:"#FFFFFF",backgroundColor:"#1F4E78"},selectedAddresses);break;
+      case "cell-style-heading-2":setStyle({bold:true,fontSize:12,color:"#FFFFFF",backgroundColor:"#5B9BD5"},selectedAddresses);break;
+      case "cell-style-heading-3":setStyle({bold:true,fontSize:11,color:"#1F1F1F",backgroundColor:"#D9EAF7"},selectedAddresses);break;
+      case "cell-style-heading-4":setStyle({bold:true,italic:true,color:"#1F4E78",backgroundColor:"#DDEBF7"},selectedAddresses);break;
+      case "cell-style-title":setStyle({bold:true,fontSize:18,color:"#FFFFFF",backgroundColor:"#1F4E78"},selectedAddresses);break;
+      case "cell-style-total":setStyle({bold:true,color:"#323130",backgroundColor:"#F2F2F2",borderTop:"2px solid #323130"},selectedAddresses);break;
+      case "cell-style-input":setStyle({color:"#7F6000",backgroundColor:"#FFF2CC",border:"all",borderColor:"#D6B656"},selectedAddresses);break;
+      case "cell-style-output":setStyle({bold:true,color:"#006100",backgroundColor:"#E2F0D9"},selectedAddresses);break;
+      case "cell-style-calculation":setStyle({color:"#7030A0",backgroundColor:"#E4DFEC"},selectedAddresses);break;
+      case "cell-style-accent-1":setStyle({color:"#1F4E78",backgroundColor:"#DDEBF7"},selectedAddresses);break;
+      case "cell-style-accent-2":setStyle({color:"#843C0C",backgroundColor:"#FCE4D6"},selectedAddresses);break;
+      case "cell-style-accent-3":setStyle({color:"#595959",backgroundColor:"#E7E6E6"},selectedAddresses);break;
+      case "cell-style-accent-4":setStyle({color:"#7F6000",backgroundColor:"#FFF2CC"},selectedAddresses);break;
+      case "cell-style-accent-5":setStyle({color:"#385723",backgroundColor:"#E2F0D9"},selectedAddresses);break;
+      case "cell-style-accent-6":setStyle({color:"#1F3864",backgroundColor:"#D9EAD3"},selectedAddresses);break;
       case "merge":{
         if(selectedAddresses.length<2){window.alert("Select two or more cells before merging.");break;}
         const startRow=Math.min(selection!.startRow,selection!.endRow),endRow=Math.max(selection!.startRow,selection!.endRow);

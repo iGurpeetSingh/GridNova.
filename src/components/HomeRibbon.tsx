@@ -10,6 +10,7 @@ import type { CellStyle, SheetData } from "../types";
 import InsertRibbonIcon from "./InsertRibbonIcon";
 import { HomeColorMenu,HomeMenu,HomeSelectMenu,HomeStackAction } from "./HomeRibbonControls";
 import { TABLE_STYLES } from "../utils/tableUtils";
+const TABLE_STYLE_COLORS = ["#107C41","#5B9BD5","#70AD47","#ED7D31","#A5A5A5","#4472C4","#7030A0","#C00000"];
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import { parseAddress } from "../types";
 interface Props { onAction:(action:string)=>void; onFormat:(style:Partial<CellStyle>)=>void; style:CellStyle; sheet:SheetData; }
@@ -130,14 +131,28 @@ export default function HomeRibbon({onAction,onFormat,style,sheet}:Props){
    ],<><span className="home-large-icon home-conditional-icon"><Table2 size={24}/><i/></span><span>Conditional<br/>Formatting</span><ChevronDown size={9}/></>,"home-large-menu-trigger")}
    {menu("format-table","Format As Table",[
     {label:"Format Selection as Table",icon:<Table2 size={18} color="#107C41"/>,action:"format-table"},
-    ...TABLE_STYLES.slice(0,8).map(id=>({label:id.replace("TableStyle","").replace(/([A-Z])/g," $1").trim(),icon:<Table2 size={17} color="#0F6CBD"/>,action:`table-style-${id}`}))
+    ...TABLE_STYLES.map((id,index)=>({label:id.replace("TableStyle","").replace(/([A-Z])/g," $1").trim(),icon:<span className="home-table-style-swatch" style={{background:TABLE_STYLE_COLORS[index%TABLE_STYLE_COLORS.length]}}><i/></span>,action:`table-style-${id}`}))
    ],<><span className="home-large-icon"><InsertRibbonIcon name="table"/></span><span>Format As Table</span><ChevronDown size={9}/></>,"home-large-menu-trigger")}
    {menu("cell-styles","Cell Styles",[
     {label:"Normal",icon:<Table2 size={17}/>,action:"cell-style-normal"},
     {label:"Good",icon:<span className="home-style-chip home-style-chip--good">Good</span>,action:"cell-style-good"},
     {label:"Bad",icon:<span className="home-style-chip home-style-chip--bad">Bad</span>,action:"cell-style-bad"},
     {label:"Neutral",icon:<span className="home-style-chip home-style-chip--neutral">Neutral</span>,action:"cell-style-neutral"},
-    {label:"Heading",icon:<span className="home-style-chip home-style-chip--heading">Aa</span>,action:"cell-style-heading"}
+    {label:"Heading 1",icon:<span className="home-style-chip home-style-chip--heading-1">H1</span>,action:"cell-style-heading-1"},
+    {label:"Heading 2",icon:<span className="home-style-chip home-style-chip--heading-2">H2</span>,action:"cell-style-heading-2"},
+    {label:"Heading 3",icon:<span className="home-style-chip home-style-chip--heading-3">H3</span>,action:"cell-style-heading-3"},
+    {label:"Heading 4",icon:<span className="home-style-chip home-style-chip--heading-4">H4</span>,action:"cell-style-heading-4"},
+    {label:"Title",icon:<span className="home-style-chip home-style-chip--title">Title</span>,action:"cell-style-title"},
+    {label:"Total",icon:<span className="home-style-chip home-style-chip--total">Σ</span>,action:"cell-style-total"},
+    {label:"Input",icon:<span className="home-style-chip home-style-chip--input">Input</span>,action:"cell-style-input"},
+    {label:"Output",icon:<span className="home-style-chip home-style-chip--output">Output</span>,action:"cell-style-output"},
+    {label:"Calculation",icon:<span className="home-style-chip home-style-chip--calculation">fx</span>,action:"cell-style-calculation"},
+    {label:"Accent 1",icon:<span className="home-style-chip home-style-chip--accent-1">Aa</span>,action:"cell-style-accent-1"},
+    {label:"Accent 2",icon:<span className="home-style-chip home-style-chip--accent-2">Aa</span>,action:"cell-style-accent-2"},
+    {label:"Accent 3",icon:<span className="home-style-chip home-style-chip--accent-3">Aa</span>,action:"cell-style-accent-3"},
+    {label:"Accent 4",icon:<span className="home-style-chip home-style-chip--accent-4">Aa</span>,action:"cell-style-accent-4"},
+    {label:"Accent 5",icon:<span className="home-style-chip home-style-chip--accent-5">Aa</span>,action:"cell-style-accent-5"},
+    {label:"Accent 6",icon:<span className="home-style-chip home-style-chip--accent-6">Aa</span>,action:"cell-style-accent-6"}
    ],<><span className="home-large-icon home-cell-style-icon"><Table2 size={24} color="#323130"/><i/></span><span>Cell Styles</span><ChevronDown size={9}/></>,"home-large-menu-trigger")}
   </div>
  </Group>

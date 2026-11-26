@@ -485,3 +485,24 @@
   .workbook-shell>footer{height:28px!important;gap:4px;white-space:nowrap}
   .formula-bar{min-height:34px}
 }
+
+
+/* Full Home > Cell Styles gallery previews */
+.home-style-chip--heading-1{background:#1F4E78;color:#fff}
+.home-style-chip--heading-2{background:#5B9BD5;color:#fff}
+.home-style-chip--heading-3{background:#D9EAF7;color:#1F1F1F}
+.home-style-chip--heading-4{background:#DDEBF7;color:#1F4E78}
+.home-style-chip--title{background:#1F4E78;color:#fff;font-size:7px}
+.home-style-chip--total{background:#F2F2F2;color:#323130;border-bottom:2px solid #323130}
+.home-style-chip--input{background:#FFF2CC;color:#7F6000}
+.home-style-chip--output{background:#E2F0D9;color:#006100}
+.home-style-chip--calculation{background:#E4DFEC;color:#7030A0}
+.home-style-chip--accent-1{background:#DDEBF7;color:#1F4E78}
+.home-style-chip--accent-2{background:#FCE4D6;color:#843C0C}
+.home-style-chip--accent-3{background:#E7E6E6;color:#595959}
+.home-style-chip--accent-4{background:#FFF2CC;color:#7F6000}
+.home-style-chip--accent-5{background:#E2F0D9;color:#385723}
+.home-style-chip--accent-6{background:#D9EAD3;color:#1F3864}
+.home-table-style-swatch{position:relative;width:18px;height:16px;display:inline-block;overflow:hidden;border:1px solid rgba(50,49,48,.25);border-radius:2px}
+.home-table-style-swatch:before{content:"";position:absolute;inset:0 0 auto;height:5px;background:rgba(255,255,255,.8)}
+.home-table-style-swatch i{position:absolute;left:0;right:0;top:8px;height:2px;background:rgba(255,255,255,.8);box-shadow:0 4px rgba(255,255,255,.7)}
