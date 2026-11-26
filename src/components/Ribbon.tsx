@@ -101,6 +101,11 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
             ["bar","Bar"],["statistical","Statistical"],["combo","Combo"],["treemap","Other Charts"]
           ] as const).map(([kind,label])=><ChartGalleryButton key={kind} kind={kind} label={label} onSelect={onAction}><InsertRibbonIcon name={kind==="treemap"?"other":kind}/><span className={kind==="treemap"?"insert-command-label insert-command-label--two-word":"insert-command-label"}>{label}</span><ChevronDown className="insert-command-chevron" size={10}/></ChartGalleryButton>)}
         </InsertGroup>
+        <InsertGroup label="Sparklines">
+          <button type="button" className="insert-command" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("sparkline-line")}><ChartLine size={20}/><span className="insert-command-label">Line</span></button>
+          <button type="button" className="insert-command" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("sparkline-column")}><ChartColumn size={20}/><span className="insert-command-label">Column</span></button>
+          <button type="button" className="insert-command" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("sparkline-winloss")}><BarChart3 size={20}/><span className="insert-command-label">Win/Loss</span></button>
+        </InsertGroup>
         <InsertGroup label="Filters">
           <button type="button" className="insert-command" disabled={!activeTable} title={activeTable?"Insert a table slicer":"Select a Table or PivotTable to insert a Slicer"} onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("slicer")}><InsertRibbonIcon name="slicer"/><span className="insert-command-label">Slicer</span></button>
         </InsertGroup>

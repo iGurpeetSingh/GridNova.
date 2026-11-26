@@ -20,6 +20,7 @@ import FormulaDebuggerDialog from "../components/FormulaDebuggerDialog";
 import DataValidationDialog from "../components/DataValidationDialog";
 import ConditionalFormattingDialog from "../components/ConditionalFormattingDialog";
 import GoalSeekDialog from "../components/GoalSeekDialog";
+import SparklineDialog from "../components/SparklineDialog";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
@@ -97,6 +98,8 @@ export default function WorkbookEditor(){
   const [dataValidationOpen,setDataValidationOpen]=useState(false);
   const [conditionalFormattingOpen,setConditionalFormattingOpen]=useState(false);
   const [goalSeekOpen,setGoalSeekOpen]=useState(false);
+  const [sparklineOpen,setSparklineOpen]=useState(false);
+  const [sparklineType,setSparklineType]=useState<"line"|"column"|"win-loss">("line");
   const [showFormulaBar,setShowFormulaBar]=useState(true);
   const openFileAsWorkbookRef=useRef(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
@@ -733,6 +736,7 @@ export default function WorkbookEditor(){
         const range=selectedRangeForRules;
         updateSheet(sheet.id,{conditionalFormattingRules:(sheet.conditionalFormattingRules??[]).filter(rule=>rule.range.endRow<range.startRow||rule.range.startRow>range.endRow||rule.range.endCol<range.startCol||rule.range.startCol>range.endCol)});break;
       }
+      case "sparkline-line":case "sparkline-column":case "sparkline-winloss":setSparklineType(name==="sparkline-winloss"?"win-loss":name==="sparkline-column"?"column":"line");setSparklineOpen(true);break;
       case "goal-seek-open":setGoalSeekOpen(true);break;
       case "refresh-all":calculateWorkbook();break;
       case "data-validation":setDataValidationOpen(true);break;
@@ -962,6 +966,16 @@ export default function WorkbookEditor(){
       ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
     <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
+    <SparklineDialog open={sparklineOpen} type={sparklineType} activeCell={activeCell} onClose={()=>setSparklineOpen(false)} onSave={(dataRange,locationRange,type)=>{
+      const sourceHeight=dataRange.endRow-dataRange.startRow+1,sourceWidth=dataRange.endCol-dataRange.startCol+1;
+      const locations=Array.from({length:(locationRange.endRow-locationRange.startRow+1)*(locationRange.endCol-locationRange.startCol+1)},(_,index)=>({row:locationRange.startRow+Math.floor(index/(locationRange.endCol-locationRange.startCol+1)),col:locationRange.startCol+index%(locationRange.endCol-locationRange.startCol+1)}));
+      const next={...(sheet.sparklines??{})};
+      if(locations.length===1)next[addressOf(locations[0].row,locations[0].col)]={id:crypto.randomUUID(),type,dataRange:rangeLabel(dataRange),location:addressOf(locations[0].row,locations[0].col),color:"#0F6CBD",negativeColor:"#C4314B",showHighPoint:false,showLowPoint:false,showMarkers:true};
+      else if(sourceHeight===locations.length)locations.forEach((location,index)=>{const sourceRow=dataRange.startRow+index,key=addressOf(location.row,location.col);next[key]={id:crypto.randomUUID(),type,dataRange:rangeLabel({startRow:sourceRow,startCol:dataRange.startCol,endRow:sourceRow,endCol:dataRange.endCol}),location:key,color:"#0F6CBD",negativeColor:"#C4314B",showHighPoint:false,showLowPoint:false,showMarkers:true};});
+      else if(sourceWidth===locations.length)locations.forEach((location,index)=>{const sourceCol=dataRange.startCol+index,key=addressOf(location.row,location.col);next[key]={id:crypto.randomUUID(),type,dataRange:rangeLabel({startRow:dataRange.startRow,startCol:sourceCol,endRow:dataRange.endRow,endCol:sourceCol}),location:key,color:"#0F6CBD",negativeColor:"#C4314B",showHighPoint:false,showLowPoint:false,showMarkers:true};});
+      else{window.alert("Data range height or width must match the number of sparkline destination cells.");return;}
+      updateSheet(sheet.id,{sparklines:next});setShowSaved();
+    }}/>
     <GoalSeekDialog open={goalSeekOpen} workbook={workbook} sheet={sheet} activeCell={activeCell} onClose={()=>setGoalSeekOpen(false)} onCommit={(address,value)=>{setCell(address,String(value));setShowSaved();}}/>
     <DataValidationDialog open={dataValidationOpen} range={selectedRangeForRules} onClose={()=>setDataValidationOpen(false)} onSave={rule=>{
       const listOptions=rule.type==="List"?getListValidationOptions(rule,sheet):[],cells={...sheet.cells};
