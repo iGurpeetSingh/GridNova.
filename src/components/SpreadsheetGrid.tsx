@@ -43,7 +43,7 @@ const adjustReferences = (raw: string, axis: "row" | "column", index: number, co
 export default function SpreadsheetGrid({ sheet, pageSetup, isReadOnly=false, activeCell, selection, showFormulas, zoom, namedRanges={}, allSheets=[], calculationMode="Automatic", formulaBarFocused = false, formulaBarDraft="", onSelect }: Props) {
   const formulaSheets=allSheets.length?allSheets:[sheet];
   const formulaSpillState=useMemo(()=>getFormulaSpillState(sheet.cells,sheet.tables??[],namedRanges,formulaSheets,sheet.name),[sheet.cells,sheet.tables,namedRanges,formulaSheets,sheet.name]);
-  const conditionalStyles=useMemo(()=>buildConditionalFormattingMap(sheet),[sheet.conditionalFormattingRules,sheet.cells,sheet.tables]);
+  const conditionalStyles=useMemo(()=>buildConditionalFormattingMap(sheet,namedRanges,allSheets),[sheet.conditionalFormattingRules,sheet.cells,sheet.tables,namedRanges,allSheets]);
   const validationMap=useMemo(()=>buildValidationMap(sheet),[sheet.validationRules,sheet.cells]);
   const formulaSpillValues=formulaSpillState.values;
   const selectedSpillOrigin=formulaSpillState.ranges[activeCell]?activeCell:formulaSpillState.origins[activeCell];
@@ -63,7 +63,7 @@ export default function SpreadsheetGrid({ sheet, pageSetup, isReadOnly=false, ac
   const validateOnBlur=(address:string)=>{
     const state=validationMap[address];if(!state)return;
     const value=sheet.cells[address]?.raw??"";
-    const result=validateCellValue(state.rule,value,sheet,address);
+    const result=validateCellValue(state.rule,value,sheet,address,namedRanges,allSheets);
     if(result.valid||state.rule.showErrorAlert===false)return;
     const rule=state.rule,message=rule.errorMessage||result.message;
     if(rule.errorStyle==="Stop"){window.alert(rule.errorTitle?rule.errorTitle+"\\n"+message:message);setCell(address,editOriginal.current);}

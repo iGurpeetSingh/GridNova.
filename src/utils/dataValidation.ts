@@ -49,7 +49,7 @@ function compare(left:string,right:string,operator:NonNullable<DataValidationRul
   }
 }
 export interface ValidationResult { valid:boolean; message:string; }
-export function validateCellValue(rule:DataValidationRule,value:string,sheet:SheetData,address:string):ValidationResult{
+export function validateCellValue(rule:DataValidationRule,value:string,sheet:SheetData,address:string,namedRanges:Record<string,string>={},sheets:SheetData[]=[sheet]):ValidationResult{
   if(value===""&&rule.allowBlank!==false)return {valid:true,message:""};
   let valid=true;
   const operator=rule.operator??"greater than or equal to";
@@ -111,7 +111,7 @@ export function validateCellValue(rule:DataValidationRule,value:string,sheet:She
         const column=colLock?letters:addressOf(0,point.col+dc).replace(/[0-9]/g,"");
         return (colLock?"$"+column:column)+(rowLock?"$"+digits:String(point.row+dr+1));
       });
-      const result=evaluate(formula,sheet.cells,new Set(),sheet.tables??[],address);
+      const result=evaluate(formula,sheet.cells,new Set(),sheet.tables??[],address,namedRanges,sheets,sheet.name);
       valid=result===true||result===1||String(result).toUpperCase()==="TRUE";break;
     }
   }

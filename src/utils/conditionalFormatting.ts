@@ -8,21 +8,21 @@ function colorMix(a:string,b:string,ratio:number){
   return "#"+v.map(value=>value.toString(16).padStart(2,"0")).join("");
 }
 function percentile(values:number[],fraction:number):number{const sorted=[...values].sort((a,b)=>a-b);if(!sorted.length)return 0;const position=(sorted.length-1)*fraction,lower=Math.floor(position),upper=Math.ceil(position);return sorted[lower]+(sorted[upper]-sorted[lower])*(position-lower);}
-function valuesFor(rule:ConditionalFormattingRule,sheet:SheetData):number[]{
+function valuesFor(rule:ConditionalFormattingRule,sheet:SheetData,namedRanges:Record<string,string>={},sheets:SheetData[]=[sheet]):number[]{
   const values:number[]=[];
   for(let row=rule.range.startRow;row<=rule.range.endRow;row++)for(let col=rule.range.startCol;col<=rule.range.endCol;col++){
-    const address=addressOf(row,col),value=numericValue(sheet.cells[address]?.raw??"",sheet.cells,sheet.tables??[],address);
+    const address=addressOf(row,col),value=numericValue(sheet.cells[address]?.raw??"",sheet.cells,sheet.tables??[],address,namedRanges,sheets,sheet.name);
     if(value!==null)values.push(value);
   }
   return values;
 }
 export interface ConditionalCellStyle { background?:string; color?:string; dataBar?:{color:string;percent:number;gradient:boolean}; icon?:{text:string;color:string}; }
-export function conditionalStyleForCell(sheet:SheetData,address:string):ConditionalCellStyle{
+export function conditionalStyleForCell(sheet:SheetData,address:string,namedRanges:Record<string,string>={},sheets:SheetData[]=[sheet]):ConditionalCellStyle{
   const result:ConditionalCellStyle={};
   const rules=[...(sheet.conditionalFormattingRules??[])].filter(rule=>rule.enabled&&contains(rule.range,address)).sort((a,b)=>a.priority-b.priority);
-  const cell=sheet.cells[address],value=numericValue(cell?.raw??"",sheet.cells,sheet.tables??[],address),raw=cell?.raw??"";
+  const cell=sheet.cells[address],value=numericValue(cell?.raw??"",sheet.cells,sheet.tables??[],address,namedRanges,sheets,sheet.name),raw=cell?.raw??"";
   for(const rule of rules){
-    const numbers=valuesFor(rule,sheet),min=numbers.length?Math.min(...numbers):0,max=numbers.length?Math.max(...numbers):0,avg=numbers.length?numbers.reduce((sum,n)=>sum+n,0)/numbers.length:0;
+    const numbers=valuesFor(rule,sheet,namedRanges,sheets),min=numbers.length?Math.min(...numbers):0,max=numbers.length?Math.max(...numbers):0,avg=numbers.length?numbers.reduce((sum,n)=>sum+n,0)/numbers.length:0;
     if(rule.type==="dataBar"&&value!==null){
       const percent=max===min?100:Math.max(0,Math.min(100,(value-min)/(max-min)*100));
       result.dataBar={color:rule.color??"#63A5DB",percent,gradient:rule.gradient!==false};
@@ -50,7 +50,7 @@ export function conditionalStyleForCell(sheet:SheetData,address:string):Conditio
   return result;
 }
 
-export function buildConditionalFormattingMap(sheet:SheetData):Record<string,ConditionalCellStyle>{
+export function buildConditionalFormattingMap(sheet:SheetData,namedRanges:Record<string,string>={},sheets:SheetData[]=[sheet]):Record<string,ConditionalCellStyle>{
   const result:Record<string,ConditionalCellStyle>={};
   const merge=(address:string,next:ConditionalCellStyle)=>{result[address]={...(result[address]??{}),...next};};
   const rules=[...(sheet.conditionalFormattingRules??[])].filter(rule=>rule.enabled).sort((a,b)=>a.priority-b.priority);
@@ -61,7 +61,7 @@ export function buildConditionalFormattingMap(sheet:SheetData):Record<string,Con
     for(let row=rule.range.startRow;row<=rule.range.endRow;row++)for(let col=rule.range.startCol;col<=rule.range.endCol;col++){
       const address=addressOf(row,col),raw=sheet.cells[address]?.raw??"";
       addresses.push(address);rawValues.push(raw);
-      const numericValueRaw=numericValue(raw,sheet.cells,sheet.tables??[],address);
+      const numericValueRaw=numericValue(raw,sheet.cells,sheet.tables??[],address,namedRanges,sheets,sheet.name);
       if(numericValueRaw!==null)rows.push(numericValueRaw);
     }
     const min=rows.length?Math.min(...rows):0,max=rows.length?Math.max(...rows):0,avg=rows.length?rows.reduce((sum,value)=>sum+value,0)/rows.length:0;
