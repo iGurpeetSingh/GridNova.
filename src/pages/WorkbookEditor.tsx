@@ -19,7 +19,8 @@ import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
 import { addressOf, emptySheet, parseAddress } from "../types";
-import { numericValue, recalculate } from "../utils/formulaEngine";
+import { numericValue, recalculate, getFormulaSpillState } from "../utils/formulaEngine";
+import { recalculateWorkbookFull, recalculateWorkbookIncremental, getSheetCircularReferences, formatCircularReferenceLabel, dependencyNodeParts } from "../lib/dependency-graph";
 import { getTableAt, getTableHeaderLabel, getTablePalette, normalizeTableName, tableColumnValues } from "../utils/tableUtils";
 
 
@@ -117,9 +118,13 @@ export default function WorkbookEditor(){
   const sheet=workbook?.sheets.find(s=>s.id===activeSheetId)??workbook?.sheets[0];
   const isReadOnly=!!(sheet?.isProtected||workbook?.isProtected);
   const activeRaw=sheet?.cells[activeCell]?.raw??"";
+  const formulaSpillState=useMemo(()=>sheet?getFormulaSpillState(sheet.cells,sheet.tables??[],namedRanges,workbook?.sheets??[],sheet.name):{values:{},origins:{},ranges:{},errors:{}},[sheet?.cells,sheet?.tables,namedRanges,workbook?.sheets,sheet?.name]);
+  const spillOrigin=formulaSpillState.origins[activeCell];
+  const formulaBarReadOnly=isReadOnly||!!spillOrigin;
+  const formulaBarRaw=spillOrigin?(sheet?.cells[spillOrigin]?.raw??""):activeRaw;
   const namedRanges=workbook?.namedRanges??{};
   const calculationMode:CalculationMode=workbook?.calculationMode??"Automatic";
-  useEffect(()=>{setFormulaValue(activeRaw)},[activeRaw,activeCell,activeSheetId]);
+  useEffect(()=>{setFormulaValue(formulaBarRaw)},[formulaBarRaw,activeCell,activeSheetId]);
   const activeStyle=sheet?.cells[activeCell]?.style??{};
   const selectedAddresses=useMemo(()=>{
     if(!selection)return [activeCell];
@@ -905,7 +910,7 @@ export default function WorkbookEditor(){
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
     <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={applyCellFormat} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} pageSetup={pageSetup} activeCell={activeCell} workbooks={workbooks} currentWorkbookId={workbook.id} currentSheetProtected={!!sheet.isProtected} currentWorkbookProtected={!!workbook.isProtected} activeTable={activeTable} calculationMode={calculationMode} onCalculationModeChange={updateCalculationMode} onOpenNameManager={()=>setNameManagerOpen(true)} onOpenFunctionLibrary={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}}/>
-    {showFormulaBar&&<FormulaBar readOnly={isReadOnly} address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{if(!isReadOnly){setCell(activeCell,formulaValue);setShowSaved();}}} onCancel={()=>setFormulaValue(activeRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>}
+    {showFormulaBar&&<FormulaBar readOnly={formulaBarReadOnly} spillGhost={!!spillOrigin} address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{if(!formulaBarReadOnly){setCell(activeCell,formulaValue);setShowSaved();}}} onCancel={()=>setFormulaValue(formulaBarRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>}
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} isReadOnly={isReadOnly} pageSetup={pageSetup} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} formulaBarDraft={formulaValue} onSelect={selectCell}/>
       <CellImageOverlays sheet={sheet}/>

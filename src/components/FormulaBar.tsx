@@ -5,9 +5,9 @@ import { FormulaAutocomplete, FormulaArgumentTooltip } from "../utils/formulaHel
 import { FORMULA_CATALOG } from "../lib/formula-catalog";
 interface Props {
  address:string;value:string;onChange:(v:string)=>void;onCommit:()=>void;
- onFocus?:()=>void;onBlur?:()=>void;onCancel?:()=>void;onInsertFunction?:()=>void;onNavigate?:(address:string)=>void;focusInput?:boolean;readOnly?:boolean;
+ onFocus?:()=>void;onBlur?:()=>void;onCancel?:()=>void;onInsertFunction?:()=>void;onNavigate?:(address:string)=>void;focusInput?:boolean;readOnly?:boolean;spillGhost?:boolean;
 }
-export default function FormulaBar({address,value,onChange,onCommit,onFocus,onBlur,onCancel,onInsertFunction,onNavigate,focusInput=false,readOnly=false}:Props){
+export default function FormulaBar({address,value,onChange,onCommit,onFocus,onBlur,onCancel,onInsertFunction,onNavigate,focusInput=false,readOnly=false,spillGhost=false}:Props){
  const [nameOpen,setNameOpen]=useState(false),[fxOpen,setFxOpen]=useState(false),[goTo,setGoTo]=useState(address),[expanded,setExpanded]=useState(false);
  const [autocomplete,setAutocomplete]=useState<{query:string;index:number}|null>(null);
  const nameRef=useRef<HTMLButtonElement>(null),fxRef=useRef<HTMLButtonElement>(null),inputRef=useRef<HTMLInputElement>(null);
@@ -48,7 +48,7 @@ export default function FormulaBar({address,value,onChange,onCommit,onFocus,onBl
      if(event.key==="Escape"){event.preventDefault();setAutocomplete(null);return;}
     }
     if(event.key==="Enter"&&!event.nativeEvent.isComposing&&event.keyCode!==229)onCommit();
-   }} className="formula-input"/>
+   }} className={`formula-input ${spillGhost?"formula-input-spill-ghost":""}`} title={spillGhost?"Spilled cell — formula belongs to the origin cell":undefined}/>
    <FormulaAutocomplete open={!!autocomplete} query={autocomplete?.query??""} anchorRef={inputRef} activeIndex={autocomplete?.index??0} onActiveIndexChange={index=>setAutocomplete(current=>current?{...current,index}:null)} onSelect={acceptFunction} onClose={()=>setAutocomplete(null)}/>
    <FormulaArgumentTooltip raw={value} anchorRef={inputRef}/>
    <button type="button" onMouseDown={event=>event.preventDefault()} className="formula-expand" title={expanded?"Collapse formula bar":"Expand formula bar"} aria-label={expanded?"Collapse formula bar":"Expand formula bar"} aria-pressed={expanded} onClick={()=>setExpanded(v=>!v)}>{expanded?<ChevronUp size={12}/>:<ChevronDown size={12}/>}</button>

@@ -822,27 +822,41 @@ export function recalculate(cells: CellMap, tables:ExcelTableData[]=[], namedRan
   }
   return next;
 }
+export interface FormulaSpillState {
+  values:Record<string,string>;
+  origins:Record<string,string>;
+  ranges:Record<string,{startRow:number;startCol:number;endRow:number;endCol:number}>;
+  errors:Record<string,string>;
+}
+export function getFormulaSpillState(cells:CellMap,tables:ExcelTableData[]=[],namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string):FormulaSpillState{
+  const state:FormulaSpillState={values:{},origins:{},ranges:{},errors:{}};
+  const formulas=Object.entries(cells).filter(([,cell])=>cell.raw.startsWith("="));
+  for(const [anchor,cell] of formulas){
+    const position=parseAddress(anchor);if(!position)continue;
+    const result=evaluate(cell.raw,cells,new Set(),tables,anchor,namedRanges,sheets,currentSheetName);
+    if(!isArrayValue(result)||!result.values.length||!result.values[0]?.length)continue;
+    const matrix=result.values,height=matrix.length,width=Math.max(0,...matrix.map(row=>row.length));
+    if(height*width<=1)continue;
+    const range={startRow:position.row,startCol:position.col,endRow:position.row+height-1,endCol:position.col+width-1};
+    let conflict=false;
+    for(let row=0;row<height&&!conflict;row++)for(let col=0;col<width;col++){
+      if(row===0&&col===0)continue;
+      const target=addressOf(position.row+row,position.col+col);
+      if((cells[target]?.raw??"")!==""||Object.prototype.hasOwnProperty.call(state.origins,target)||Object.prototype.hasOwnProperty.call(state.values,target)){conflict=true;break;}
+    }
+    if(conflict){state.values[anchor]="#SPILL!";state.errors[anchor]="Spill range isn't blank";continue;}
+    state.ranges[anchor]=range;
+    for(let row=0;row<height;row++)for(let col=0;col<width;col++){
+      if(row===0&&col===0)continue;
+      const target=addressOf(position.row+row,position.col+col);
+      state.values[target]=String(matrix[row]?.[col]??"");
+      state.origins[target]=anchor;
+    }
+  }
+  return state;
+}
 export function getFormulaSpillValues(cells:CellMap,tables:ExcelTableData[]=[],namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string):Record<string,string>{
- const spills:Record<string,string>={};
- const formulas=Object.entries(cells).filter(([,cell])=>cell.raw.startsWith("="));
- for(const [anchor,cell] of formulas){
-  const position=parseAddress(anchor);if(!position)continue;
-  const result=evaluate(cell.raw,cells,new Set(),tables,anchor,namedRanges,sheets,currentSheetName);
-  if(!isArrayValue(result)||!result.values.length||!result.values[0]?.length)continue;
-  const matrix=result.values;
-  let conflict=false;
-  for(let row=0;row<matrix.length;row++)for(let col=0;col<(matrix[row]?.length??0);col++){
-   if(row===0&&col===0)continue;
-   const target=addressOf(position.row+row,position.col+col);
-   if(cells[target]?.raw){conflict=true;break;}
-  }
-  if(conflict){spills[anchor]="#SPILL!";continue;}
-  for(let row=0;row<matrix.length;row++)for(let col=0;col<(matrix[row]?.length??0);col++){
-   if(row===0&&col===0)continue;
-   spills[addressOf(position.row+row,position.col+col)]=String(matrix[row][col]??"");
-  }
- }
- return spills;
+  return getFormulaSpillState(cells,tables,namedRanges,sheets,currentSheetName).values;
 }
 
 export function formatCellValue(raw: string, cells: CellMap, showFormula: boolean, style?: CellStyle, tables: ExcelTableData[] = [], currentAddress?: string, namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): string {
