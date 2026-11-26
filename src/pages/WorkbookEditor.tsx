@@ -11,7 +11,7 @@ import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CellData, CellRange, CellStyle, FloatingChartData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue } from "../utils/formulaEngine";
-import { calculateWorkbook, spillOriginForCell, type WorkbookCalculation } from "../utils/spillEngine";
+import { calculateWorkbook, calculateWorkbookIncremental, changedCellNodes, hasSameSheetStructure, spillOriginForCell, type WorkbookCalculation } from "../utils/spillEngine";
 
 
 type Tab = "File"|"Home"|"Insert"|"Page Layout"|"Formulas"|"Data"|"View";
@@ -46,7 +46,6 @@ export default function WorkbookEditor(){
   const [tab,setTab]=useState<Tab>("Home");const [formulaValue,setFormulaValue]=useState("");
   const [calculationModeState,setCalculationModeState]=useState<"Automatic"|"Manual">("Automatic");
   const [manualCalculation,setManualCalculation]=useState<WorkbookCalculation|null>(null);
-  const [calculationRevision,setCalculationRevision]=useState(0);
   const [shareOpen,setShareOpen]=useState(false);const [renaming,setRenaming]=useState(false);const [titleValue,setTitleValue]=useState("");
   const [savePulse,setSavePulse]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
@@ -55,26 +54,49 @@ export default function WorkbookEditor(){
   useEffect(()=>{if(id&&activeWorkbookId!==id)setActiveWorkbook(id)},[id,activeWorkbookId,setActiveWorkbook]);
   useEffect(()=>{setTitleValue(workbook?.title??"")},[workbook?.title]);
   const sheet=workbook?.sheets.find(s=>s.id===activeSheetId)??workbook?.sheets[0];
-  const calculation = useMemo(
-    () => calculationModeState === "Manual" && manualCalculation
-      ? manualCalculation
-      : calculateWorkbook(workbook?.sheets ?? []),
-    [workbook?.sheets, calculationModeState, manualCalculation, calculationRevision],
-  );
+  const [automaticCalculation,setAutomaticCalculation]=useState<WorkbookCalculation>(()=>calculateWorkbook(workbook?.sheets ?? []));
+  const calculationRef=useRef<WorkbookCalculation>(automaticCalculation);
+  const lastSheetsRef=useRef(workbook?.sheets ?? []);
+  const calculation = calculationModeState === "Manual" && manualCalculation
+    ? manualCalculation
+    : automaticCalculation;
+  useEffect(()=>{
+    const nextSheets=workbook?.sheets ?? [];
+    const fresh=calculateWorkbook(nextSheets);
+    calculationRef.current=fresh;
+    lastSheetsRef.current=nextSheets;
+    setAutomaticCalculation(fresh);
+    setCalculationModeState("Automatic");
+    setManualCalculation(null);
+  },[workbook?.id]);
+  useEffect(()=>{
+    if(calculationModeState==="Manual") return;
+    const nextSheets=workbook?.sheets ?? [];
+    const previousSheets=lastSheetsRef.current;
+    let fresh=calculationRef.current;
+    if(!hasSameSheetStructure(previousSheets,nextSheets)){
+      fresh=calculateWorkbook(nextSheets);
+    }else{
+      const changed=changedCellNodes(previousSheets,nextSheets);
+      if(changed.length) fresh=calculateWorkbookIncremental(nextSheets,fresh,changed);
+    }
+    lastSheetsRef.current=nextSheets;
+    calculationRef.current=fresh;
+    setAutomaticCalculation(fresh);
+  },[workbook?.sheets,calculationModeState]);
   const setCalculationMode=(mode:"Automatic"|"Manual")=>{
     if(mode==="Manual") setManualCalculation(calculation);
     else setManualCalculation(null);
     setCalculationModeState(mode);
   };
   const calculateNow=()=>{
-    const fresh=calculateWorkbook(workbook?.sheets ?? []);
+    const currentSheets=workbook?.sheets ?? [];
+    const fresh=calculateWorkbook(currentSheets);
+    calculationRef.current=fresh;
+    lastSheetsRef.current=currentSheets;
     if(calculationModeState==="Manual") setManualCalculation(fresh);
-    setCalculationRevision(value=>value+1);
+    else setAutomaticCalculation(fresh);
   };
-  useEffect(()=>{
-    setCalculationModeState("Automatic");
-    setManualCalculation(null);
-  },[workbook?.id]);
   const sheetCalculation = sheet ? calculation.sheets[sheet.id] : undefined;
   const spillOrigin = spillOriginForCell(sheetCalculation, activeCell);
   const formulaBarAddress = spillOrigin ?? activeCell;
