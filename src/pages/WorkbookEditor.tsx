@@ -459,18 +459,18 @@ export default function WorkbookEditor(){
     window.setTimeout(()=>setCalculationToast(current=>current===message?"":current),1800);
   };
   const updateCalculationMode=(mode:CalculationMode)=>{
-    const next=mode==="Automatic"?recalculateWorkbookFull({...workbook,calculationMode:mode}).workbook: {...workbook,calculationMode:mode};
+    const next=mode==="Automatic"?recalculateWorkbookFull(refreshWorkbookPivots({...workbook,calculationMode:mode})).workbook: {...workbook,calculationMode:mode};
     updateWorkbook(workbook.id,{calculationMode:mode,sheets:next.sheets});
     showCalculationToast(`Calculation mode: ${mode}`);
   };
   const calculateWorkbook=()=>{
-    const result=recalculateWorkbookFull(workbook);
+    const result=recalculateWorkbookFull(refreshWorkbookPivots(workbook));
     updateWorkbook(workbook.id,{sheets:result.workbook.sheets});
     showCalculationToast(result.circularReferences.length?`Workbook calculated · ${result.circularReferences.length} circular reference(s)`:"Workbook calculated");
   };
   const calculateActiveSheet=()=>{
     const changed=Object.entries(sheet.cells).filter(([,cell])=>cell.raw.startsWith("=")).map(([address])=>({sheetId:sheet.id,address}));
-    const result=recalculateWorkbookIncremental(workbook,changed);
+    const result=recalculateWorkbookIncremental(refreshWorkbookPivots(workbook),changed);
     updateWorkbook(workbook.id,{sheets:result.workbook.sheets});
     showCalculationToast(result.circularReferences.length?`${sheet.name} calculated · circular reference(s) found`:`${sheet.name} calculated`);
   };
