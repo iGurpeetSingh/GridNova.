@@ -119,7 +119,7 @@ export interface WorkbookData {
   isProtected?:boolean;
   regionalSettings?:{currency:"INR"|"USD"|"EUR";dateFormat:"DD/MM/YYYY"|"MM/DD/YYYY"|"YYYY-MM-DD"};
 }
-export type TemplateId = "blank" | "budget" | "sales" | "project" | "sales-dashboard" | "gst-invoice" | "attendance-tracker";
+export type TemplateId = "blank" | "budget" | "sales" | "project" | "sales-dashboard" | "gst-invoice" | "attendance-tracker" | "advanced-demo";
 export interface CellRange { startRow: number; startCol: number; endRow: number; endCol: number; }
 export interface ClipboardCell { raw: string; style?: CellStyle; }
 export interface ClipboardData { cells: ClipboardCell[][]; source?: string; }

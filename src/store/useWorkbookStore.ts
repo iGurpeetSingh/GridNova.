@@ -26,7 +26,7 @@ interface Store {
 }
 const clone = <T,>(v: T): T => structuredClone(v);
 const makeTemplate = (kind: TemplateId): WorkbookData => {
-  const titles: Record<TemplateId, string> = { blank: "Untitled Workbook", budget: "Monthly Budget", sales: "Sales Tracker", project: "Project Schedule", "sales-dashboard":"Sales Dashboard", "gst-invoice":"GST Invoice", "attendance-tracker":"Attendance Tracker" };
+  const titles: Record<TemplateId, string> = { blank: "Untitled Workbook", budget: "Monthly Budget", sales: "Sales Tracker", project: "Project Schedule", "sales-dashboard":"Sales Dashboard", "gst-invoice":"GST Invoice", "attendance-tracker":"Attendance Tracker", "advanced-demo":"Advanced Excel Engines Demo" };
   const wb = emptyWorkbook(titles[kind]); const s = wb.sheets[0];
   const put = (address: string, raw: string, style?: CellStyle) => { s.cells[address] = { raw, style }; };
   const header: CellStyle = { bold: true, color: "#ffffff", backgroundColor: "#128451", fontSize: 11, align: "left" };
@@ -70,6 +70,43 @@ const makeTemplate = (kind: TemplateId): WorkbookData => {
     rows.forEach((row,ri)=>row.forEach((value,ci)=>put(addressOf(ri,ci),value,ri===0?{bold:true,fontSize:17,color:"#ffffff",backgroundColor:"#107C41"}:ri===1?header:ri===6?{bold:true,backgroundColor:"#E8F5EE"}:undefined)));
     for(let row=2;row<=5;row++){s.cells[addressOf(row,2)]={...s.cells[addressOf(row,2)],datePicker:true};s.cells[addressOf(row,3)]={...s.cells[addressOf(row,3)],validationOptions:["Present","Absent","Leave","Holiday"]};}
     s.rowCount=40;s.columnCount=7;
+  }
+  } else if(kind==="advanced-demo"){
+    const rows=[
+      ["Order ID","Region","Product","Units","Unit Price","Revenue","Payment Status","Month"],
+      ["ORD-1001","West","Nova Chair","12","750","=D2*E2","Paid","Jan"],
+      ["ORD-1002","North","Orbit Lamp","18","420","=D3*E3","Pending","Jan"],
+      ["ORD-1003","South","Cloud Desk","7","2400","=D4*E4","Paid","Feb"],
+      ["ORD-1004","East","Nova Chair","21","750","=D5*E5","Cancelled","Feb"],
+      ["ORD-1005","West","Pulse Stand","32","350","=D6*E6","Paid","Mar"],
+      ["ORD-1006","North","Cloud Desk","9","2400","=D7*E7","Pending","Mar"],
+      ["ORD-1007","South","Orbit Lamp","14","420","=D8*E8","Paid","Apr"],
+      ["ORD-1008","East","Nova Chair","16","750","=D9*E9","Pending","Apr"],
+      ["ORD-1009","West","Cloud Desk","5","2400","=D10*E10","Paid","May"],
+      ["ORD-1010","North","Pulse Stand","27","350","=D11*E11","Cancelled","May"],
+      ["ORD-1011","South","Nova Chair","11","750","=D12*E12","Paid","Jun"],
+      ["ORD-1012","East","Orbit Lamp","23","420","=D13*E13","Pending","Jun"]
+    ];
+    rows.forEach((row,ri)=>row.forEach((value,ci)=>{
+      put(addressOf(ri,ci),value,ri===0?header:ci===4||ci===5?{numberFormat:"Currency ₹",decimalPlaces:0}:undefined);
+    }));
+    s.tables=[{id:crypto.randomUUID(),name:"AdvancedSales",range:{startRow:0,startCol:0,endRow:12,endCol:7},hasHeaders:true,showTotalRow:false,firstColumn:false,lastColumn:false,bandedRows:true,bandedColumns:false,showFilterButtons:true,styleId:"TableStyleMedium2",filters:{}}];
+    s.validationRules=[{id:crypto.randomUUID(),range:{startRow:1,startCol:6,endRow:12,endCol:6},type:"List",listSource:"Paid, Pending, Cancelled",allowBlank:false,showInputMessage:true,inputTitle:"Payment status",inputMessage:"Select Paid, Pending or Cancelled.",showErrorAlert:true,errorStyle:"Stop",errorTitle:"Invalid payment status",errorMessage:"Choose a value from the dropdown list."}];
+    s.conditionalFormattingRules=[{id:crypto.randomUUID(),range:{startRow:1,startCol:5,endRow:12,endCol:5},type:"dataBar",enabled:true,priority:1,color:"#63A5DB",gradient:true}];
+    put("J1","PROFIT CALCULATOR",{bold:true,color:"#ffffff",backgroundColor:"#0F6CBD",fontSize:13});
+    put("J2","Units Sold",{bold:true});put("K2","120",{numberFormat:"Number",decimalPlaces:0});
+    put("J3","Selling Price",{bold:true});put("K3","750",{numberFormat:"Currency ₹",decimalPlaces:0});
+    put("J4","Unit Cost",{bold:true});put("K4","350",{numberFormat:"Currency ₹",decimalPlaces:0});
+    put("J5","Fixed Costs",{bold:true});put("K5","25000",{numberFormat:"Currency ₹",decimalPlaces:0});
+    put("J6","Net Profit",{bold:true,backgroundColor:"#E8F5EE"});put("K6","=K2*(K3-K4)-K5",{bold:true,backgroundColor:"#E8F5EE",numberFormat:"Currency ₹",decimalPlaces:0});
+    put("J7","Goal Seek: Set K6 to 50000 by changing K2",{color:"#605E5C",fontSize:9});
+    put("J9","Product Lookup",{bold:true});put("K9","Nova Chair");
+    put("J10","Revenue",{bold:true});put("K10",'=XLOOKUP(K9,C2:C13,F2:F13,"Not found")',{numberFormat:"Currency ₹",decimalPlaces:0});
+    put("J11","West · Paid Revenue",{bold:true});put("K11",'=SUMIFS(F2:F13,B2:B13,"West",G2:G13,"Paid")',{numberFormat:"Currency ₹",decimalPlaces:0});
+    put("J12","Live Pending Orders",{bold:true,color:"#ffffff",backgroundColor:"#107C41"});
+    put("K12",'=FILTER(A2:G13,G2:G13="Pending","No pending orders")');
+    s.sparklines={I2:{id:crypto.randomUUID(),type:"line",dataRange:"F2:F13",location:"I2",color:"#0F6CBD",negativeColor:"#C4314B",showHighPoint:true,showLowPoint:true,showMarkers:true}};
+    s.rowCount=40;s.columnCount=20;
   }
   wb.modifiedAt = Date.now(); return wb;
 };

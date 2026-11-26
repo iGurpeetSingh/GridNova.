@@ -39,7 +39,8 @@ function makeGroups(workbooks:WorkbookData[],currentId:string,currentSheetProtec
           {id:"monthly-budget",label:"Monthly Budget",action:"file-template:budget",icon:icon(Wallet,"#107C41")},
           {id:"sales-dashboard",label:"Sales Dashboard",action:"file-template:sales-dashboard",icon:icon(FileSpreadsheet,"#107C41")},
           {id:"gst-invoice",label:"GST Invoice",action:"file-template:gst-invoice",icon:icon(FileText,"#0F6CBD")},
-          {id:"attendance-tracker",label:"Attendance Tracker",action:"file-template:attendance-tracker",icon:icon(CalendarClock,"#0F6CBD")}
+          {id:"attendance-tracker",label:"Attendance Tracker",action:"file-template:attendance-tracker",icon:icon(CalendarClock,"#0F6CBD")},
+          {id:"advanced-demo",label:"Load Advanced Demo Sheet",action:"file-template:advanced-demo",icon:icon(FlaskConical,"#0F6CBD")}
         ]},
         {id:"open-device",label:"Open from This Device",action:"file-open-device",icon:icon(Upload,"#0F6CBD")},
         {id:"recent",label:"Recent Workbooks",icon:icon(FileClock,"#605E5C"),children:recent.length?recent.map(book=>({id:"recent-"+book.id,label:book.title,meta:new Date(book.modifiedAt).toLocaleString(),action:"file-open-workbook:"+book.id,icon:icon(FileSpreadsheet,book.id===currentId?"#107C41":"#605E5C")})):[{id:"recent-empty",label:"No recent workbooks",disabled:true}]}
