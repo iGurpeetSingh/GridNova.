@@ -77,7 +77,7 @@ export default function WorkbookEditor(){
   const renameSheet=useWorkbookStore(s=>s.renameSheet);
   const deleteSheet=useWorkbookStore(s=>s.deleteSheet);
   const updateSheet=useWorkbookStore(s=>s.updateSheet);
-  const createPivotTable=useWorkbookStore(s=>s.createPivotTable);
+  const commitPivotTable=useWorkbookStore(s=>s.createPivotTable);
   const addChart=useWorkbookStore(s=>s.addChart);
   const updateChart=useWorkbookStore(s=>s.updateChart);
   const deleteChart=useWorkbookStore(s=>s.deleteChart);
@@ -1011,7 +1011,7 @@ export default function WorkbookEditor(){
     <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
     <PivotTableBuilderDialog open={pivotBuilderOpen} source={sheet} sourceRange={pivotSourceRange??selectedRangeForRules} activeSheetId={sheet.id} onClose={()=>setPivotBuilderOpen(false)} onCreate={definition=>{
       const built=buildPivotTable(definition,sheet,workbook);
-      const destinationId=createPivotTable(definition,built.cells,built.range);
+      const destinationId=commitPivotTable(definition,built.cells,built.range);
       if(!destinationId){window.alert("Unable to create the PivotTable destination sheet.");return;}
       setActiveSheet(destinationId);setTab("Home");selectCell(addressOf(built.range.startRow,built.range.startCol));setShowSaved();setPivotBuilderOpen(false);
     }}/>
