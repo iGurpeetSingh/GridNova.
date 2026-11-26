@@ -14,7 +14,7 @@ const inches=(unit:"in"|"cm",value:number)=>unit==="cm"?value/2.54:value;
 export default function PageSetupDialog({open,settings,onClose,onSave,onPrint}:Props){
   const [draft,setDraft]=useState<SheetPageSetup>(settings);
   const [section,setSection]=useState<"page"|"sheet">("page");
-  useEffect(()=>{if(open){setDraft({...settings,margins:{...settings.margins},rowBreaks:[...settings.rowBreaks],columnBreaks:[...settings.columnBreaks]});setSection("page")}},[open,settings]);
+  useEffect(()=>{if(open){setDraft({...settings,margins:{...settings.margins},rowBreaks:[...settings.rowBreaks],columnBreaks:[...settings.columnBreaks]});setSection("page")}},[open]);
   if(!open)return null;
   const update=(changes:Partial<SheetPageSetup>)=>setDraft(current=>({...current,...changes}));
   const setMargin=(key:keyof PageMargins,value:string)=>{
