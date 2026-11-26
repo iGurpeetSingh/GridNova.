@@ -432,6 +432,10 @@ export default function WorkbookEditor(){
       case "percent":setStyle({numberFormat:"Percentage %"},selectedAddresses);break;
       case "currency-inr":setStyle({numberFormat:"Currency ₹"},selectedAddresses);break;
       case "currency-usd":setStyle({numberFormat:"Currency $"},selectedAddresses);break;
+      case "currency-eur":setStyle({numberFormat:"Currency €"},selectedAddresses);break;
+      case "currency-gbp":setStyle({numberFormat:"Currency £"},selectedAddresses);break;
+      case "currency-jpy":setStyle({numberFormat:"Currency ¥"},selectedAddresses);break;
+      case "currency-aed":setStyle({numberFormat:"Currency AED"},selectedAddresses);break;
       case "number-general":setStyle({numberFormat:"General"},selectedAddresses);break;
       case "comma":setStyle({numberFormat:"Number",decimalPlaces:2},selectedAddresses);break;
       case "font-up":{const v=Number(activeStyle.fontSize??11);setStyle({fontSize:Math.min(36,v+1)},selectedAddresses);break;}

@@ -1,5 +1,5 @@
 @import "tailwindcss";
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18221d;background:#f5f8f6;font-synthesis:none;text-rendering:optimizeLegibility}
+:root{font-family:"Segoe UI Variable","Segoe UI","Inter",-apple-system,BlinkMacSystemFont,sans-serif;color:#18221d;background:#f5f8f6;font-synthesis:none;text-rendering:optimizeLegibility}
 *{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #72bf95;outline-offset:2px}
 .app-shell{min-height:100vh;background:#f3f2f1}.workbook-shell{width:100vw;height:100dvh;min-height:0;overflow:hidden}body:has(.workbook-shell){height:100dvh;min-height:0;overflow:hidden}
 .glass{background:rgba(255,255,255,.92);backdrop-filter:blur(18px);border:1px solid #e1dfdd;box-shadow:0 4px 18px rgba(50,49,48,.06)}
@@ -443,3 +443,46 @@
 .formula-argument-tooltip p strong{color:#107C41;font-weight:750}
 .formula-reference-cell{box-shadow:inset 0 0 0 2px #0F6CBD!important;background-color:rgba(15,108,189,.055)!important}
 .formula-reference-cell .cell-input{color:#0F6CBD!important}
+
+
+/* Excel 365 visual and responsive baseline */
+.floating-portal{max-height:min(75vh,calc(100dvh - 16px));border-radius:12px;overscroll-behavior:contain;scroll-behavior:smooth}
+.ribbon-tab{font-size:13.5px}
+.home-decimal-action{width:26px;height:26px;min-width:26px;min-height:26px;padding:1px;overflow:hidden}
+.home-decimal-action svg{display:block;flex:0 0 auto}
+.home-cell-style-icon{position:relative;color:#323130}
+.home-cell-style-icon i{position:absolute;right:0;bottom:3px;width:8px;height:8px;border:1px solid #fff;border-radius:1px;background:#107C41;box-shadow:-7px -4px 0 -1px #0F6CBD}
+@media(min-width:768px) and (max-width:1279px){
+  .ribbon-tabbar{gap:6px}
+  .ribbon-tabs{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;mask-image:linear-gradient(90deg,#000 0%,#000 94%,transparent 100%)}
+  .ribbon-scroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;min-height:90px}
+  .ribbon-scroll::-webkit-scrollbar{display:none}
+}
+@media(max-width:760px){
+  .workbook-shell>header{gap:6px;padding-left:8px!important;padding-right:8px!important}
+  .workbook-shell>header .text-sm{font-size:12px}
+  .ribbon-shell{padding-left:4px!important;padding-right:4px!important}
+  .ribbon-tabbar{height:38px!important;gap:4px;padding:0 5px!important}
+  .ribbon-tabs{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;gap:1px}
+  .ribbon-tab{min-width:max-content;padding:0 8px;font-size:12px}
+  .ribbon-utilities{flex:0 0 auto}
+  .ribbon-utility-button{display:none}
+  .ribbon-scroll{min-height:86px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .ribbon-scroll::-webkit-scrollbar{display:none}
+  .ribbon-group,.home-ribbon-group,.formula-ribbon-group{flex:0 0 auto}
+  .workbook-shell>footer{padding-left:8px!important;padding-right:8px!important;font-size:9px}
+}
+@media(max-width:560px){
+  .workbook-shell>header{height:48px!important;gap:5px}
+  .workbook-shell>header .text-\\[10px\\]{display:none}
+  .ribbon-tabbar{height:36px!important}
+  .ribbon-tab{padding:0 7px;font-size:11px}
+  .ribbon-scroll{min-height:78px}
+  .ribbon-group{min-height:76px;padding:2px 6px 16px}
+  .home-ribbon-group{min-height:76px}
+  .formula-ribbon-group{height:78px;min-height:78px}
+  .formula-ribbon-group-content{height:58px}
+  .floating-portal{left:8px!important;right:8px!important;top:auto!important;bottom:8px!important;width:auto!important;min-width:0!important;max-width:none!important;max-height:65dvh!important;border-radius:16px 16px 12px 12px!important}
+  .workbook-shell>footer{height:28px!important;gap:4px;white-space:nowrap}
+  .formula-bar{min-height:34px}
+}

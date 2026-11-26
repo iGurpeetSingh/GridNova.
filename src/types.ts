@@ -1,4 +1,4 @@
-export type NumberFormat = "General" | "Number" | "Currency ₹" | "Currency $" | "Percentage %" | "Date";
+export type NumberFormat = "General" | "Number" | "Currency ₹" | "Currency $" | "Currency €" | "Currency £" | "Currency ¥" | "Currency AED" | "Accounting" | "Short Date" | "Long Date" | "Time" | "Percentage" | "Percentage %" | "Fraction" | "Scientific" | "Text" | "Date";
 export type Align = "left" | "center" | "right";
 export interface CellStyle {
   fontFamily?: string; fontSize?: number; bold?: boolean; italic?: boolean;
@@ -63,7 +63,7 @@ export interface ClipboardData { cells: ClipboardCell[][]; source?: string; }
 export const DEFAULT_ROWS = 100;
 export const DEFAULT_COLUMNS = 26;
 export const DEFAULT_STYLE: CellStyle = {
-  fontFamily: "Inter", fontSize: 11, color: "#202124",
+  fontFamily: "Segoe UI", fontSize: 11, color: "#202124",
   backgroundColor: "#ffffff", align: "left", numberFormat: "General",
 };
 export const columnLabel = (n: number): string => {

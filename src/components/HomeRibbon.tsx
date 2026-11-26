@@ -3,7 +3,7 @@ import {
   AlignCenter,AlignLeft,AlignRight,AlignVerticalJustifyCenter,AlignVerticalJustifyEnd,AlignVerticalJustifyStart,
   AppWindow,ArrowDownAZ,ArrowDownToLine,ArrowDownZA,ArrowUpToLine,Bold,Braces,Calculator,ChevronDown,Clipboard,
   Columns3,Copy,Eraser,EyeOff,Filter,Grid2X2,IndentDecrease,IndentIncrease,Italic,ListChecks,Minus,Paintbrush2,
-  PaintBucket,Palette,Percent,Plus,Redo2,Replace,Rows3,Scissors,Search,Sigma,SquareCheck,Strikethrough,
+  PaintBucket,Percent,Plus,Redo2,Replace,Rows3,Scissors,Search,Sigma,SquareCheck,Strikethrough,
   Table2,Text,Trash2,Underline,Undo2,WrapText,X,Pencil,AlignJustify
 } from "lucide-react";
 import type { CellStyle, SheetData } from "../types";
@@ -103,17 +103,21 @@ export default function HomeRibbon({onAction,onFormat,style,sheet}:Props){
  </Group>
  <Group label="Number">
   <div className="home-number-layout">
-   <HomeSelectMenu label="Number Format" value={style.numberFormat??"General"} options={["General","Number","Currency ₹","Currency $","Percentage %","Date"]} icon={<Calculator size={14}/>} open={open==="number-format"} onToggle={()=>toggle("number-format")} onClose={close} onPick={v=>fmt({numberFormat:v as CellStyle["numberFormat"]})} buttonClassName="home-number-select"/>
+   <HomeSelectMenu label="Number Format" value={style.numberFormat??"General"} options={["General","Number","Currency ₹","Accounting","Short Date","Long Date","Time","Percentage","Fraction","Scientific","Text"]} icon={<Calculator size={14}/>} open={open==="number-format"} onToggle={()=>toggle("number-format")} onClose={close} onPick={v=>fmt({numberFormat:v as CellStyle["numberFormat"]})} buttonClassName="home-number-select"/>
    <div className="home-number-row">
-    {menu("currency","Accounting Number Format",[
+    {menu("currency","Currency Format",[
      {label:"Indian Rupee (₹)",icon:<span className="home-account-icon">₹</span>,action:"currency-inr"},
      {label:"US Dollar ($)",icon:<span className="home-account-icon">$</span>,action:"currency-usd"},
+     {label:"Euro (€)",icon:<span className="home-account-icon">€</span>,action:"currency-eur"},
+     {label:"British Pound (£)",icon:<span className="home-account-icon">£</span>,action:"currency-gbp"},
+     {label:"Japanese Yen (¥)",icon:<span className="home-account-icon">¥</span>,action:"currency-jpy"},
+     {label:"UAE Dirham (AED)",icon:<span className="home-account-icon">AED</span>,action:"currency-aed"},
      {label:"General",icon:<Calculator size={17}/>,action:"number-general"}
     ],<><span className="home-account-icon">₹</span><ChevronDown size={9}/></>,"home-small-menu-trigger")}
     <IconAction label="Percent Style" icon={<Percent size={16}/>} action="percent" onAction={onAction}/>
     <button type="button" title="Comma Style" className="home-icon-action home-comma-action" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("comma")}>,</button>
-    <IconAction label="Increase Decimal" icon={<span className="home-decimal-icon">.0<span>←</span>.00</span>} action="decimal-up" onAction={onAction}/>
-    <IconAction label="Decrease Decimal" icon={<span className="home-decimal-icon">.00<span>→</span>.0</span>} action="decimal-down" onAction={onAction}/>
+    <button type="button" title="Increase Decimal" aria-label="Increase Decimal" className="home-icon-action home-decimal-action" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("decimal-up")}><svg viewBox="0 0 28 18" width="23" height="16" aria-hidden="true"><text x="0" y="13" fill="currentColor" fontSize="10">.0</text><path d="M9 9h4m-2-2 2 2-2 2" fill="none" stroke="#0F6CBD" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><text x="15" y="13" fill="currentColor" fontSize="10">.00</text></svg></button>
+    <button type="button" title="Decrease Decimal" aria-label="Decrease Decimal" className="home-icon-action home-decimal-action" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("decimal-down")}><svg viewBox="0 0 28 18" width="23" height="16" aria-hidden="true"><text x="0" y="13" fill="currentColor" fontSize="10">.00</text><path d="M14 9h-4m2-2-2 2 2 2" fill="none" stroke="#0F6CBD" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><text x="17" y="13" fill="currentColor" fontSize="10">.0</text></svg></button>
    </div>
   </div>
  </Group>
@@ -134,7 +138,7 @@ export default function HomeRibbon({onAction,onFormat,style,sheet}:Props){
     {label:"Bad",icon:<span className="home-style-chip home-style-chip--bad">Bad</span>,action:"cell-style-bad"},
     {label:"Neutral",icon:<span className="home-style-chip home-style-chip--neutral">Neutral</span>,action:"cell-style-neutral"},
     {label:"Heading",icon:<span className="home-style-chip home-style-chip--heading">Aa</span>,action:"cell-style-heading"}
-   ],<><span className="home-large-icon"><Palette size={24} color="#038387"/></span><span>Cell Styles</span><ChevronDown size={9}/></>,"home-large-menu-trigger")}
+   ],<><span className="home-large-icon home-cell-style-icon"><Table2 size={24} color="#323130"/><i/></span><span>Cell Styles</span><ChevronDown size={9}/></>,"home-large-menu-trigger")}
   </div>
  </Group>
  <Group label="Cells">

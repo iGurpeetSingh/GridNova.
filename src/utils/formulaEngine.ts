@@ -736,15 +736,52 @@ export function formatCellValue(raw: string, cells: CellMap, showFormula: boolea
   const value=scalar(evaluated);
   if (typeof value === "string" && value.startsWith("#")) return value;
   const n = typeof value === "number" ? value : (String(value).trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null);
+  const digits = style?.decimalPlaces ?? 2;
   switch (style?.numberFormat) {
-    case "Percentage %": return n === null ? String(value) : new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: style?.decimalPlaces ?? 2 }).format(n);
-    case "Currency ₹": return n === null ? String(value) : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: style?.decimalPlaces ?? 2 }).format(n);
-    case "Currency $": return n === null ? String(value) : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: style?.decimalPlaces ?? 2 }).format(n);
-    case "Number": return n === null ? String(value) : new Intl.NumberFormat("en-IN", { maximumFractionDigits: style?.decimalPlaces ?? 2 }).format(n);
+    case "Percentage %":
+    case "Percentage": return n === null ? String(value) : new Intl.NumberFormat("en-IN", { style: "percent", maximumFractionDigits: digits }).format(n);
+    case "Currency ₹": return n === null ? String(value) : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: digits }).format(n);
+    case "Currency $": return n === null ? String(value) : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: digits }).format(n);
+    case "Currency €": return n === null ? String(value) : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: digits }).format(n);
+    case "Currency £": return n === null ? String(value) : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: digits }).format(n);
+    case "Currency ¥": return n === null ? String(value) : new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY", maximumFractionDigits: digits }).format(n);
+    case "Currency AED": return n === null ? String(value) : new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED", maximumFractionDigits: digits }).format(n);
+    case "Accounting": {
+      if (n === null) return String(value);
+      const formatted = new Intl.NumberFormat("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Math.abs(n));
+      return n < 0 ? `(₹ ${formatted})` : `₹ ${formatted}`;
+    }
+    case "Number": return n === null ? String(value) : new Intl.NumberFormat("en-IN", { maximumFractionDigits: digits, minimumFractionDigits: Math.min(digits, style?.decimalPlaces === undefined ? 0 : digits) }).format(n);
+    case "Short Date":
     case "Date": {
       const date = toDate(value);
-      return date ? date.toLocaleDateString() : String(value);
+      return date ? new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(date) : String(value);
     }
+    case "Long Date": {
+      const date = toDate(value);
+      return date ? new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(date) : String(value);
+    }
+    case "Time": {
+      const date = toDate(value);
+      return date ? new Intl.DateTimeFormat("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "UTC" }).format(date) : String(value);
+    }
+    case "Fraction": {
+      if (n === null) return String(value);
+      const sign = n < 0 ? "-" : "", absolute = Math.abs(n), whole = Math.floor(absolute), remainder = absolute - whole;
+      if (remainder < 1e-8) return `${sign}${whole}`;
+      let bestNumerator = 0, bestDenominator = 1, bestError = Infinity;
+      for (let denominator = 1; denominator <= 99; denominator++) {
+        const numerator = Math.round(remainder * denominator), error = Math.abs(remainder - numerator / denominator);
+        if (error < bestError) { bestNumerator = numerator; bestDenominator = denominator; bestError = error; }
+        if (error < 1e-8) break;
+      }
+      const divisor = (a: number, b: number): number => b ? divisor(b, a % b) : a;
+      const factor = divisor(bestNumerator, bestDenominator) || 1;
+      const fraction = `${bestNumerator / factor}/${bestDenominator / factor}`;
+      return `${sign}${whole ? `${whole} ${fraction}` : fraction}`;
+    }
+    case "Scientific": return n === null ? String(value) : new Intl.NumberFormat("en-US", { notation: "scientific", maximumFractionDigits: digits }).format(n);
+    case "Text": return String(value ?? "");
     default: return String(value ?? "");
   }
 }
