@@ -150,9 +150,9 @@ export function extractFormulaDependencies(
       const start = splitSheetReference(first.token, currentSheetId);
       const end = splitSheetReference(last.token, start?.sheetId ?? currentSheetId);
       if (start && end) {
-        const normalizedStart = nodeKey(normalizeSheetId(start.sheetId, options), start.address);
-        const normalizedEnd = nodeKey(normalizeSheetId(end.sheetId, options), end.address);
-        const rangeNodes = expandRange(normalizedStart.slice(normalizedStart.lastIndexOf('!') + 1), normalizedEnd.slice(normalizedEnd.lastIndexOf('!') + 1), normalizeSheetId(start.sheetId, options), options);
+        const startReference = normalizeSheetId(start.sheetId, options) === currentSheetId ? first.token : first.token.replace(start.sheetId + '!', normalizeSheetId(start.sheetId, options) + '!');
+        const endReference = normalizeSheetId(end.sheetId, options) === currentSheetId ? last.token : last.token.replace(end.sheetId + '!', normalizeSheetId(end.sheetId, options) + '!');
+        const rangeNodes = expandRange(startReference, endReference, normalizeSheetId(currentSheetId, options), options);
         rangeNodes.forEach(node => dependencies.add(node));
       }
       consumed.add(index);
@@ -227,12 +227,9 @@ export class DependencyGraph {
   }
 
   removeNode(node: DependencyNode): void {
+    // Keep incoming references: formulas must continue to depend on an empty
+    // cell so that a later value entered there triggers recalculation.
     this.removeDependencies(node);
-    const consumers = this.dependents.get(node);
-    if (consumers) {
-      for (const consumer of consumers) this.dependencies.get(consumer)?.delete(node);
-    }
-    this.dependents.delete(node);
   }
 
   getPrecedents(node: DependencyNode): Set<DependencyNode> {
