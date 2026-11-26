@@ -5,17 +5,10 @@ import type { SheetPageSetup } from "../types";
 
 interface Props {
   settings:SheetPageSetup;
-  activeCell:string;
   hasPrintArea:boolean;
   hasBreakAtActive:boolean;
   hasAnyBreaks:boolean;
-  onOpenPageSetup:()=>void;
-  onSetPrintArea:()=>void;
-  onClearPrintArea:()=>void;
-  onInsertBreak:()=>void;
-  onRemoveBreak:()=>void;
-  onResetBreaks:()=>void;
-  onToggleRtl:()=>void;
+  onAction:(action:string)=>void;
 }
 type MenuKey="print"|"breaks";
 function PageSetupGlyph(){return <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 2.75h12l6 6V28H7z" fill="#fff" stroke="#323130" strokeWidth="1.45" strokeLinejoin="round"/><path d="M19 2.9V9h6" fill="none" stroke="#323130" strokeWidth="1.35"/><path d="M11 13h9M11 16h9" stroke="#8A8886" strokeWidth="1.15" strokeLinecap="round"/><g transform="translate(1 15)"><path d="M4 3.5h13a2 2 0 0 1 2 2V13H2V5.5a2 2 0 0 1 2-2Z" fill="#323130"/><path d="M5 1h11v5H5z" fill="#fff" stroke="#323130" strokeWidth="1.2"/><path d="M5 9h9v7H5z" fill="#fff" stroke="#323130" strokeWidth="1.1"/><path d="M15.5 6h1" stroke="#fff" strokeWidth="1.2" strokeLinecap="round"/></g></svg>}
@@ -53,17 +46,17 @@ export default function PageLayoutRibbon({settings,activeCell,hasPrintArea,hasBr
   const run=(fn:()=>void)=>{fn();setOpenMenu(null)};
   const toggle=(key:MenuKey)=>setOpenMenu(current=>current===key?null:key);
   const menuItems=openMenu==="print"?[
-    {label:"Set Print Area",description:"Use the currently selected range",icon:<FilePlus2 size={17}/>,disabled:false,run:onSetPrintArea},
-    {label:"Clear Print Area",description:hasPrintArea?"Remove the saved print range":"No print area is set",icon:<Trash2 size={17}/>,disabled:!hasPrintArea,run:onClearPrintArea}
+    {label:"Set Print Area",description:"Use the currently selected range",icon:<FilePlus2 size={17}/>,disabled:false,run:()=>onAction("print-area-set")},
+    {label:"Clear Print Area",description:hasPrintArea?"Remove the saved print range":"No print area is set",icon:<Trash2 size={17}/>,disabled:!hasPrintArea,run:()=>onAction("print-area-clear")}
   ]:[
-    {label:"Insert Page Break",description:"Add a break above and to the left of the active cell",icon:<Scissors size={17}/>,disabled:false,run:onInsertBreak},
-    {label:"Remove Page Break",description:"Remove the active row and column break",icon:<Trash2 size={17}/>,disabled:!hasBreakAtActive,run:onRemoveBreak},
-    {label:"Reset All Page Breaks",description:"Remove every manual break on this sheet",icon:<RotateCcw size={17}/>,disabled:!hasAnyBreaks,run:onResetBreaks}
+    {label:"Insert Page Break",description:"Add a break above and to the left of the active cell",icon:<Scissors size={17}/>,disabled:false,run:()=>onAction("page-break-insert")},
+    {label:"Remove Page Break",description:"Remove the active row and column break",icon:<Trash2 size={17}/>,disabled:!hasBreakAtActive,run:()=>onAction("page-break-remove")},
+    {label:"Reset All Page Breaks",description:"Remove every manual break on this sheet",icon:<RotateCcw size={17}/>,disabled:!hasAnyBreaks,run:()=>onAction("page-break-reset")}
   ];
   return <div className="page-layout-ribbon">
     <section className="page-layout-group page-layout-group-setup" aria-label="Page Setup">
       <div className="page-layout-group-content">
-        <button type="button" className="page-layout-command" title="Page Setup" aria-label="Page Setup" onMouseDown={event=>event.preventDefault()} onClick={onOpenPageSetup}>
+        <button type="button" className="page-layout-command" title="Page Setup" aria-label="Page Setup" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("page-setup-open")}>
           <span className="page-layout-glyph"><PageSetupGlyph/></span><span className="page-layout-command-label">Page<br/>Setup</span>
         </button>
         <button ref={printAnchor} type="button" className="page-layout-command" title="Print Area" aria-label="Print Area menu" aria-haspopup="menu" aria-expanded={openMenu==="print"} onMouseDown={event=>event.preventDefault()} onClick={()=>toggle("print")}>
@@ -77,7 +70,7 @@ export default function PageLayoutRibbon({settings,activeCell,hasPrintArea,hasBr
     </section>
     <section className="page-layout-group page-layout-group-sheet" aria-label="Sheet Options">
       <div className="page-layout-group-content">
-        <button type="button" className={`page-layout-command page-layout-rtl-command ${settings.isRtl?"is-active":""}`} title={settings.isRtl?"Switch to Left-to-Right":"Switch to Right-to-Left"} aria-label="Sheet Right-to-Left" aria-pressed={settings.isRtl} onMouseDown={event=>event.preventDefault()} onClick={onToggleRtl}>
+        <button type="button" className={`page-layout-command page-layout-rtl-command ${settings.isRtl?"is-active":""}`} title={settings.isRtl?"Switch to Left-to-Right":"Switch to Right-to-Left"} aria-label="Sheet Right-to-Left" aria-pressed={settings.isRtl} onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("sheet-rtl-toggle")}>
           <span className="page-layout-glyph"><RtlGlyph/></span><span className="page-layout-command-label">Sheet<br/>Right-to-Left</span>
         </button>
       </div>
