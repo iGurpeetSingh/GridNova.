@@ -24,10 +24,12 @@ type MenuGroup = {id:string;items:MenuNode[]};
 interface Props {
   workbooks:WorkbookData[];
   currentWorkbookId:string;
+  currentSheetProtected:boolean;
+  currentWorkbookProtected:boolean;
   onAction:(action:string)=>void;
 }
 const icon=(Icon:typeof Folder,color:string,fill?:string)=><Icon size={17} strokeWidth={1.65} style={{color,fill:fill??"none"}}/>;
-function makeGroups(workbooks:WorkbookData[],currentId:string):MenuGroup[]{
+function makeGroups(workbooks:WorkbookData[],currentId:string,currentSheetProtected:boolean,currentWorkbookProtected:boolean):MenuGroup[]{
   const recent=[...workbooks].sort((a,b)=>b.modifiedAt-a.modifiedAt).slice(0,8);
   return [
     {id:"section-open",items:[
@@ -69,8 +71,8 @@ function makeGroups(workbooks:WorkbookData[],currentId:string):MenuGroup[]{
       {id:"info",label:"Info",icon:icon(Info,"#323130"),children:[
         {id:"history",label:"Version History",action:"file-history-open",icon:icon(FileClock,"#605E5C")},
         {id:"statistics",label:"Workbook Statistics",action:"file-workbook-stats",icon:icon(Calculator,"#0F6CBD")},
-        {id:"protect-sheet",label:"Protect / Unprotect Sheet",action:"file-protect-sheet",icon:icon(LockKeyhole,"#605E5C")},
-        {id:"protect-workbook",label:"Protect / Unprotect Workbook",action:"file-protect-workbook",icon:icon(LockKeyhole,"#605E5C")},
+        {id:"protect-sheet",label:currentSheetProtected?"Unprotect Sheet":"Protect Sheet",action:"file-protect-sheet",icon:icon(LockKeyhole,"#605E5C")},
+        {id:"protect-workbook",label:currentWorkbookProtected?"Unprotect Workbook":"Protect Workbook",action:"file-protect-workbook",icon:icon(LockKeyhole,"#605E5C")},
         {id:"rename",label:"Rename Workbook",action:"file-rename",icon:icon(FileText,"#605E5C")}
       ]},
       {id:"options",label:"Options",icon:icon(SlidersHorizontal,"#323130"),children:[
@@ -111,11 +113,12 @@ function PortalPanel({items,parentRef,root=false,mobile=false,depth,title,pathPr
     place();window.addEventListener("resize",place);window.addEventListener("scroll",place,true);
     return()=>{window.removeEventListener("resize",place);window.removeEventListener("scroll",place,true)};
   },[parentRef,root,mobile,items.length]);
+  useEffect(()=>{if(depth>0)requestAnimationFrame(()=>panelRef.current?.querySelector<HTMLButtonElement>(".file-menu-item:not(:disabled)")?.focus());},[depth]);
   const handleKeyDown=(event:KeyboardEvent<HTMLDivElement>)=>{
     const buttons=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(".file-menu-item:not(:disabled)"));
     const current=buttons.indexOf(document.activeElement as HTMLButtonElement);
     if(event.key==="ArrowDown"||event.key==="ArrowUp"){
-      event.preventDefault();buttons[(current+(event.key==="ArrowDown"?1:-1)+buttons.length)%buttons.length]?.focus();
+      event.preventDefault();const next=current<0?(event.key==="ArrowDown"?0:buttons.length-1):(current+(event.key==="ArrowDown"?1:-1)+buttons.length)%buttons.length;buttons[next]?.focus();
     }else if(event.key==="Home"||event.key==="End"){
       event.preventDefault();(event.key==="Home"?buttons[0]:buttons.at(-1))?.focus();
     }else if(event.key==="ArrowRight"){
@@ -131,7 +134,7 @@ function PortalPanel({items,parentRef,root=false,mobile=false,depth,title,pathPr
     </button>)}
   </div>,document.body);
 }
-export default function FileMenu({workbooks,currentWorkbookId,onAction}:Props){
+export default function FileMenu({workbooks,currentWorkbookId,currentSheetProtected,currentWorkbookProtected,onAction}:Props){
   const [open,setOpen]=useState(false);
   const [activePath,setActivePath]=useState<string[]>([]);
   const [mobile,setMobile]=useState(typeof window!=="undefined"&&window.innerWidth<768);
@@ -139,7 +142,7 @@ export default function FileMenu({workbooks,currentWorkbookId,onAction}:Props){
   const rootRef=useRef<HTMLDivElement>(null);
   const anchors=useRef(new Map<string,HTMLButtonElement>());
   const closeTimer=useRef<number|null>(null);
-  const groups=makeGroups(workbooks,currentWorkbookId);
+  const groups=makeGroups(workbooks,currentWorkbookId,currentSheetProtected,currentWorkbookProtected);
   const rootItems=groups.flatMap(group=>group.items);
   const register=(path:string,element:HTMLButtonElement|null)=>{if(element)anchors.current.set(path,element);else anchors.current.delete(path);};
   const registerRoot=(id:string,element:HTMLButtonElement|null)=>register(id,element);
