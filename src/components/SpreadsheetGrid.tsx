@@ -869,7 +869,7 @@ export default function SpreadsheetGrid({ sheet, pageSetup, isReadOnly=false, ac
             const conditional=conditionalStyles[address]??{};
             const validation=validationMap[address];
             const sparkline=sheet.sparklines?.[address];
-            const validationOptions=cell?.validationOptions?.length?cell.validationOptions:validation?.options??[];
+            const validationOptions=validation?.options??cell?.validationOptions??[];
             const table = getTableAt(sheet.tables, row, col), palette = table ? getTablePalette(table.styleId) : null;
             const tableHeader = !!table && table.hasHeaders && row === table.range.startRow;
             const tableTotal = !!table && table.showTotalRow && row === table.range.endRow + 1;
