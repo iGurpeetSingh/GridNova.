@@ -471,12 +471,7 @@ export default function WorkbookEditor(){
       case "back":navigate("/");break;
       case "save":setShowSaved();break;
       case "export-xlsx":void exportFile("xlsx");break;case "export-csv":void exportFile("csv");break;case "export-pdf":void exportFile("pdf");break;
-      case "print":{
-        const printStyle=document.createElement("style");
-        printStyle.dataset.gridnovaPrint="true";
-        printStyle.textContent=`@media print{@page{size:${workbook.orientation};margin:12mm}}`;
-        document.head.appendChild(printStyle);window.print();printStyle.remove();break;
-      }
+      case "print":printPageSetup(pageSetup);break;
       case "undo":undo();break;case "redo":redo();break;
       case "cut":copySelection(true);break;case "copy":copySelection(false);break;case "paste":if(clipboard)paste(activeCell);break;
       case "bold":setStyle({bold:!activeStyle.bold},selectedAddresses);break;
