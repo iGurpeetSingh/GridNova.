@@ -123,6 +123,7 @@ export default function WorkbookEditor(){
   const spillOrigin=formulaSpillState.origins[activeCell];
   const formulaBarReadOnly=isReadOnly||!!spillOrigin;
   const formulaBarRaw=spillOrigin?(sheet?.cells[spillOrigin]?.raw??""):activeRaw;
+  const circularReferences=useMemo(()=>sheet?getSheetCircularReferences(workbook,sheet.id):[],[workbook,sheet?.id]);
   const calculationMode:CalculationMode=workbook?.calculationMode??"Automatic";
   useEffect(()=>{setFormulaValue(formulaBarRaw)},[formulaBarRaw,activeCell,activeSheetId]);
   const activeStyle=sheet?.cells[activeCell]?.style??{};
@@ -439,19 +440,20 @@ export default function WorkbookEditor(){
     window.setTimeout(()=>setCalculationToast(current=>current===message?"":current),1800);
   };
   const updateCalculationMode=(mode:CalculationMode)=>{
-    const nextSheets=workbook.sheets.map(item=>({...item,cells:recalculate(item.cells,item.tables??[],namedRanges,workbook.sheets,item.name)}));
-    updateWorkbook(workbook.id,{calculationMode:mode,sheets:nextSheets});
+    const next=mode==="Automatic"?recalculateWorkbookFull({...workbook,calculationMode:mode}).workbook: {...workbook,calculationMode:mode};
+    updateWorkbook(workbook.id,{calculationMode:mode,sheets:next.sheets});
     showCalculationToast(`Calculation mode: ${mode}`);
   };
   const calculateWorkbook=()=>{
-    const nextSheets=workbook.sheets.map(item=>({...item,cells:recalculate(item.cells,item.tables??[],namedRanges,workbook.sheets,item.name)}));
-    updateWorkbook(workbook.id,{sheets:nextSheets});
-    showCalculationToast("Workbook calculated");
+    const result=recalculateWorkbookFull(workbook);
+    updateWorkbook(workbook.id,{sheets:result.workbook.sheets});
+    showCalculationToast(result.circularReferences.length?`Workbook calculated · ${result.circularReferences.length} circular reference(s)`:"Workbook calculated");
   };
   const calculateActiveSheet=()=>{
-    const nextCells=recalculate(sheet.cells,sheet.tables??[],namedRanges,workbook.sheets,sheet.name);
-    updateSheet(sheet.id,{cells:nextCells});
-    showCalculationToast(`${sheet.name} calculated`);
+    const changed=Object.entries(sheet.cells).filter(([,cell])=>cell.raw.startsWith("=")).map(([address])=>({sheetId:sheet.id,address}));
+    const result=recalculateWorkbookIncremental(workbook,changed);
+    updateWorkbook(workbook.id,{sheets:result.workbook.sheets});
+    showCalculationToast(result.circularReferences.length?`${sheet.name} calculated · circular reference(s) found`:`${sheet.name} calculated`);
   };
   const insertFormula=(functionName:string)=>{
     const formula=`=${functionName}(`;
@@ -921,7 +923,7 @@ export default function WorkbookEditor(){
     </div>
     <SheetBar sheets={workbook.sheets} activeId={sheet.id} onSelect={setActiveSheet} onAdd={()=>{if(!workbook.isProtected)addSheet();}} onRename={(sheetId,name)=>{if(!isReadOnly)renameSheet(sheetId,name);}} onDelete={sheetId=>{if(!isReadOnly&&window.confirm("Delete this sheet?"))deleteSheet(sheetId);}}/>
     {calculationToast&&<div role="status" className="formula-calculation-toast">{calculationToast}</div>}
-    <footer className="no-print flex h-8 shrink-0 items-center justify-between border-t border-[#e2e9e4] bg-white px-4 text-[10px] text-[#829087]"><div className="flex items-center gap-4"><span>Ready</span><span>Count: <b className="text-[#52665a]">{stats.count}</b></span><span>Sum: <b className="text-[#52665a]">{stats.sum.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span><span>Average: <b className="text-[#52665a]">{stats.average.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span></div><div>{sheet.showGridlines?"Gridlines on":"Gridlines off"} · {zoom}%</div></footer>
+    <footer className="no-print flex h-8 shrink-0 items-center justify-between border-t border-[#e2e9e4] bg-white px-4 text-[10px] text-[#829087]"><div className="flex min-w-0 items-center gap-4">{circularReferences.length>0?<button type="button" className="truncate font-semibold text-[#C43B1D] hover:underline" title="Click to go to the first circular reference" onMouseDown={event=>event.preventDefault()} onClick={()=>{const reference=circularReferences[0];const parts=dependencyNodeParts(reference);if(parts.sheetId!==sheet.id)setActiveSheet(parts.sheetId);selectCell(parts.address);}}><span className="mr-1">⚠</span>Circular Reference: {formatCircularReferenceLabel(circularReferences[0],workbook)}{circularReferences.length>1?` (+${circularReferences.length-1})`:""}</button>:<span>Ready</span>}<span>Count: <b className="text-[#52665a]">{stats.count}</b></span><span>Sum: <b className="text-[#52665a]">{stats.sum.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span><span>Average: <b className="text-[#52665a]">{stats.average.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span></div><div>{sheet.showGridlines?"Gridlines on":"Gridlines off"} · {zoom}%</div></footer>
     {workbookStatsOpen&&<div className="grid-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setWorkbookStatsOpen(false);}}><section className="grid-dialog workbook-stats-dialog" role="dialog" aria-modal="true" aria-labelledby="workbook-stats-title"><header><div><span>WORKBOOK INSIGHTS</span><h2 id="workbook-stats-title">Workbook Statistics</h2><p>Live counts across all worksheets in this workbook</p></div><button type="button" onClick={()=>setWorkbookStatsOpen(false)} aria-label="Close statistics">×</button></header><div className="workbook-stats-grid">{[
       ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}

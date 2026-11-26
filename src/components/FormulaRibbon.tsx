@@ -1,6 +1,6 @@
 import { useState,type ReactNode } from "react";
 import {
- Calculator,CalendarClock,Check,ChevronDown,ChevronRight,Eye,FileSpreadsheet,Search,Sigma,Tag
+ Calculator,CalendarClock,Check,ChevronDown,ChevronRight,Eye,FileSpreadsheet,Search,Sigma,Tag,GitBranch,Workflow,XCircle,ScanEye
 } from "lucide-react";
 import { HomeMenu } from "./HomeRibbonControls";
 import FormulaFunctionDropdown from "./FormulaFunctionDropdown";
@@ -39,8 +39,15 @@ export default function FormulaRibbon({onAction,showFormulas,setShowFormulas,cal
   <Group label="Name Manager" className="formula-single-group">
    <Trigger label="Name Manager" onClick={onOpenNameManager}><span className="formula-tag-icon"><Tag size={24}/><i/></span><span>Name<br/>Manager</span></Trigger>
   </Group>
-  <Group label="Formula Auditing" className="formula-single-group">
+  <Group label="Formula Auditing" className="formula-auditing-group">
    <Trigger label="Show Formulas" onClick={()=>setShowFormulas(!showFormulas)}><span className={`formula-show-icon ${showFormulas?"is-active":""}`}><span>fx</span><Eye size={10}/></span><span>Show<br/>Formulas</span></Trigger>
+   <span className="formula-inner-divider"/>
+   <div className="formula-audit-actions">
+    <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("trace-precedents")}><GitBranch size={15}/><span>Trace<br/>Precedents</span></button>
+    <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("trace-dependents")}><Workflow size={15}/><span>Trace<br/>Dependents</span></button>
+    <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("remove-audit-arrows")}><XCircle size={15}/><span>Remove<br/>Arrows</span></button>
+    <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onAction("evaluate-formula")}><ScanEye size={15}/><span>Evaluate<br/>Formula</span></button>
+   </div>
   </Group>
   <Group label="Calculation" className="formula-calculation-group">
    {menu("calculation-options","Calculation Options",[

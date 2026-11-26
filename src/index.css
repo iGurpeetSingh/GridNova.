@@ -690,3 +690,9 @@
 .grid-cell.grid-spill-ghost{background:#F8FBFF!important}
 .grid-cell.grid-spill-ghost .spill-ghost-input{color:#53697F!important;font-style:italic!important}
 .formula-input-spill-ghost{color:#7B8794!important;font-style:italic!important}
+
+.formula-auditing-group .formula-ribbon-group-content{align-items:center}
+.formula-audit-actions{display:grid;grid-template-columns:repeat(2,minmax(65px,1fr));gap:2px 5px;min-width:152px}
+.formula-audit-actions button{display:flex;align-items:center;gap:5px;min-height:28px;padding:3px 4px;border:0;border-radius:4px;background:transparent;color:#34444f;text-align:left;font-size:9px;line-height:11px}
+.formula-audit-actions button:hover{background:#eef5fb;color:#0F6CBD}
+.formula-audit-actions button svg{flex:0 0 auto;color:#0F6CBD}
