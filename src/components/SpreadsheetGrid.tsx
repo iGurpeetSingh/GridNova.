@@ -414,7 +414,7 @@ export default function SpreadsheetGrid({ sheet, calculation, activeCell, select
             const isSelected = selected(row, col), isActive = address === activeCell, style = cell?.style ?? {};
             const spillShadows = activeSpillRanges.flatMap(({ range }) => {
               if (row < range.startRow || row > range.endRow || col < range.startCol || col > range.endCol) return [];
-              const edges = [];
+              const edges: string[] = [];
               if (row === range.startRow) edges.push("inset 0 1px 0 #80bfff");
               if (row === range.endRow) edges.push("inset 0 -1px 0 #80bfff");
               if (col === range.startCol) edges.push("inset 1px 0 0 #80bfff");
