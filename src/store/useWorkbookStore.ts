@@ -203,7 +203,12 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
     const result=mutateActive(s,(w,active)=>({...w,sheets:w.sheets.map(x=>x.id===id?{...x,...changes}:x)}));
     const changedAddresses=changes.cells?Array.from(new Set([...Object.keys(sh.cells),...Object.keys(changes.cells)])).filter(address=>sh.cells[address]?.raw!==changes.cells?.[address]?.raw):[];
     if(changes.tables)changedAddresses.push(...Object.entries(sh.cells).filter(([,cell])=>cell.raw.startsWith("=")).map(([address])=>address));
-    return recalculateAfterMutation(s,result,id,changedAddresses);
+    const recalculated=recalculateAfterMutation(s,result,id,changedAddresses);
+    if(changes.pivotTables){
+      const workbookId=s.activeWorkbookId,updated=(recalculated.workbooks??s.workbooks).find(item=>item.id===workbookId);
+      if(updated){const refreshed=refreshWorkbookPivots(updated);return {...recalculated,workbooks:(recalculated.workbooks??s.workbooks).map(item=>item.id===workbookId?refreshed:item)};}
+    }
+    return recalculated;
   }),
   addChart: chart => set(s=>mutateActive(s,w=>({...w,charts:[...w.charts,chart]}))),
   updateChart: (id,changes) => set(s=>mutateActive(s,w=>({...w,charts:w.charts.map(c=>c.id===id?{...c,...changes}:c)}))),

@@ -81,7 +81,7 @@ export interface PivotTableDefinition {
   destinationSheetId:string; destinationCell:string;
   outputRange?:CellRange;
 }
-export interface SlicerCardData { id:string; tableId:string; columnIndex:number; x:number; y:number; width:number; height:number; multiSelect:boolean; }
+export interface SlicerCardData { id:string; tableId?:string; pivotTableId?:string; sourceSheetId?:string; sourceRange?:CellRange; fieldIndex?:number; columnIndex:number; x:number; y:number; width:number; height:number; multiSelect:boolean; }
 export interface SheetData {
   id: string; name: string; cells: CellMap; rowCount: number; columnCount: number;
   columnWidths: Record<number, number>; rowHeights?: Record<number, number>; showGridlines: boolean; showHeadings: boolean;
