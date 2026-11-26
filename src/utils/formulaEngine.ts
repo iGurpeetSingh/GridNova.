@@ -216,27 +216,21 @@ const criteriaMatches=(value:Value,criteria:Value):boolean=>{
  const expected=condition.slice(op==="="&&!/^(>=|<=|<>|>|<|=)/.test(condition)?0:op.length);
  const actual=scalar(value);
  if(/[*?~]/.test(expected)){
+  const escape=(part:string)=>part.replace(/[.*+?^$()|[\]\\]/g,"\\$&").replace(/{/g,"\\{").replace(/}/g,"\\}");
   let pattern="";
   for(let index=0;index<expected.length;index++){
    const ch=expected[index];
-   if(ch==="~"&&index+1<expected.length){const next=expected[++index];pattern+=next.replace(/[.*+?^\${}()|[\\]\\\\]/g,"\\\\ if(/[*?]/.test(expected)){
-  const pattern=expected.split("").map(char=>"\\\\^$.*+?()[]{}|".includes(char)?"\\\\"+char:char).join("").replace(/\\\\~/g,"~").replace(/\\*/g,".*").replace(/\\?/g,".");
-  const match=new RegExp("^"+pattern+"$","i").test(String(actual));
-  return op==="<>"?!match:match;
- }");}
+   if(ch==="~"&&index+1<expected.length){pattern+=escape(expected[++index]);}
    else if(ch==="*")pattern+=".*";
    else if(ch==="?")pattern+=".";
-   else pattern+=ch.replace(/[.*+?^\${}()|[\\]\\\\]/g,"\\\\ if(/[*?]/.test(expected)){
-  const pattern=expected.split("").map(char=>"\\\\^$.*+?()[]{}|".includes(char)?"\\\\"+char:char).join("").replace(/\\\\~/g,"~").replace(/\\*/g,".*").replace(/\\?/g,".");
-  const match=new RegExp("^"+pattern+"$","i").test(String(actual));
-  return op==="<>"?!match:match;
- }");
+   else pattern+=escape(ch);
   }
   const match=new RegExp("^"+pattern+"$","i").test(String(actual));
   return op==="<>"?!match:match;
  }
- const leftNum=Number(actual),rightNum=Number(expected),both=String(actual).trim()!==""&&expected.trim()!==""&&Number.isFinite(leftNum)&&Number.isFinite(rightNum);
- const left: string|number=both?leftNum:String(actual).toLowerCase(),right: string|number=both?rightNum:expected.toLowerCase();
+ const leftNum=Number(actual),rightNum=Number(expected);
+ const both=String(actual).trim()!==""&&expected.trim()!==""&&Number.isFinite(leftNum)&&Number.isFinite(rightNum);
+ const left:string|number=both?leftNum:String(actual).toLowerCase(),right:string|number=both?rightNum:expected.toLowerCase();
  switch(op){case ">=":return left>=right;case "<=":return left<=right;case ">":return left>right;case "<":return left<right;case "<>":return left!==right;default:return left===right;}
 };
 
