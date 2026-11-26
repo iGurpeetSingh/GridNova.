@@ -3,7 +3,7 @@ import { addressOf, parseAddress } from "../types";
 import { getTableAt, getTableColumnIndex, tableFilterPasses, tableReferenceRange } from "./tableUtils";
 
 type Scalar = string | number | boolean;
-interface ArrayValue { __gridArray:true; values:Scalar[][]; }
+interface ArrayValue { __gridArray:true; values:Scalar[][]; reference?:{startRow:number;startCol:number;endRow:number;endCol:number;sheetName?:string}; }
 type Value = Scalar | ArrayValue;
 const refPattern = /^\$?[A-Z]{1,3}\$?[1-9]\d*$/i;
 const columnPattern = /^\$?[A-Z]{1,3}$/i;
@@ -133,7 +133,7 @@ function rangeValues(start: string, end: string, cells: CellMap, seen: Set<strin
     }
     matrix.push(row);
   }
-  return {__gridArray:true,values:matrix};
+  return {__gridArray:true,values:matrix,reference:{startRow,startCol,endRow,endCol,sheetName:currentSheetName}};
 }
 
 function resolve(address: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], namedRanges:Record<string,string>={},sheets:SheetData[]=[],currentSheetName?:string): Value {
@@ -294,7 +294,10 @@ class Parser {
       return [rangeValues(start,finish,targetSheet?.cells??this.cells,this.seen,targetSheet?.tables??this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges,this.sheets,targetSheet?.name??this.currentSheetName)];
     }
     if(sheetName&&start&&refPattern.test(start)){
-      this.i++;return [this.resolveReference(start,sheetName)];
+      this.i++;return [rangeValues(start,start,this.sheets.find(item=>item.name.toLowerCase()===sheetName!.toLowerCase())?.cells??this.cells,this.seen,this.sheets.find(item=>item.name.toLowerCase()===sheetName!.toLowerCase())?.tables??this.tables,undefined,false,this.namedRanges,this.sheets,sheetName)];
+    }
+    if(!sheetName&&start&&refPattern.test(start)){
+      this.i++;return [rangeValues(start,start,this.cells,this.seen,this.tables,undefined,forFunction==="SUBTOTAL",this.namedRanges,this.sheets,this.currentSheetName)];
     }
     this.i=save;return null;
   }
@@ -474,18 +477,31 @@ class Parser {
       case "ISERROR":return isError(a[0]);
       case "ISEVEN":return Math.abs(Math.trunc(number(a[0])))%2===0;
       case "ISODD":return Math.abs(Math.trunc(number(a[0]))%2)===1;
-      case "ISFORMULA":return false;
+      case "ISFORMULA":{const ref=args[0]?.[0];if(!ref||!isArrayValue(ref)||!ref.reference)return false;const target=ref.reference.sheetName?this.sheets.find(item=>item.name.toLowerCase()===ref.reference!.sheetName!.toLowerCase()):undefined;const source=(target?.cells??this.cells)[addressOf(ref.reference.startRow,ref.reference.startCol)];return !!source?.raw.startsWith("=");}
       case "ISLOGICAL":return typeof a[0]==="boolean";
       case "ISNA":return String(a[0])==="#N/A";
       case "ISNONTEXT":return typeof a[0]!=="string";
       case "ISNUMBER":return typeof a[0]==="number"&&Number.isFinite(a[0]);
-      case "ISREF":return false;
+      case "ISREF":return !!(args[0]?.[0]&&isArrayValue(args[0][0])&&args[0][0].reference);
       case "ISTEXT":return typeof a[0]==="string"&&!isError(a[0]);
       case "N":return typeof a[0]==="number"?a[0]:typeof a[0]==="boolean"?(a[0]?1:0):0;
       case "NA":return "#N/A";
-      case "TYPE":return typeof a[0]==="number"?1:typeof a[0]==="string"?2:typeof a[0]==="boolean"?4:isArrayValue(a[0])?64:16;
+      case "TYPE":return typeof a[0]==="number"?1:typeof a[0]==="string"?2:typeof a[0]==="boolean"?4:isArrayValue(args[0]?.[0]??"")?64:16;
       case "ERROR.TYPE":{const codes:Record<string,number>={"#NULL!":1,"#DIV/0!":2,"#VALUE!":3,"#REF!":4,"#NAME?":5,"#NUM!":6,"#N/A":7,"#GETTING_DATA":8};return codes[String(a[0])]??"#N/A";}
-      case "CELL":return a[0]??"";
+      case "CELL":{
+        const kind=text(a[0]).toLowerCase(),ref=args[1]?.[0],meta=ref&&isArrayValue(ref)?ref.reference:undefined;
+        if(!meta)return kind==="filename"?"":kind==="row"?1:kind==="col"?1:"";
+        const addr=addressOf(meta.startRow,meta.startCol),target=meta.sheetName?this.sheets.find(item=>item.name.toLowerCase()===meta.sheetName!.toLowerCase()):undefined,source=(target?.cells??this.cells)[addr];
+        if(kind==="address")return "$"+addr.replace(/([A-Z]+)([0-9]+)/,"$1$$2");
+        if(kind==="row")return meta.startRow+1;
+        if(kind==="col")return meta.startCol+1;
+        if(kind==="contents")return source?.raw??"";
+        if(kind==="type")return source?.raw.startsWith("=")?"v":source?.raw?"l":"b";
+        if(kind==="format")return source?.style?.numberFormat==="Date"?"D4":"G";
+        if(kind==="width")return 8;
+        if(kind==="filename")return "";
+        return "#VALUE!";
+      }
       case "LEFT":return text(a[0]).slice(0,Math.max(0,number(a[1]??1)));
       case "RIGHT":return text(a[0]).slice(-Math.max(0,number(a[1]??1)));
       case "MID":return text(a[0]).slice(Math.max(0,number(a[1])-1),Math.max(0,number(a[1])-1)+Math.max(0,number(a[2])));
@@ -508,7 +524,13 @@ class Parser {
       case "T":return typeof a[0]==="string"?a[0]:"";
       case "FIXED":case "DOLLAR":{const digits=Math.max(0,Math.min(30,Math.trunc(number(a[1]??2)))),fixed=new Intl.NumberFormat("en-US",{minimumFractionDigits:digits,maximumFractionDigits:digits,useGrouping:!a[2]}).format(number(a[0]));return fn==="DOLLAR"?"$"+fixed:fixed;}
       case "TEXTBEFORE":case "TEXTAFTER":{const source=text(a[0]),delimiter=text(a[1]),instance=number(a[2]??1),positions:number[]=[];let from=0;while((from=source.indexOf(delimiter,from))>=0){positions.push(from);from+=delimiter.length||1;}const idx=instance>0?positions[instance-1]:positions[positions.length+instance];if(idx===undefined)return a[5]??"#N/A";return fn==="TEXTBEFORE"?source.slice(0,idx):source.slice(idx+delimiter.length);}
-      case "TEXTSPLIT":return {__gridArray:true,values:[text(a[0]).split(text(a[1]??","))]};
+      case "TEXTSPLIT":{
+        const source=text(a[0]),colDelimiter=text(a[1]??","),rowDelimiter=text(a[2]??"\u0000"),ignoreEmpty=!!a[3];
+        const rawRows=rowDelimiter==="\u0000"?[source]:source.split(rowDelimiter);
+        const matrix=rawRows.map(row=>row.split(colDelimiter).filter(value=>!ignoreEmpty||value!==""));
+        const width=Math.max(0,...matrix.map(row=>row.length));
+        return {__gridArray:true,values:matrix.map(row=>Array.from({length:width},(_,index)=>row[index]??""))};
+      }
       case "TEXT":return formatText(number(a[0]),text(a[1]),a[0]);
       case "DATE":{let year=Math.trunc(number(a[0]));if(year<1900)year+=1900;return serialFromDate(new Date(Date.UTC(year,Math.trunc(number(a[1]))-1,Math.trunc(number(a[2]))));}
       case "DATEVALUE":{const date=toDate(a[0]);return date?serialFromDate(date):"#VALUE!";}
@@ -536,6 +558,7 @@ class Parser {
       case "FV":{const r=number(a[0]),n=number(a[1]),payment=number(a[2]),pv=number(a[3]??0),type=number(a[4]??0);return r===0?-(pv+payment*n):-(pv*(1+r)**n+payment*(1+r*type)*(((1+r)**n-1)/r));}
       case "PV":{const r=number(a[0]),n=number(a[1]),payment=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);return r===0?-(fv+payment*n):-(fv+payment*(1+r*type)*(((1+r)**n-1)/r))/(1+r)**n;}
       case "NPER":{const r=number(a[0]),payment=number(a[1]),pv=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);if(r===0)return -(pv+fv)/payment;const x=(payment*(1+r*type)-fv*r)/(pv*r+payment*(1+r*type));return Math.log(x)/Math.log(1+r);}
+      case "NPV":{const rate=number(a[0]),values=list(1).map(number);if(rate<=-1)return "#NUM!";return values.reduce((total,value,index)=>total+value/Math.pow(1+rate,index+1),0);}
       case "RATE":{const n=number(a[0]),payment=number(a[1]),pv=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);let r=number(a[5]??0.1);for(let i=0;i<100;i++){const f=r===0?pv+payment*n+fv:pv*(1+r)**n+payment*(1+r*type)*(((1+r)**n-1)/r)+fv;const h=1e-6,rr=r+h,ff=pv*(1+rr)**n+payment*(1+rr*type)*(((1+rr)**n-1)/rr)+fv;const next=r-f/((ff-f)/h);if(!Number.isFinite(next))break;if(Math.abs(next-r)<1e-9)return next;r=next;}return r;}
       case "EFFECT":{const nominal=number(a[0]),n=number(a[1]);return (1+nominal/n)**n-1;}
       case "NOMINAL":{const effect=number(a[0]),n=number(a[1]);return n*((1+effect)**(1/n)-1);}
@@ -555,7 +578,15 @@ class Parser {
       case "INDEX":{const data=matrix(0),row=Math.max(1,number(a[1]))-1,col=Math.max(1,number(a[2]??1))-1;return data[row]?.[col]??"#REF!";}
       case "LOOKUP":{const source=list(1),target=list(2),look=number(a[0]);let idx=-1;source.forEach((v,i)=>{if(number(v)<=look)idx=i;});return idx>=0?(target[idx]??source[idx]):"#N/A";}
       case "CHOOSE":{const idx=Math.trunc(number(a[0]));return a[idx]??"#VALUE!";}
-      case "OFFSET":return args[0]?.[0]??"#REF!";
+      case "OFFSET":{
+        const source=args[0]?.[0],meta=source&&isArrayValue(source)?source.reference:undefined;
+        if(!meta)return "#VALUE!";
+        const row=meta.startRow+Math.trunc(number(a[1])),col=meta.startCol+Math.trunc(number(a[2]));
+        const height=Math.max(1,Math.trunc(number(a[3]??(meta.endRow-meta.startRow+1)))),width=Math.max(1,Math.trunc(number(a[4]??(meta.endCol-meta.startCol+1))));
+        const target=meta.sheetName?this.sheets.find(item=>item.name.toLowerCase()===meta.sheetName!.toLowerCase()):undefined;
+        const targetCells=target?.cells??this.cells,targetTables=target?.tables??this.tables;
+        return rangeValues(addressOf(row,col),addressOf(row+height-1,col+width-1),targetCells,this.seen,targetTables,undefined,false,this.namedRanges,this.sheets,target?.name??this.currentSheetName);
+      }
       case "INDIRECT":{const ref=text(a[0]).replace(/\$/g,"").toUpperCase();return refPattern.test(ref)?this.resolveReference(ref):"#REF!";}
       case "ROW":{const p=this.currentAddress?parseAddress(this.currentAddress):null;return p?p.row+1:1;}
       case "ROWS":return matrix(0).length;
