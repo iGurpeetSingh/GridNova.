@@ -9,7 +9,7 @@ import FileMenu from "./FileMenu";
 import PageLayoutRibbon from "./PageLayoutRibbon";
 import type { CalculationMode } from "../types";
 import {
-  AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine,
+  AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownZA, ArrowDownToLine, BarChart3,
   ArrowUpToLine, Bold, Braces, CalendarDays, ChartColumn, ChartLine, Check,
   Clipboard, Copy, Eraser, FileDown, FilePlus2, FileSpreadsheet, FileText, Filter,
   FunctionSquare, Calculator, Grid2X2, Highlighter, Italic, Link, ListFilter, Minus, PaintBucket,
