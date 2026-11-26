@@ -29,7 +29,7 @@ export default function FormulaLibraryDialog({ open, onClose, onInsert, initialC
         {results.map(entry => <article key={entry.name} className="formula-library-entry">
           <div className="formula-library-entry-icon"><FunctionSquare size={17}/></div>
           <div className="formula-library-entry-main"><div className="formula-library-entry-heading"><strong>{entry.name}</strong><span>{entry.category}</span></div><code>{entry.syntax}</code><p>{entry.description}</p><small>Example: {entry.example}</small></div>
-          <div className="formula-library-entry-action">{entry.implemented ? <span className="formula-supported">Supported</span> : <span className="formula-catalogue-only">Catalogue</span>}<button type="button" onClick={() => { onInsert(`=${entry.name}()`); onClose(); }}>Insert</button></div>
+          <div className="formula-library-entry-action">{entry.implemented ? <span className="formula-supported">Supported</span> : <span className="formula-catalogue-only">Catalogue</span>}<button type="button" onClick={() => { onInsert(`=${entry.name}(`); onClose(); }}>Insert</button></div>
         </article>)}
         {!results.length && <div className="formula-library-empty">No matching functions. Try another name or category.</div>}
       </div>
