@@ -6,7 +6,7 @@ import { buildDependencyGraph, cellNodeId, getDependents, extractFormulaReferenc
 
 type AuditMode="precedents"|"dependents";
 interface Props { workbook:WorkbookData; sheet:SheetData; activeCell:string; mode:AuditMode|null; }
-interface AuditEdge { from:string; to:string; }
+interface AuditEdge { from:string; fromEnd?:string; to:string; }
 interface DrawnEdge { d:string; start:{x:number;y:number}; end:{x:number;y:number}; }
 function buildEdges(workbook:WorkbookData,sheet:SheetData,address:string,mode:AuditMode):AuditEdge[]{
   const current=cellNodeId(sheet.id,address),edges:AuditEdge[]=[];
@@ -16,17 +16,20 @@ function buildEdges(workbook:WorkbookData,sheet:SheetData,address:string,mode:Au
     for(const reference of extractFormulaReferences(formula,workbook.namedRanges??{})){
       const targetSheet=reference.sheetName?workbook.sheets.find(item=>item.name.toLowerCase()===reference.sheetName!.toLowerCase()):sheet;
       if(!targetSheet||targetSheet.id!==sheet.id)continue;
-      const height=reference.end.row-reference.start.row+1,width=reference.end.col-reference.start.col+1;
-      const limit= Math.min(64,height*width);
-      let count=0;
-      for(let row=reference.start.row;row<=reference.end.row&&count<limit;row++)for(let col=reference.start.col;col<=reference.end.col&&count<limit;col++){
-        const from=addressOf(row,col);if(from!==address){edges.push({from,to:address});count++;}
-      }
+      const from=addressOf(reference.start.row,reference.start.col),fromEnd=addressOf(reference.end.row,reference.end.col);
+      if(from!==address)edges.push({from,fromEnd:fromEnd!==from?fromEnd:undefined,to:address});
     }
   }else{
     const graph=buildDependencyGraph(workbook);
     const sources=new Set<CellNodeId>(getDependents(graph,current));
-    graph.ranges.forEach((range:RangeDependency)=>{if(range.sheetId===sheet.id){const p=parseAddress(address);if(p&&p.row>=range.range.startRow&&p.row<=range.range.endRow&&p.col>=range.range.startCol&&p.col<=range.range.endCol)sources.add(range.target);}});
+    graph.ranges.forEach((range:RangeDependency)=>{
+      if(range.sheetId!==sheet.id)return;
+      const point=parseAddress(address);
+      if(point&&point.row>=range.range.startRow&&point.row<=range.range.endRow&&point.col>=range.range.startCol&&point.col<=range.range.endCol){
+        sources.add(range.target);
+        getDependents(graph,range.target).forEach(item=>sources.add(item));
+      }
+    });
     sources.forEach(id=>{
       const separator=id.lastIndexOf("!"),sheetId=id.slice(0,separator),target=id.slice(separator+1);
       if(sheetId===sheet.id)edges.push({from:address,to:target});
@@ -51,7 +54,10 @@ export default function FormulaAuditOverlay({workbook,sheet,activeCell,mode}:Pro
         if(!fromElement||!toElement)return;
         const fromRect=fromElement.getBoundingClientRect(),toRect=toElement.getBoundingClientRect();
         if(fromRect.width===0||toRect.width===0)return;
-        const x1=fromRect.left+fromRect.width/2,y1=fromRect.top+fromRect.height/2;
+        const rangeEnd=edge.fromEnd?document.querySelector<HTMLElement>(`[data-cell="${edge.fromEnd}"]`)?.getBoundingClientRect():undefined;
+        const left=Math.min(fromRect.left,rangeEnd?.left??fromRect.left),right=Math.max(fromRect.right,rangeEnd?.right??fromRect.right);
+        const top=Math.min(fromRect.top,rangeEnd?.top??fromRect.top),bottom=Math.max(fromRect.bottom,rangeEnd?.bottom??fromRect.bottom);
+        const x1=(left+right)/2,y1=(top+bottom)/2;
         const x2=toRect.left+toRect.width/2,y2=toRect.top+toRect.height/2;
         const dx=x2-x1,dy=y2-y1,curve=Math.max(22,Math.min(90,Math.hypot(dx,dy)*.22));
         const direction=mode==="precedents"?1:-1;
