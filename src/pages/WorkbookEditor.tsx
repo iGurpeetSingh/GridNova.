@@ -461,19 +461,22 @@ export default function WorkbookEditor(){
     window.setTimeout(()=>setCalculationToast(current=>current===message?"":current),1800);
   };
   const updateCalculationMode=(mode:CalculationMode)=>{
-    const next=mode==="Automatic"?recalculateWorkbookFull(refreshWorkbookPivots({...workbook,calculationMode:mode})).workbook: {...workbook,calculationMode:mode};
+    const calculated=mode==="Automatic"?recalculateWorkbookFull({...workbook,calculationMode:mode}).workbook:{...workbook,calculationMode:mode};
+    const next=mode==="Automatic"?refreshWorkbookPivots(calculated):calculated;
     updateWorkbook(workbook.id,{calculationMode:mode,sheets:next.sheets});
     showCalculationToast(`Calculation mode: ${mode}`);
   };
   const calculateWorkbook=()=>{
-    const result=recalculateWorkbookFull(refreshWorkbookPivots(workbook));
-    updateWorkbook(workbook.id,{sheets:result.workbook.sheets});
+    const result=recalculateWorkbookFull(workbook);
+    const refreshed=refreshWorkbookPivots(result.workbook);
+    updateWorkbook(workbook.id,{sheets:refreshed.sheets});
     showCalculationToast(result.circularReferences.length?`Workbook calculated · ${result.circularReferences.length} circular reference(s)`:"Workbook calculated");
   };
   const calculateActiveSheet=()=>{
     const changed=Object.entries(sheet.cells).filter(([,cell])=>cell.raw.startsWith("=")).map(([address])=>({sheetId:sheet.id,address}));
-    const result=recalculateWorkbookIncremental(refreshWorkbookPivots(workbook),changed);
-    updateWorkbook(workbook.id,{sheets:result.workbook.sheets});
+    const result=recalculateWorkbookIncremental(workbook,changed);
+    const refreshed=refreshWorkbookPivots(result.workbook);
+    updateWorkbook(workbook.id,{sheets:refreshed.sheets});
     showCalculationToast(result.circularReferences.length?`${sheet.name} calculated · circular reference(s) found`:`${sheet.name} calculated`);
   };
   const insertFormula=(functionName:string)=>{
@@ -990,7 +993,7 @@ export default function WorkbookEditor(){
       const currentWorkbook=useWorkbookStore.getState().workbooks.find(item=>item.id===workbook.id);
       const destination=currentWorkbook?.sheets.find(item=>item.id===destinationSheetId)??sheet;
       const finalDefinition={...definition,destinationSheetId,destinationCell:definition.destinationSheetId==="__new__"?"A1":definition.destinationCell};
-      const built=buildPivotTable(finalDefinition,sheet);
+      const built=buildPivotTable(finalDefinition,sheet,workbook);
       updateSheet(destinationSheetId,{cells:{...destination.cells,...built.cells},pivotTables:[...(destination.pivotTables??[]),{...finalDefinition,outputRange:built.range}],rowCount:Math.max(destination.rowCount,built.range.endRow+1),columnCount:Math.max(destination.columnCount,built.range.endCol+1)});
       setActiveSheet(destinationSheetId);setTab("Home");selectCell(addressOf(built.range.startRow,built.range.startCol));setShowSaved();setPivotBuilderOpen(false);
     }}/>

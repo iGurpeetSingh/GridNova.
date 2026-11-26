@@ -18,8 +18,9 @@ export function solveGoalSeek(input:GoalSeekInput):GoalSeekResult{
   const setAddress=input.setCell.toUpperCase(),changeAddress=input.changingCell.toUpperCase();
   const formula=input.sheet.cells[setAddress]?.raw??"";
   if(!formula.startsWith("="))throw new Error("Set cell must contain an Excel formula.");
-  const original=Number(input.sheet.cells[changeAddress]?.raw);
-  if(!Number.isFinite(original))throw new Error("By changing cell must contain a numeric value.");
+  const originalRaw=input.sheet.cells[changeAddress]?.raw??"";
+  const original=Number(originalRaw);
+  if(originalRaw.trim()===""||!Number.isFinite(original))throw new Error("By changing cell must contain a numeric value.");
   const formulaReferences=extractFormulaReferences(formula,input.workbook.namedRanges??{});
   const changing=parseAddress(changeAddress);
   const referenced=formulaReferences.some(ref=>(!ref.sheetName||ref.sheetName.toLowerCase()===input.sheet.name.toLowerCase())&&!!changing&&changing.row>=ref.start.row&&changing.row<=ref.end.row&&changing.col>=ref.start.col&&changing.col<=ref.end.col);

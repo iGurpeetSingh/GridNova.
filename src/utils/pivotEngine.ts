@@ -1,5 +1,6 @@
 import type { CellData, CellMap, CellRange, PivotTableDefinition, SheetData, WorkbookData } from "../types";
 import { addressOf, parseAddress } from "../types";
+import { numericValue } from "./formulaEngine";
 export interface PivotBuildResult { cells:CellMap; range:CellRange; rowCount:number; columnCount:number; }
 interface RecordRow { values:string[]; rowKey:string; columnKey:string; value:number; validValue:boolean; }
 function aggregate(values:number[],kind:PivotTableDefinition["aggregation"]):number{
@@ -10,20 +11,20 @@ function aggregate(values:number[],kind:PivotTableDefinition["aggregation"]):num
   if(kind==="Max")return Math.max(...values);
   return Math.min(...values);
 }
-export function buildPivotTable(definition:PivotTableDefinition,source:SheetData):PivotBuildResult{
+export function buildPivotTable(definition:PivotTableDefinition,source:SheetData,workbook?:WorkbookData):PivotBuildResult{
   const range=definition.sourceRange,headers=Array.from({length:range.endCol-range.startCol+1},(_,index)=>source.cells[addressOf(range.startRow,range.startCol+index)]?.raw||`Column ${index+1}`);
   const fieldLabel=(field:number)=>headers[field]??`Column ${field+1}`;
   const records:RecordRow[]=[];
   const passesFilters=(values:string[])=>definition.filterFields.every(field=>{
-    const selected=definition.filters?.[field];return !selected?.length||selected.includes(values[field]??"");
+    const selected=definition.filters?.[field];return selected===undefined||selected.includes(values[field]??"");
   });
   for(let row=range.startRow+1;row<=range.endRow;row++){
     const values=headers.map((_,index)=>source.cells[addressOf(row,range.startCol+index)]?.raw??"");
     if(!passesFilters(values))continue;
     const rowValues=definition.rowFields.map(field=>values[field]??"");
     const columnValues=definition.columnFields.map(field=>values[field]??"");
-    const raw=values[definition.valueField]??"",numeric=Number(raw);
-    records.push({values,rowKey:JSON.stringify(rowValues),columnKey:JSON.stringify(columnValues),value:numeric,validValue:raw.trim()!==""&&Number.isFinite(numeric)});
+    const raw=values[definition.valueField]??"",valueAddress=addressOf(row,range.startCol+definition.valueField),numeric=numericValue(raw,source.cells,source.tables??[],valueAddress,workbook?.namedRanges??{},workbook?.sheets??[],source.name);
+    records.push({values,rowKey:JSON.stringify(rowValues),columnKey:JSON.stringify(columnValues),value:numeric??0,validValue:numeric!==null});
   }
   const rowGroups=new Map<string,string[]>(),columnGroups=new Map<string,string[]>();
   records.forEach(record=>{
@@ -75,7 +76,7 @@ export function refreshWorkbookPivots(workbook:WorkbookData):WorkbookData{
     const source=sheets.find(sheet=>sheet.id===item.definition.sourceSheetId),destination=sheets.find(sheet=>sheet.id===item.destinationSheetId);
     if(!source||!destination)continue;
     const definition=item.definition;
-    const built=buildPivotTable(definition,source),updatedCells={...destination.cells};
+    const built=buildPivotTable(definition,source,workbook),updatedCells={...destination.cells};
     const previous=definition.outputRange??built.range;
     for(let row=previous.startRow;row<=previous.endRow;row++)for(let col=previous.startCol;col<=previous.endCol;col++)delete updatedCells[addressOf(row,col)];
     Object.assign(updatedCells,built.cells);
