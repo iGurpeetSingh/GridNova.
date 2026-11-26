@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, FunctionSquare, Grid2X2, X } from "lucide-react";
 import FloatingPortal from "./FloatingPortal";
 import { FormulaAutocomplete, FormulaArgumentTooltip } from "../utils/formulaHelpers";
+import { FORMULA_CATALOG } from "../lib/formula-catalog";
 interface Props {
  address:string;value:string;onChange:(v:string)=>void;onCommit:()=>void;
  onFocus?:()=>void;onBlur?:()=>void;onCancel?:()=>void;onInsertFunction?:()=>void;onNavigate?:(address:string)=>void;focusInput?:boolean;
@@ -43,7 +44,7 @@ export default function FormulaBar({address,value,onChange,onCommit,onFocus,onBl
    <input ref={inputRef} aria-label="Formula bar input" value={value} onFocus={onFocus} onBlur={onBlur} onChange={event=>changeValue(event.target.value)} onKeyDown={event=>{
     if(autocomplete){
      if(event.key==="ArrowDown"||event.key==="ArrowUp"){event.preventDefault();setAutocomplete(current=>current?{...current,index:Math.max(0,Math.min(9,current.index+(event.key==="ArrowDown"?1:-1)))}:null);return;}
-     if(event.key==="Tab"||event.key==="Enter"){event.preventDefault();const match=autocomplete.query;acceptFunction(match.toUpperCase());return;}
+     if(event.key==="Tab"||event.key==="Enter"){event.preventDefault();const matches=FORMULA_CATALOG.filter(item=>item.name.toLowerCase().startsWith(autocomplete.query.toLowerCase())).slice(0,10);const chosen=matches[autocomplete.index]?.name??matches[0]?.name??autocomplete.query.toUpperCase();acceptFunction(chosen);return;}
      if(event.key==="Escape"){event.preventDefault();setAutocomplete(null);return;}
     }
     if(event.key==="Enter"&&!event.nativeEvent.isComposing&&event.keyCode!==229)onCommit();
