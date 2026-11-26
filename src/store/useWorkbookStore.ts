@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingChartData, FloatingElementData, SheetData, TemplateId, WorkbookData } from "../types";
+import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingChartData, FloatingElementData, SheetData, TemplateId, WorkbookData, PivotTableDefinition } from "../types";
 import { addressOf, columnLabel, emptySheet, emptyWorkbook, parseAddress } from "../types";
 import { recalculateWorkbookIncremental } from "../lib/dependency-graph";
 import { refreshWorkbookPivots } from "../utils/pivotEngine";
@@ -19,6 +19,7 @@ interface Store {
   setSelection: (range: CellRange | null, activeCell?: string) => void;
   setClipboard: (data: ClipboardData | null) => void; paste: (target: string) => void;
   updateSheet: (id: string, changes: Partial<SheetData>) => void;
+  createPivotTable:(definition:PivotTableDefinition,outputCells:CellMap,outputRange:CellRange)=>string|null;
   addChart: (chart: FloatingChartData) => void; updateChart: (id: string, changes: Partial<FloatingChartData>) => void; deleteChart: (id: string) => void;
   addElement: (element: FloatingElementData) => void; updateElement: (id: string, changes: Partial<FloatingElementData>) => void; deleteElement: (id: string) => void;
   setShowFormulas: (v: boolean) => void; setZoom: (v: number) => void; setOrientation: (v: "portrait" | "landscape") => void; setAutoSaveEnabled:(enabled:boolean)=>void;
@@ -199,16 +200,37 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
       return recalculateAfterMutation(s,result,sh.id,addresses);
   }),
   updateSheet: (id,changes) => set(s=>{
-    const sh=activeSheet(s);if(!sh)return {};
-    const result=mutateActive(s,(w,active)=>({...w,sheets:w.sheets.map(x=>x.id===id?{...x,...changes}:x)}));
-    const changedAddresses=changes.cells?Array.from(new Set([...Object.keys(sh.cells),...Object.keys(changes.cells)])).filter(address=>sh.cells[address]?.raw!==changes.cells?.[address]?.raw):[];
-    if(changes.tables)changedAddresses.push(...Object.entries(sh.cells).filter(([,cell])=>cell.raw.startsWith("=")).map(([address])=>address));
+    const workbook=activeWorkbook(s),target=workbook?.sheets.find(item=>item.id===id);
+    if(!workbook||!target)return {};
+    const result=mutateActive(s,(w)=>({...w,sheets:w.sheets.map(x=>x.id===id?{...x,...changes}:x)}));
+    const changedAddresses=changes.cells?Array.from(new Set([...Object.keys(target.cells),...Object.keys(changes.cells)])).filter(address=>target.cells[address]?.raw!==changes.cells?.[address]?.raw):[];
+    if(changes.tables)changedAddresses.push(...Object.entries(target.cells).filter(([,cell])=>cell.raw.startsWith("=")).map(([address])=>address));
     const recalculated=recalculateAfterMutation(s,result,id,changedAddresses);
     if(changes.pivotTables){
       const workbookId=s.activeWorkbookId,updated=(recalculated.workbooks??s.workbooks).find(item=>item.id===workbookId);
       if(updated){const refreshed=refreshWorkbookPivots(updated);return {...recalculated,workbooks:(recalculated.workbooks??s.workbooks).map(item=>item.id===workbookId?refreshed:item)};}
     }
     return recalculated;
+  }),
+  createPivotTable:(definition,outputCells,outputRange)=>{
+    const state=get(),workbook=activeWorkbook(state);
+    if(!workbook||!workbook.sheets.some(item=>item.id===definition.sourceSheetId))return null;
+    const newDestination=definition.destinationSheetId==="__new__";
+    let destination=newDestination?emptySheet(definition.name.trim()||"PivotTable"):workbook.sheets.find(item=>item.id===definition.destinationSheetId);
+    if(!destination)return null;
+    if(newDestination){
+      const baseName=destination.name;let name=baseName,index=2;
+      while(workbook.sheets.some(item=>item.name.toLowerCase()===name.toLowerCase()))name=`${baseName} (${index++})`;
+      destination={...destination,name};
+    }
+    const finalDefinition={...definition,destinationSheetId:destination.id,destinationCell:newDestination?"A1":definition.destinationCell,outputRange};
+    const destinationNext={...destination,cells:{...destination.cells,...outputCells},pivotTables:[...(destination.pivotTables??[]),finalDefinition],rowCount:Math.max(destination.rowCount,outputRange.endRow+1),columnCount:Math.max(destination.columnCount,outputRange.endCol+1)};
+    set(current=>({
+      ...snapshot(current),
+      workbooks:current.workbooks.map(item=>item.id===workbook.id?{...item,sheets:item.sheets.some(sheet=>sheet.id===destinationNext.id)?item.sheets.map(sheet=>sheet.id===destinationNext.id?destinationNext:sheet):[...item.sheets,destinationNext],modifiedAt:Date.now()}:item),
+      activeSheetId:destinationNext.id,activeCell:newDestination?"A1":definition.destinationCell,selection:null
+    }));
+    return destinationNext.id;
   }),
   addChart: chart => set(s=>mutateActive(s,w=>({...w,charts:[...w.charts,chart]}))),
   updateChart: (id,changes) => set(s=>mutateActive(s,w=>({...w,charts:w.charts.map(c=>c.id===id?{...c,...changes}:c)}))),
