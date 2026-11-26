@@ -54,17 +54,19 @@ export default function WorkbookEditor(){
   useEffect(()=>{if(id&&activeWorkbookId!==id)setActiveWorkbook(id)},[id,activeWorkbookId,setActiveWorkbook]);
   useEffect(()=>{setTitleValue(workbook?.title??"")},[workbook?.title]);
   const sheet=workbook?.sheets.find(s=>s.id===activeSheetId)??workbook?.sheets[0];
-  const [automaticCalculation,setAutomaticCalculation]=useState<WorkbookCalculation>(()=>calculateWorkbook(workbook?.sheets ?? []));
+  const [automaticCalculation,setAutomaticCalculation]=useState<WorkbookCalculation>(()=>calculateWorkbook(workbook?.sheets ?? [],{namedRanges:workbook?.namedRanges}));
   const calculationRef=useRef<WorkbookCalculation>(automaticCalculation);
   const lastSheetsRef=useRef(workbook?.sheets ?? []);
+  const lastNamedRangesRef=useRef(workbook?.namedRanges);
   const calculation = calculationModeState === "Manual" && manualCalculation
     ? manualCalculation
     : automaticCalculation;
   useEffect(()=>{
     const nextSheets=workbook?.sheets ?? [];
-    const fresh=calculateWorkbook(nextSheets);
+    const fresh=calculateWorkbook(nextSheets,{namedRanges:workbook?.namedRanges});
     calculationRef.current=fresh;
     lastSheetsRef.current=nextSheets;
+    lastNamedRangesRef.current=workbook?.namedRanges;
     setAutomaticCalculation(fresh);
     setCalculationModeState("Automatic");
     setManualCalculation(null);
@@ -74,16 +76,18 @@ export default function WorkbookEditor(){
     const nextSheets=workbook?.sheets ?? [];
     const previousSheets=lastSheetsRef.current;
     let fresh=calculationRef.current;
-    if(!hasSameSheetStructure(previousSheets,nextSheets)){
-      fresh=calculateWorkbook(nextSheets);
+    const namedRangesChanged=lastNamedRangesRef.current!==workbook?.namedRanges;
+    if(!hasSameSheetStructure(previousSheets,nextSheets)||namedRangesChanged){
+      fresh=calculateWorkbook(nextSheets,{namedRanges:workbook?.namedRanges});
     }else{
       const changed=changedCellNodes(previousSheets,nextSheets);
-      if(changed.length) fresh=calculateWorkbookIncremental(nextSheets,fresh,changed);
+      if(changed.length) fresh=calculateWorkbookIncremental(nextSheets,fresh,changed,{namedRanges:workbook?.namedRanges});
     }
     lastSheetsRef.current=nextSheets;
+    lastNamedRangesRef.current=workbook?.namedRanges;
     calculationRef.current=fresh;
     setAutomaticCalculation(fresh);
-  },[workbook?.sheets,calculationModeState]);
+  },[workbook?.sheets,workbook?.namedRanges,calculationModeState]);
   const setCalculationMode=(mode:"Automatic"|"Manual")=>{
     if(mode==="Manual") setManualCalculation(calculation);
     else setManualCalculation(null);
@@ -91,9 +95,10 @@ export default function WorkbookEditor(){
   };
   const calculateNow=()=>{
     const currentSheets=workbook?.sheets ?? [];
-    const fresh=calculateWorkbook(currentSheets);
+    const fresh=calculateWorkbook(currentSheets,{namedRanges:workbook?.namedRanges});
     calculationRef.current=fresh;
     lastSheetsRef.current=currentSheets;
+    lastNamedRangesRef.current=workbook?.namedRanges;
     if(calculationModeState==="Manual") setManualCalculation(fresh);
     else setAutomaticCalculation(fresh);
   };
