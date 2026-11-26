@@ -1,6 +1,16 @@
 export interface FormulaEntry { name:string; category:string; syntax:string; description:string; example:string; implemented:boolean; }
 export const FORMULA_CATEGORIES = ["Financial","Logical","Text","Date & Time","Lookup & Reference","Math & Trig","Statistical","Engineering","Information","Web"] as const;
 export const AUTO_SUM_FUNCTIONS = ["SUM","AVERAGE","COUNT","MAX","MIN"] as const;
+export const IMPLEMENTED_FORMULA_NAMES = new Set([
+ "SUM","AVERAGE","COUNT","MAX","MIN","PMT","IPMT","PPMT","FV","PV","NPV","XNPV","IRR","XIRR","MIRR","RATE","NPER","EFFECT","NOMINAL","SLN","SYD","DB","DDB","CUMIPMT","CUMPRINC","FVSCHEDULE","PDURATION",
+ "IF","IFS","AND","OR","NOT","XOR","IFERROR","IFNA","SWITCH","TRUE","FALSE","LET",
+ "CONCAT","CONCATENATE","TEXTJOIN","LEFT","RIGHT","MID","LEN","FIND","SEARCH","REPLACE","SUBSTITUTE","TRIM","CLEAN","UPPER","LOWER","PROPER","TEXT","VALUE","NUMBERVALUE","EXACT","REPT","CHAR","CODE","T","FIXED","DOLLAR","TEXTBEFORE","TEXTAFTER",
+ "DATE","DATEDIF","DATEVALUE","DAY","DAYS","DAYS360","EDATE","EOMONTH","HOUR","ISOWEEKNUM","MINUTE","MONTH","NETWORKDAYS","NETWORKDAYS.INTL","NOW","SECOND","TIME","TIMEVALUE","TODAY","WEEKDAY","WEEKNUM","WORKDAY","WORKDAY.INTL","YEAR","YEARFRAC",
+ "VLOOKUP","HLOOKUP","XLOOKUP","XMATCH","INDEX","MATCH","LOOKUP","CHOOSE","INDIRECT","ROW","ROWS","COLUMN","COLUMNS","ADDRESS","HYPERLINK",
+ "SUMIF","SUMIFS","SUMPRODUCT","SUMSQ","PRODUCT","ABS","ROUND","ROUNDUP","ROUNDDOWN","MROUND","CEILING","FLOOR","INT","TRUNC","MOD","QUOTIENT","POWER","SQRT","EXP","LN","LOG","LOG10","PI","SIN","COS","TAN","ASIN","ACOS","ATAN","DEGREES","RADIANS","SIGN","RAND","RANDBETWEEN","FACT","GCD","LCM","ROMAN","ARABIC","SUBTOTAL","AGGREGATE",
+ "AVERAGEA","AVERAGEIF","AVERAGEIFS","COUNTA","COUNTBLANK","COUNTIF","COUNTIFS","MAXA","MAXIFS","MINA","MINIFS","MEDIAN","MODE","LARGE","SMALL","RANK","PERCENTILE","QUARTILE","STDEV.S","STDEV.P","VAR.S","VAR.P","CORREL","FORECAST","GEOMEAN","HARMEAN",
+ "DEC2BIN","DEC2HEX","DEC2OCT","BIN2DEC","HEX2DEC","OCT2DEC","CONVERT","DELTA","GESTEP","COMPLEX","IMABS","IMSUM","ISBLANK","ISERR","ISERROR","ISEVEN","ISLOGICAL","ISNA","ISNONTEXT","ISNUMBER","ISODD","ISTEXT","N","NA","TYPE","ERROR.TYPE","ENCODEURL"
+]);
 const definitions:Record<string,{category:string;syntax:string;description:string}> = {
   "PMT":{category:"Financial",syntax:"PMT(rate, nper, pv, [fv], [type])",description:"Returns the periodic payment for a loan or annuity."},
   "IPMT":{category:"Financial",syntax:"IPMT(rate, per, nper, pv, [fv], [type])",description:"Returns the interest payment for a specified period."},
@@ -213,9 +223,9 @@ const definitions:Record<string,{category:string;syntax:string;description:strin
   "CELL":{category:"Information",syntax:"CELL(info_type, [reference])",description:"Returns information about a cell."},
   "ENCODEURL":{category:"Web",syntax:"ENCODEURL(text)",description:"Encodes text for use in a URL."},
 };
-export const FORMULA_GROUPS:Record<string,FormulaEntry[]> = Object.fromEntries(FORMULA_CATEGORIES.map(category=>[category,Object.entries(definitions).filter(([,entry])=>entry.category===category).map(([name,entry])=>({...entry,name,example:`=${name}()`,implemented:false}))]));
-export const FORMULA_CATALOG:FormulaEntry[] = Object.entries(definitions).map(([name,entry])=>({...entry,name,example:`=${name}()`,implemented:false}));
-export const getFormula=(name:string)=>definitions[name.toUpperCase()]?{...definitions[name.toUpperCase()],name:name.toUpperCase(),example:`=${name.toUpperCase()}()`,implemented:false}:undefined;
+export const FORMULA_GROUPS:Record<string,FormulaEntry[]> = Object.fromEntries(FORMULA_CATEGORIES.map(category=>[category,Object.entries(definitions).filter(([,entry])=>entry.category===category).map(([name,entry])=>({...entry,name,example:`=${name}()`,implemented:IMPLEMENTED_FORMULA_NAMES.has(name)}))]));
+export const FORMULA_CATALOG:FormulaEntry[] = Object.entries(definitions).map(([name,entry])=>({...entry,name,example:`=${name}()`,implemented:IMPLEMENTED_FORMULA_NAMES.has(name)}));
+export const getFormula=(name:string)=>definitions[name.toUpperCase()]?{...definitions[name.toUpperCase()],name:name.toUpperCase(),example:`=${name.toUpperCase()}()`,implemented:IMPLEMENTED_FORMULA_NAMES.has(name)}:undefined;
 export const FORMULA_CATALOG_COUNT=FORMULA_CATALOG.length;
-export const IMPLEMENTED_FORMULA_COUNT=0;
+export const IMPLEMENTED_FORMULA_COUNT=IMPLEMENTED_FORMULA_NAMES.size;
 export const FORMULA_NAMES=FORMULA_CATALOG.map(entry=>entry.name);
