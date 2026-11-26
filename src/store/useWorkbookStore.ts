@@ -69,7 +69,6 @@ const makeTemplate = (kind: TemplateId): WorkbookData => {
     for(let row=2;row<=5;row++){s.cells[addressOf(row,2)]={...s.cells[addressOf(row,2)],datePicker:true};s.cells[addressOf(row,3)]={...s.cells[addressOf(row,3)],validationOptions:["Present","Absent","Leave","Holiday"]};}
     s.rowCount=40;s.columnCount=7;
   }
-  }
   wb.modifiedAt = Date.now(); return wb;
 };
 const activeWorkbook = (s: Store) => s.workbooks.find(w => w.id === s.activeWorkbookId);
@@ -160,4 +159,4 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
   setAutoSaveEnabled:enabled=>set({autoSaveEnabled:enabled}),
   undo: ()=>set(s=>{const prev=s.undoStack.at(-1);if(!prev)return {};return {workbooks:prev,undoStack:s.undoStack.slice(0,-1),redoStack:[...s.redoStack,clone(s.workbooks)]};}),
   redo: ()=>set(s=>{const next=s.redoStack.at(-1);if(!next)return {};return {workbooks:next,redoStack:s.redoStack.slice(0,-1),undoStack:[...s.undoStack,clone(s.workbooks)]};}),
-}),{name:"gridnova-excel-storage",version:2,partialize:s=>({workbooks:s.autoSaveEnabled?s.workbooks:[],zoom:s.zoom,autoSaveEnabled:s.autoSaveEnabled})}));
+}),{name:"gridnova-excel-storage",version:1,partialize:s=>({workbooks:s.autoSaveEnabled?s.workbooks:[],zoom:s.zoom,autoSaveEnabled:s.autoSaveEnabled})}));

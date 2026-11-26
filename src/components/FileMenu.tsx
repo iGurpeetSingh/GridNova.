@@ -30,19 +30,21 @@ const icon=(Icon:typeof Folder,color:string,fill?:string)=><Icon size={17} strok
 function makeGroups(workbooks:WorkbookData[],currentId:string):MenuGroup[]{
   const recent=[...workbooks].sort((a,b)=>b.modifiedAt-a.modifiedAt).slice(0,8);
   return [
-    {id:"open",items:[
-      {id:"new-blank",label:"New Blank Workbook",action:"file-new-blank",icon:icon(FilePlus2,"#107C41")},
-      {id:"templates",label:"Templates",icon:icon(Table2,"#0F6CBD"),children:[
-        {id:"monthly-budget",label:"Monthly Budget",action:"file-template:budget",icon:icon(Wallet,"#107C41")},
-        {id:"sales-dashboard",label:"Sales Dashboard",action:"file-template:sales-dashboard",icon:icon(FileSpreadsheet,"#107C41")},
-        {id:"gst-invoice",label:"GST Invoice",action:"file-template:gst-invoice",icon:icon(FileText,"#0F6CBD")},
-        {id:"attendance-tracker",label:"Attendance Tracker",action:"file-template:attendance-tracker",icon:icon(CalendarClock,"#0F6CBD")}
-      ]},
-      {id:"open-device",label:"Open from This Device",action:"file-open-device",icon:icon(Upload,"#0F6CBD")},
-      {id:"recent",label:"Recent Workbooks",icon:icon(FileClock,"#605E5C"),children:recent.length?recent.map(book=>({id:"recent-"+book.id,label:book.title,meta:new Date(book.modifiedAt).toLocaleString(),action:"file-open-workbook:"+book.id,icon:icon(FileSpreadsheet,book.id===currentId?"#107C41":"#605E5C")})):[{id:"recent-empty",label:"No recent workbooks",disabled:true}]}
+    {id:"section-open",items:[
+      {id:"open",label:"Open",icon:icon(FolderOpen,"#D83B01"),children:[
+        {id:"new-blank",label:"New Blank Workbook",action:"file-new-blank",icon:icon(FilePlus2,"#107C41")},
+        {id:"templates",label:"Templates",icon:icon(Table2,"#0F6CBD"),children:[
+          {id:"monthly-budget",label:"Monthly Budget",action:"file-template:budget",icon:icon(Wallet,"#107C41")},
+          {id:"sales-dashboard",label:"Sales Dashboard",action:"file-template:sales-dashboard",icon:icon(FileSpreadsheet,"#107C41")},
+          {id:"gst-invoice",label:"GST Invoice",action:"file-template:gst-invoice",icon:icon(FileText,"#0F6CBD")},
+          {id:"attendance-tracker",label:"Attendance Tracker",action:"file-template:attendance-tracker",icon:icon(CalendarClock,"#0F6CBD")}
+        ]},
+        {id:"open-device",label:"Open from This Device",action:"file-open-device",icon:icon(Upload,"#0F6CBD")},
+        {id:"recent",label:"Recent Workbooks",icon:icon(FileClock,"#605E5C"),children:recent.length?recent.map(book=>({id:"recent-"+book.id,label:book.title,meta:new Date(book.modifiedAt).toLocaleString(),action:"file-open-workbook:"+book.id,icon:icon(FileSpreadsheet,book.id===currentId?"#107C41":"#605E5C")})):[{id:"recent-empty",label:"No recent workbooks",disabled:true}]}
+      ]}
     ]},
-    {id:"share-copy-export",items:[
-      {id:"divider-before-share",label:"",separator:true},
+    {id:"section-actions",items:[
+      {id:"divider-before-actions",label:"",separator:true},
       {id:"share",label:"Share",icon:icon(Share2,"#0F6CBD"),children:[
         {id:"share-dialog",label:"Share & Permissions",action:"file-share-open",icon:icon(Users,"#0F6CBD")},
         {id:"share-copy-link",label:"Copy Link",action:"file-share-copy-link",icon:icon(Link2,"#0F6CBD")},
@@ -59,9 +61,9 @@ function makeGroups(workbooks:WorkbookData[],currentId:string):MenuGroup[]{
         {id:"export-pdf",label:"Export as PDF",action:"file-export-pdf",icon:icon(FileText,"#C43B32")},
         {id:"export-json",label:"Download JSON Backup (.json)",action:"file-export-json",icon:icon(FileJson,"#605E5C")}
       ]},
-      {id:"print",label:"Print",action:"file-print",icon:icon(Printer,"#0F6CBD")}
+      {id:"print",label:"Print",action:"file-print",icon:icon(Printer,"#323130")}
     ]},
-    {id:"file-settings",items:[
+    {id:"section-settings",items:[
       {id:"divider-before-settings",label:"",separator:true},
       {id:"move",label:"Move File",disabled:true,title:"Available for cloud-synced workbooks",icon:icon(FolderInput,"#A19F9D")},
       {id:"info",label:"Info",icon:icon(Info,"#323130"),children:[
@@ -123,7 +125,7 @@ function PortalPanel({items,parentRef,root=false,mobile=false,depth,title,pathPr
     else if(event.key==="ArrowLeft"){event.preventDefault();if(onBack)onBack();else onClose();}
   };
   return createPortal(<div ref={panelRef} data-file-menu-surface="true" role="menu" aria-label={root?"File menu":"File submenu"} onMouseEnter={onEnter} onMouseLeave={onLeave} onKeyDown={handleKeyDown} onMouseDown={event=>event.preventDefault()} className={`file-menu-panel ${root?"file-menu-root":""} ${mobile?"file-menu-mobile":""}`} style={{left:position.left,top:position.top}}>
-    {mobile&&depth>0&&<div className="file-menu-mobile-header"><button type="button" onMouseDown={event=>event.preventDefault()} onClick={onBack}><ChevronLeft size={17}/> Back</button><strong>{title??"File"}</strong><button type="button" aria-label="Close File menu" onMouseDown={event=>event.preventDefault()} onClick={onClose}><X size={17}/></button></div>}
+    {mobile&&<div className="file-menu-mobile-header">{depth>0?<button type="button" onMouseDown={event=>event.preventDefault()} onClick={onBack}><ChevronLeft size={17}/> Back</button>:<span/>}<strong>{title??"File"}</strong><button type="button" aria-label="Close File menu" onMouseDown={event=>event.preventDefault()} onClick={onClose}><X size={17}/></button></div>}
     {items.map(item=>item.separator?<div key={item.id} role="separator" className="file-menu-divider"/>:<button key={item.id} ref={element=>registerButton(item.id,element)} type="button" role="menuitem" disabled={item.disabled} data-has-children={!!item.children} data-menu-id={item.id} title={item.title} aria-haspopup={item.children?"menu":undefined} className="file-menu-item" onMouseEnter={()=>{if(item.children){onEnter();onOpenPath([...pathPrefix,item.id]);}else if(pathPrefix.length===0)onOpenPath([]);}} onClick={()=>{if(item.children){onOpenPath([...pathPrefix,item.id]);}else if(item.action){onAction(item.action);onClose();}}}>
       <span className="file-menu-item-icon">{item.icon??<span/>}</span><span className="file-menu-item-copy"><span>{item.label}</span>{item.meta&&<small>{item.meta}</small>}</span>{item.children&&<ChevronRight size={15} className="file-menu-chevron"/>}
     </button>)}
