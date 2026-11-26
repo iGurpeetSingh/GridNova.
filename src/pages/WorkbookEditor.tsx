@@ -11,7 +11,7 @@ import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CellData, CellRange, CellStyle, FloatingChartData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { numericValue } from "../utils/formulaEngine";
-import { calculateWorkbook, spillOriginForCell } from "../utils/spillEngine";
+import { calculateWorkbook, spillOriginForCell, type WorkbookCalculation } from "../utils/spillEngine";
 
 
 type Tab = "File"|"Home"|"Insert"|"Page Layout"|"Formulas"|"Data"|"View";
@@ -44,6 +44,9 @@ export default function WorkbookEditor(){
   const setShowFormulas=useWorkbookStore(s=>s.setShowFormulas);const setZoom=useWorkbookStore(s=>s.setZoom);
   const setOrientation=useWorkbookStore(s=>s.setOrientation);
   const [tab,setTab]=useState<Tab>("Home");const [formulaValue,setFormulaValue]=useState("");
+  const [calculationModeState,setCalculationModeState]=useState<"Automatic"|"Manual">("Automatic");
+  const [manualCalculation,setManualCalculation]=useState<WorkbookCalculation|null>(null);
+  const [calculationRevision,setCalculationRevision]=useState(0);
   const [shareOpen,setShareOpen]=useState(false);const [renaming,setRenaming]=useState(false);const [titleValue,setTitleValue]=useState("");
   const [savePulse,setSavePulse]=useState(false);
   const fileRef=useRef<HTMLInputElement>(null);
@@ -52,7 +55,26 @@ export default function WorkbookEditor(){
   useEffect(()=>{if(id&&activeWorkbookId!==id)setActiveWorkbook(id)},[id,activeWorkbookId,setActiveWorkbook]);
   useEffect(()=>{setTitleValue(workbook?.title??"")},[workbook?.title]);
   const sheet=workbook?.sheets.find(s=>s.id===activeSheetId)??workbook?.sheets[0];
-  const calculation = useMemo(() => calculateWorkbook(workbook?.sheets ?? []), [workbook?.sheets]);
+  const calculation = useMemo(
+    () => calculationModeState === "Manual" && manualCalculation
+      ? manualCalculation
+      : calculateWorkbook(workbook?.sheets ?? []),
+    [workbook?.sheets, calculationModeState, manualCalculation, calculationRevision],
+  );
+  const setCalculationMode=(mode:"Automatic"|"Manual")=>{
+    if(mode==="Manual") setManualCalculation(calculation);
+    else setManualCalculation(null);
+    setCalculationModeState(mode);
+  };
+  const calculateNow=()=>{
+    const fresh=calculateWorkbook(workbook?.sheets ?? []);
+    if(calculationModeState==="Manual") setManualCalculation(fresh);
+    setCalculationRevision(value=>value+1);
+  };
+  useEffect(()=>{
+    setCalculationModeState("Automatic");
+    setManualCalculation(null);
+  },[workbook?.id]);
   const sheetCalculation = sheet ? calculation.sheets[sheet.id] : undefined;
   const spillOrigin = spillOriginForCell(sheetCalculation, activeCell);
   const formulaBarAddress = spillOrigin ?? activeCell;
@@ -216,6 +238,7 @@ export default function WorkbookEditor(){
       case "orientation-portrait":setOrientation("portrait");break;case "orientation-landscape":setOrientation("landscape");break;
       case "gridlines":updateSheet(sheet.id,{showGridlines:!sheet.showGridlines});break;case "headings":updateSheet(sheet.id,{showHeadings:!sheet.showHeadings});break;
       case "toggle-formulas":setShowFormulas(!showFormulas);break;
+      case "calculate-workbook":case "calculate-sheet":case "refresh-all":calculateNow();break;
       case "filters":updateSheet(sheet.id,{filters:!sheet.filters});break;
       case "duplicates":{
         const p=parseAddress(activeCell);if(!p)break;
@@ -255,7 +278,7 @@ export default function WorkbookEditor(){
       <div className="hidden items-center gap-1.5 rounded-full bg-[#edf8f0] px-3 py-1.5 text-[10px] font-semibold text-[#16864b] sm:flex">{savePulse?<Check size={12}/>:<Cloud size={12}/>} {savePulse?"Saved just now":"Saved locally"}</div>
       <div className="ml-auto flex items-center gap-1.5"><button onMouseDown={e=>e.preventDefault()} onClick={undo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Undo"><span className="text-sm">↶</span></button><button onMouseDown={e=>e.preventDefault()} onClick={redo} className="grid h-8 w-8 place-items-center rounded-lg text-[#7b8c81] hover:bg-[#eff5f0]" title="Redo"><span className="text-sm">↷</span></button><button onMouseDown={e=>e.preventDefault()} onClick={()=>setShareOpen(true)} className="rounded-full bg-[#087df0] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#006ad2]">Share</button></div>
     </header>
-    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={style=>setStyle(style,selectedAddresses)} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation}/>
+    <Ribbon activeTab={tab} setActiveTab={setTab} onAction={action} onFormat={style=>setStyle(style,selectedAddresses)} style={activeStyle} sheet={sheet} showFormulas={showFormulas} setShowFormulas={setShowFormulas} zoom={zoom} setZoom={setZoom} orientation={workbook.orientation} setOrientation={setOrientation} calculationMode={calculationModeState} setCalculationMode={setCalculationMode}/>
     <FormulaBar address={activeCell} value={formulaValue} readOnly={formulaBarReadOnly} onChange={setFormulaValue} onCommit={()=>{if(!formulaBarReadOnly){setCell(activeCell,formulaValue);setShowSaved()}}}/>
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} calculation={sheetCalculation} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} onSelect={selectCell}/>
@@ -263,7 +286,7 @@ export default function WorkbookEditor(){
       <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)void importFile(f)}}/>
     </div>
     <SheetBar sheets={workbook.sheets} activeId={sheet.id} onSelect={setActiveSheet} onAdd={addSheet} onRename={renameSheet} onDelete={id=>{if(window.confirm("Delete this sheet?"))deleteSheet(id)}}/>
-    <footer className="no-print flex h-8 shrink-0 items-center justify-between border-t border-[#e2e9e4] bg-white px-4 text-[10px] text-[#829087]"><div className="flex items-center gap-4"><span>Ready</span><span>Count: <b className="text-[#52665a]">{stats.count}</b></span><span>Sum: <b className="text-[#52665a]">{stats.sum.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span><span>Average: <b className="text-[#52665a]">{stats.average.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span></div><div>{sheet.showGridlines?"Gridlines on":"Gridlines off"} · {zoom}%</div></footer>
+    <footer className="no-print flex h-8 shrink-0 items-center justify-between border-t border-[#e2e9e4] bg-white px-4 text-[10px] text-[#829087]"><div className="flex items-center gap-4"><span>{sheetCalculation?.circular[0] ? <button type="button" className="font-semibold text-[#b45309] underline decoration-dotted underline-offset-2" onClick={()=>selectCell(sheetCalculation.circular[0])} title="Select the circular reference cell">Circular Reference: {sheetCalculation.circular[0]}</button> : calculationModeState==="Manual" ? "Manual calculation" : "Ready"}</span><span>Count: <b className="text-[#52665a]">{stats.count}</b></span><span>Sum: <b className="text-[#52665a]">{stats.sum.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span><span>Average: <b className="text-[#52665a]">{stats.average.toLocaleString(undefined,{maximumFractionDigits:2})}</b></span></div><div>{sheet.showGridlines?"Gridlines on":"Gridlines off"} · {zoom}%</div></footer>
     <ShareModal open={shareOpen} onClose={()=>setShareOpen(false)} workbookId={workbook.id} title={workbook.title} onExport={exportFile}/>
   </main>;
 }
