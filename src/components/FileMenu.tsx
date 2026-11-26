@@ -165,13 +165,15 @@ export default function FileMenu({workbooks,currentWorkbookId,onAction}:Props){
   if(open){
     if(!mobile||activePath.length===0)panels.push(<PortalPanel key="root" items={rootItems} parentRef={triggerRef} root mobile={mobile&&activePath.length===0} depth={0} pathPrefix={[]} onAction={runAction} onClose={close} onOpenPath={openPath} onEnter={cancelClose} onLeave={scheduleClose} registerButton={registerRoot}/>);
     if(activePath.length){
-      const node=findNode(groups,activePath);
-      if(node?.children){
-        const parentKey=activePath.join("/");
+      const paths=mobile?[activePath]:activePath.map((_,index)=>activePath.slice(0,index+1));
+      paths.forEach(path=>{
+        const node=findNode(groups,path);
+        if(!node?.children)return;
+        const parentKey=path.join("/");
         const parentRef:RefObject<HTMLElement|null>={current:anchors.current.get(parentKey)??null};
         const title=node.label;
-        panels.push(<PortalPanel key={"submenu-"+parentKey} items={node.children} parentRef={parentRef} mobile={mobile} depth={activePath.length} title={title} pathPrefix={activePath} onBack={()=>openPath(activePath.slice(0,-1))} onAction={runAction} onClose={close} onOpenPath={openPath} onEnter={cancelClose} onLeave={scheduleClose} registerButton={registerSub(parentKey)}/>);
-      }
+        panels.push(<PortalPanel key={"submenu-"+parentKey} items={node.children} parentRef={parentRef} mobile={mobile} depth={path.length} title={title} pathPrefix={path} onBack={()=>openPath(path.slice(0,-1))} onAction={runAction} onClose={close} onOpenPath={openPath} onEnter={cancelClose} onLeave={scheduleClose} registerButton={registerSub(parentKey)}/>);
+      });
     }
   }
   return <div ref={rootRef} className="file-menu-trigger-wrap">
