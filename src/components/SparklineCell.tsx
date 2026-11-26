@@ -4,22 +4,24 @@ import { Check, Palette } from "lucide-react";
 import type { CellData, SheetData, SparklineData } from "../types";
 import { parseAddress, addressOf } from "../types";
 import { useWorkbookStore } from "../store/useWorkbookStore";
-interface Props { sheet:SheetData; sparkline:SparklineData; onSelect?:()=>void; }
+import { numericValue } from "../utils/formulaEngine";
+interface Props { sheet:SheetData; sparkline:SparklineData; onSelect?:()=>void; namedRanges?:Record<string,string>; allSheets?:SheetData[]; }
 const colors=[{name:"Blue",value:"#0F6CBD"},{name:"Green",value:"#107C41"},{name:"Red",value:"#C4314B"},{name:"Purple",value:"#8764B8"},{name:"Orange",value:"#E36C09"}];
-function sourceValues(sparkline:SparklineData,cells:Record<string,CellData>):number[]{
+function sourceValues(sparkline:SparklineData,sheet:SheetData,namedRanges:Record<string,string>,allSheets:SheetData[]):number[]{
   const [first,lastRaw]=sparkline.dataRange.toUpperCase().split(":"),last=lastRaw??first;
   const a=parseAddress(first),b=parseAddress(last);if(!a||!b)return [];
   const values:number[]=[];
   for(let row=Math.min(a.row,b.row);row<=Math.max(a.row,b.row);row++)for(let col=Math.min(a.col,b.col);col<=Math.max(a.col,b.col);col++){
-    const raw=cells[addressOf(row,col)]?.raw??"",number=Number(raw.startsWith("=")?cells[addressOf(row,col)]?.cachedValue??raw:raw);
-    if(Number.isFinite(number))values.push(number);
+    const address=addressOf(row,col),raw=sheet.cells[address]?.raw??"";
+    const number=numericValue(raw,sheet.cells,sheet.tables??[],address,namedRanges,allSheets,sheet.name);
+    if(number!==null)values.push(number);
   }
   return values;
 }
-export default function SparklineCell({sheet,sparkline,onSelect}:Props){
+export default function SparklineCell({sheet,sparkline,onSelect,namedRanges={},allSheets=[]}:Props){
   const [open,setOpen]=useState(false),[position,setPosition]=useState({x:8,y:8});
   const updateSheet=useWorkbookStore(state=>state.updateSheet);
-  const values=useMemo(()=>sourceValues(sparkline,sheet.cells),[sparkline.dataRange,sheet.cells]);
+  const values=useMemo(()=>sourceValues(sparkline,sheet,namedRanges,allSheets.length?allSheets:[sheet]),[sparkline.dataRange,sheet.cells,sheet.tables,namedRanges,allSheets,sheet.name]);
   const width=104,height=24,pad=3,min=Math.min(0,...values),max=Math.max(0,...values),span=max-min||1;
   const points=values.map((value,index)=>({x:pad+(values.length<=1?width/2:index/(values.length-1)*(width-pad*2)),y:height-pad-(value-min)/span*(height-pad*2),value}));
   const path=points.map((point,index)=>`${index?"L":"M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
