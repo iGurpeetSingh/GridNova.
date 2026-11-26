@@ -9,7 +9,7 @@ const refPattern = /^\$?[A-Z]{1,3}\$?[1-9]\d*$/i;
 const columnPattern = /^\$?[A-Z]{1,3}$/i;
 const rowPattern = /^\$?[1-9]\d*$/;
 const isArrayValue=(value:Value):value is ArrayValue=>typeof value==="object"&&value!==null&&"__gridArray" in value;
-const scalar=(value:Value|undefined):Scalar=>isArrayValue(value)?(value.values[0]?.[0]??""):value??"";
+const scalar=(value:Value|undefined):Scalar=>value!==undefined&&isArrayValue(value)?(value.values[0]?.[0]??""):value??"";
 const flatValues=(values:Value[])=>values.flatMap(value=>isArrayValue(value)?value.values.flat():[value]);
 
 const tableNamePattern = /^[A-Za-z_][A-Za-z0-9_.]*/;
