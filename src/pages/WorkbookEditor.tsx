@@ -761,7 +761,14 @@ export default function WorkbookEditor(){
       case "share-copy-link":copyShareLink("workbook");break;
       case "share-section-link":copyShareLink("range");break;
       case "share-table-link":copyShareLink("table");break;
-      case "pivot-table":createPivotTable();break;
+      case "pivot-table":{
+        const active=parseAddress(activeCell),table=active?getTableAt(sheet.tables,active.row,active.col):null;
+        const populated=Object.keys(sheet.cells).map(address=>parseAddress(address)).filter((value):value is {row:number;col:number}=>!!value);
+        const fallback={startRow:0,startCol:0,endRow:Math.max(1,...populated.map(point=>point.row)),endCol:Math.max(1,...populated.map(point=>point.col))};
+        const range=selection?selectedRangeForRules:table?.range??fallback;
+        if(range.endRow<=range.startRow){window.alert("Select a source range with a header row and at least one data row.");break;}
+        setPivotSourceRange(range);setPivotBuilderOpen(true);break;
+      }
       case "external-pivot":window.alert("External data source connections are not configured in this local workbook. Select a range and use From Table/Range instead.");break;
       case "forms-new":{
         addSheet();
@@ -970,6 +977,20 @@ export default function WorkbookEditor(){
       ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
     <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
+    <PivotTableBuilderDialog open={pivotBuilderOpen} source={sheet} sourceRange={pivotSourceRange??selectedRangeForRules} activeSheetId={sheet.id} onClose={()=>setPivotBuilderOpen(false)} onCreate={definition=>{
+      let destinationSheetId=definition.destinationSheetId;
+      if(destinationSheetId==="__new__"){
+        addSheet();
+        destinationSheetId=useWorkbookStore.getState().activeSheetId??sheet.id;
+        renameSheet(destinationSheetId,definition.name.trim()||"PivotTable");
+      }
+      const currentWorkbook=useWorkbookStore.getState().workbooks.find(item=>item.id===workbook.id);
+      const destination=currentWorkbook?.sheets.find(item=>item.id===destinationSheetId)??sheet;
+      const finalDefinition={...definition,destinationSheetId,destinationCell:definition.destinationSheetId==="__new__"?"A1":definition.destinationCell};
+      const built=buildPivotTable(finalDefinition,sheet);
+      updateSheet(destinationSheetId,{cells:{...destination.cells,...built.cells},pivotTables:[...(destination.pivotTables??[]),{...finalDefinition,outputRange:built.range}],rowCount:Math.max(destination.rowCount,built.range.endRow+1),columnCount:Math.max(destination.columnCount,built.range.endCol+1)});
+      setActiveSheet(destinationSheetId);setTab("Home");selectCell(addressOf(built.range.startRow,built.range.startCol));setShowSaved();setPivotBuilderOpen(false);
+    }}/>
     <SparklineDialog open={sparklineOpen} type={sparklineType} activeCell={activeCell} onClose={()=>setSparklineOpen(false)} onSave={(dataRange,locationRange,type)=>{
       const sourceHeight=dataRange.endRow-dataRange.startRow+1,sourceWidth=dataRange.endCol-dataRange.startCol+1;
       const locations=Array.from({length:(locationRange.endRow-locationRange.startRow+1)*(locationRange.endCol-locationRange.startCol+1)},(_,index)=>({row:locationRange.startRow+Math.floor(index/(locationRange.endCol-locationRange.startCol+1)),col:locationRange.startCol+index%(locationRange.endCol-locationRange.startCol+1)}));
