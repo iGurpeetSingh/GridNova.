@@ -231,7 +231,7 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
       activeSheetId:destinationNext.id,activeCell:newDestination?"A1":definition.destinationCell,selection:null
     }));
     return destinationNext.id;
-  }),
+  },
   addChart: chart => set(s=>mutateActive(s,w=>({...w,charts:[...w.charts,chart]}))),
   updateChart: (id,changes) => set(s=>mutateActive(s,w=>({...w,charts:w.charts.map(c=>c.id===id?{...c,...changes}:c)}))),
   deleteChart: id => set(s=>mutateActive(s,w=>({...w,charts:w.charts.filter(c=>c.id!==id)}))),
