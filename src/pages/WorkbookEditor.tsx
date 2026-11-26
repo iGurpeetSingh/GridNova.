@@ -77,6 +77,7 @@ export default function WorkbookEditor(){
   const renameSheet=useWorkbookStore(s=>s.renameSheet);
   const deleteSheet=useWorkbookStore(s=>s.deleteSheet);
   const updateSheet=useWorkbookStore(s=>s.updateSheet);
+  const createPivotTable=useWorkbookStore(s=>s.createPivotTable);
   const addChart=useWorkbookStore(s=>s.addChart);
   const updateChart=useWorkbookStore(s=>s.updateChart);
   const deleteChart=useWorkbookStore(s=>s.deleteChart);
@@ -1009,18 +1010,10 @@ export default function WorkbookEditor(){
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
     <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
     <PivotTableBuilderDialog open={pivotBuilderOpen} source={sheet} sourceRange={pivotSourceRange??selectedRangeForRules} activeSheetId={sheet.id} onClose={()=>setPivotBuilderOpen(false)} onCreate={definition=>{
-      let destinationSheetId=definition.destinationSheetId;
-      if(destinationSheetId==="__new__"){
-        addSheet();
-        destinationSheetId=useWorkbookStore.getState().activeSheetId??sheet.id;
-        renameSheet(destinationSheetId,definition.name.trim()||"PivotTable");
-      }
-      const currentWorkbook=useWorkbookStore.getState().workbooks.find(item=>item.id===workbook.id);
-      const destination=currentWorkbook?.sheets.find(item=>item.id===destinationSheetId)??sheet;
-      const finalDefinition={...definition,destinationSheetId,destinationCell:definition.destinationSheetId==="__new__"?"A1":definition.destinationCell};
-      const built=buildPivotTable(finalDefinition,sheet,workbook);
-      updateSheet(destinationSheetId,{cells:{...destination.cells,...built.cells},pivotTables:[...(destination.pivotTables??[]),{...finalDefinition,outputRange:built.range}],rowCount:Math.max(destination.rowCount,built.range.endRow+1),columnCount:Math.max(destination.columnCount,built.range.endCol+1)});
-      setActiveSheet(destinationSheetId);setTab("Home");selectCell(addressOf(built.range.startRow,built.range.startCol));setShowSaved();setPivotBuilderOpen(false);
+      const built=buildPivotTable(definition,sheet,workbook);
+      const destinationId=createPivotTable(definition,built.cells,built.range);
+      if(!destinationId){window.alert("Unable to create the PivotTable destination sheet.");return;}
+      setActiveSheet(destinationId);setTab("Home");selectCell(addressOf(built.range.startRow,built.range.startCol));setShowSaved();setPivotBuilderOpen(false);
     }}/>
     <SparklineDialog open={sparklineOpen} type={sparklineType} activeCell={activeCell} onClose={()=>setSparklineOpen(false)} onSave={(dataRange,locationRange,type)=>{
       const sourceHeight=dataRange.endRow-dataRange.startRow+1,sourceWidth=dataRange.endCol-dataRange.startCol+1;
