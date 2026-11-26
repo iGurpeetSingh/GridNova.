@@ -22,6 +22,7 @@ interface Props {
   onFormat:(style:Partial<CellStyle>)=>void; style:CellStyle; sheet:SheetData;
   showFormulas:boolean; setShowFormulas:(v:boolean)=>void; zoom:number; setZoom:(v:number)=>void;
   orientation:"portrait"|"landscape"; setOrientation:(v:"portrait"|"landscape")=>void;
+  calculationMode:"Automatic"|"Manual"; setCalculationMode:(v:"Automatic"|"Manual")=>void;
 }
 const tabs:Tab[]=["File","Home","Insert","Page Layout","Formulas","Data","View"];
 const tones:Record<string,string>={green:"#107c41",blue:"#3b82f6",indigo:"#6366f1",amber:"#e59a23",purple:"#8b5cf6",rose:"#e45a56",pink:"#e66aa8"};
@@ -52,7 +53,7 @@ function ActionMenu({id,label,className,children,items,open,onToggle,onClose,onA
 function Group({label,children}:{label:string;children:ReactNode}){
   return <section aria-label={label} className="ribbon-group"><div className="ribbon-group-content">{children}</div><div className="ribbon-label">{label}</div></section>;
 }
-export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation}:Props){
+export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,orientation,setOrientation,calculationMode,setCalculationMode}:Props){
   const [openMenu,setOpenMenu]=useState<string|null>(null);
   const toggleMenu=(key:string)=>setOpenMenu(current=>current===key?null:key);
   const closeMenu=()=>setOpenMenu(null);
@@ -86,9 +87,14 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
       case "Formulas":return <>
         <Group label="Function library">{button("AutoSum",Sigma,"autosum","green")}{button("SUM",Braces,"formula-sum","amber")}{button("AVERAGE",FunctionSquare,"formula-average","amber")}{button("COUNT",FunctionSquare,"formula-count","amber")}{button("MIN",Minus,"formula-min","amber")}{button("MAX",Plus,"formula-max","amber")}{button("IF",Braces,"formula-if","amber")}</Group>
         <Group label="Formula view"><Tool label={showFormulas?"Hide formulas":"Show formulas"} icon={showFormulas?EyeOff:Eye} action="toggle-formulas" onAction={()=>setShowFormulas(!showFormulas)} tone="amber" active={showFormulas}/></Group>
+        <Group label="Calculation">
+          {drop("calculation-mode",{label:"Calculation",value:calculationMode,options:["Automatic","Manual"],onPick:v=>setCalculationMode(v as "Automatic"|"Manual")})}
+          {button("Calculate Workbook",FunctionSquare,"calculate-workbook","green")}
+          {button("Calculate Sheet",FunctionSquare,"calculate-sheet","blue")}
+        </Group>
       </>;
       case "Data":return <>
-        <Group label="Import">{button("Import CSV / Excel",Upload,"import","green")}</Group>
+        <Group label="Import">{button("Import CSV / Excel",Upload,"import","green")}{button("Refresh All",FunctionSquare,"refresh-all","blue")}</Group>
         <Group label="Sort & filter">{button("Sort A–Z",SortAsc,"sort-az","blue")}{button("Sort Z–A",ArrowDownZA,"sort-za","blue")}{button(sheet.filters?"Remove filters":"Add filters",Filter,"filters","blue",sheet.filters)}{button("Remove duplicates",Eraser,"duplicates","rose")}</Group>
       </>;
       case "View":return <>
