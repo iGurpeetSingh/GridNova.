@@ -5,12 +5,14 @@ import { ExternalLink, Filter, Plus, Search } from "lucide-react";
 import type { CalculationMode, CellRange, CellStyle, SheetData, TableFilterState } from "../types";
 import { addressOf, columnLabel, parseAddress } from "../types";
 import { formatCellValue } from "../utils/formulaEngine";
+import { FormulaAutocomplete, FormulaArgumentTooltip, formulaReferenceAddresses } from "../utils/formulaHelpers";
+import { FORMULA_CATALOG } from "../lib/formula-catalog";
 import { getTableAt, getTablePalette, tableColumnValues, tableFilterPasses } from "../utils/tableUtils";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 
 interface Props {
   sheet: SheetData; activeCell: string; selection: CellRange | null; showFormulas: boolean; zoom: number;
-  namedRanges?:Record<string,string>; allSheets?:SheetData[]; calculationMode?:CalculationMode; formulaBarFocused?: boolean;
+  namedRanges?:Record<string,string>; allSheets?:SheetData[]; calculationMode?:CalculationMode; formulaBarFocused?: boolean; formulaBarDraft?:string;
   onSelect: (address: string, range?: CellRange) => void;
 }
 type ContextMenuState = { x: number; y: number; kind: "cell" | "row" | "column"; index: number; col: number } | null;
@@ -34,7 +36,7 @@ const adjustReferences = (raw: string, axis: "row" | "column", index: number, co
   return axis === "row" ? `${colLock}${letters}${rowLock}${updated + 1}` : `${colLock}${columnLabel(updated)}${rowLock}${digits}`;
 });
 
-export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, namedRanges={}, allSheets=[], calculationMode="Automatic", formulaBarFocused = false, onSelect }: Props) {
+export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, namedRanges={}, allSheets=[], calculationMode="Automatic", formulaBarFocused = false, formulaBarDraft="", onSelect }: Props) {
   const formulaSheets=allSheets.length?allSheets:[sheet];
   const setCell = useWorkbookStore(s => s.setCell);
   const updateSheet = useWorkbookStore(s => s.updateSheet);
@@ -46,6 +48,22 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const [columnFilters, setColumnFilters] = useState<Record<number, string>>({});
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [interactionState, setInteractionState] = useState<InteractionState>("READY");
+  const [cellAutocomplete,setCellAutocomplete]=useState<{address:string;query:string;index:number}|null>(null);
+  const formulaInputRef=useRef<HTMLInputElement|null>(null);
+  const changeCellValue=(address:string,next:string)=>{
+    setCell(address,next);
+    const match=next.match(/(?:^|[=(,+\\-*/^&\\s])([A-Za-z][A-Za-z0-9.]*)$/);
+    if(next.startsWith("=")&&match)setCellAutocomplete({address,query:match[1],index:0});
+    else setCellAutocomplete(null);
+  };
+  const acceptCellFunction=(name:string)=>{
+    const address=cellAutocomplete?.address??activeCell,current=sheet.cells[address]?.raw??"";
+    const next=current.replace(/([A-Za-z][A-Za-z0-9.]*)$/,name+"(");
+    setCell(address,next);setCellAutocomplete(null);setInteractionState("EDITING");setEditingAddress(address);
+    requestAnimationFrame(()=>{const input=gridRef.current?.querySelector<HTMLInputElement>(`input[data-cell="${address}"]`);input?.focus();input?.setSelectionRange(next.length,next.length);});
+  };
+  const formulaDraft=formulaBarFocused?formulaBarDraft:(editingAddress?sheet.cells[editingAddress]?.raw??"":"");
+  const formulaHighlights=useMemo(()=>formulaReferenceAddresses(formulaDraft),[formulaDraft]);
   const [menu, setMenu] = useState<ContextMenuState>(null);
   const rowHeights = sheet.rowHeights ?? {};
   const [fillPreview, setFillPreview] = useState<CellRange | null>(null);
@@ -647,6 +665,17 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>, row: number, col: number) => {
     const mod = event.ctrlKey || event.metaKey, address = addressOf(row, col), isEditing = editingAddress === address;
     const hasMultiCellSelection = bounds.startRow !== bounds.endRow || bounds.startCol !== bounds.endCol;
+    if(cellAutocomplete?.address===address){
+      if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+        event.preventDefault();const matches=FORMULA_CATALOG.filter(item=>item.name.toLowerCase().startsWith(cellAutocomplete.query.toLowerCase())).slice(0,10);
+        setCellAutocomplete(current=>current?{...current,index:Math.max(0,Math.min(Math.max(0,matches.length-1),current.index+(event.key==="ArrowDown"?1:-1)))}:null);return;
+      }
+      if(event.key==="Tab"||event.key==="Enter"){
+        event.preventDefault();const matches=FORMULA_CATALOG.filter(item=>item.name.toLowerCase().startsWith(cellAutocomplete.query.toLowerCase())).slice(0,10);
+        const chosen=matches[cellAutocomplete.index]?.name??matches[0]?.name??cellAutocomplete.query.toUpperCase();acceptCellFunction(chosen);return;
+      }
+      if(event.key==="Escape"){event.preventDefault();setCellAutocomplete(null);return;}
+    }
     if (hasMultiCellSelection && (event.key === "Enter" || event.key === "Tab")) {
       event.preventDefault();
       let nextRow = row, nextCol = col;
@@ -809,8 +838,8 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
               }
               return gridBorder;
             };
-            return <td key={col} data-cell={address} colSpan={cell?.mergeCols ?? 1} rowSpan={cell?.mergeRows ?? 1} className={`grid-cell ${sheet.freezeTopRow && row === 0 ? "sticky top-7 z-10" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27, borderTop: edge("Top"), borderRight: edge("Right"), borderBottom: edge("Bottom"), borderLeft: edge("Left"), background: style.backgroundColor ?? (tableFill ? tableFill : isActive ? "#ffffff" : isSelected ? "rgba(16, 124, 65, 0.08)" : "#ffffff"), fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold || tableHeader || tableTotal || tableFirstColumn || tableLastColumn ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? (tableHeader ? palette?.text ?? "#ffffff" : "#26382d"), textAlign: style.align ?? "left", verticalAlign: style.verticalAlign ?? "middle", textDecoration: [style.doubleUnderline ? "underline double" : style.underline ? "underline" : "", style.strike ? "line-through" : ""].filter(Boolean).join(" "), whiteSpace: style.wrap ? "normal" : "nowrap", overflow: "visible" }} onContextMenu={event => showContextMenu(event, "cell", row, col)}>
-              {cell?.checkbox ? <div className="grid h-full place-items-center"><input type="checkbox" checked={cell.raw === "TRUE"} onChange={event => setCell(address, event.target.checked ? "TRUE" : "FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]" /></div> : cell?.hyperlink ? <a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value || cell.hyperlink}</span><ExternalLink size={10} /></a> : <input data-cell={address} aria-label={`Cell ${address}`} readOnly={editingAddress !== address && !cell?.datePicker} onFocus={() => { editOriginal.current = cell?.raw ?? ""; }} onDoubleClick={(event) => { event.preventDefault(); editOriginal.current = cell?.raw ?? ""; setInteractionState("EDITING"); setEditingAddress(address); }} onBlur={() => { setEditingAddress(current => current === address ? null : current); if (!formulaBarFocused) setInteractionState("READY"); }} type={cell?.datePicker ? "date" : "text"} value={cell?.datePicker ? (cell.raw || "") : value} onClick={event => { if (event.shiftKey) { const anchor = parseAddress(activeCell) ?? { row, col }; setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, activeCell); } else onSelect(address, { startRow: row, startCol: col, endRow: row, endCol: col }); focusCell(row, col); }} onPointerDown={event => beginRange(row, col, event)} onChange={event => setCell(address, event.target.value)} onKeyDown={event => onKeyDown(event, row, col)} className="cell-input" style={{ textAlign: style.align ?? "left", fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textDecoration: style.doubleUnderline ? "underline double" : style.underline ? "underline" : "none", whiteSpace: style.wrap ? "normal" : "nowrap", writingMode: style.textOrientation === "vertical" ? "vertical-rl" : "horizontal-tb", paddingLeft: 6 + Math.max(0,Math.min(12,style.indent??0))*10, paddingRight: tableHeader && table?.showFilterButtons ? 26 : 6, caretColor: editingAddress === address ? "auto" : "transparent" }} title={cell?.comment ?? ""} />}
+            return <td key={col} data-cell={address} colSpan={cell?.mergeCols ?? 1} rowSpan={cell?.mergeRows ?? 1} className={`grid-cell ${formulaHighlights.has(address)?"formula-reference-cell":""} ${sheet.freezeTopRow && row === 0 ? "sticky top-7 z-10" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27, borderTop: edge("Top"), borderRight: edge("Right"), borderBottom: edge("Bottom"), borderLeft: edge("Left"), background: style.backgroundColor ?? (tableFill ? tableFill : isActive ? "#ffffff" : isSelected ? "rgba(16, 124, 65, 0.08)" : "#ffffff"), fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold || tableHeader || tableTotal || tableFirstColumn || tableLastColumn ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? (tableHeader ? palette?.text ?? "#ffffff" : "#26382d"), textAlign: style.align ?? "left", verticalAlign: style.verticalAlign ?? "middle", textDecoration: [style.doubleUnderline ? "underline double" : style.underline ? "underline" : "", style.strike ? "line-through" : ""].filter(Boolean).join(" "), whiteSpace: style.wrap ? "normal" : "nowrap", overflow: "visible" }} onContextMenu={event => showContextMenu(event, "cell", row, col)}>
+              {cell?.checkbox ? <div className="grid h-full place-items-center"><input type="checkbox" checked={cell.raw === "TRUE"} onChange={event => setCell(address, event.target.checked ? "TRUE" : "FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]" /></div> : cell?.hyperlink ? <a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value || cell.hyperlink}</span><ExternalLink size={10} /></a> : <input ref={editingAddress===address?formulaInputRef:undefined} data-cell={address} aria-label={`Cell ${address}`} readOnly={editingAddress !== address && !cell?.datePicker} onFocus={() => { editOriginal.current = cell?.raw ?? ""; }} onDoubleClick={(event) => { event.preventDefault(); editOriginal.current = cell?.raw ?? ""; setInteractionState("EDITING"); setEditingAddress(address); }} onBlur={() => { setEditingAddress(current => current === address ? null : current); setCellAutocomplete(current=>current?.address===address?null:current); if (!formulaBarFocused) setInteractionState("READY"); }} type={cell?.datePicker ? "date" : "text"} value={cell?.datePicker ? (cell.raw || "") : value} onClick={event => { if (event.shiftKey) { const anchor = parseAddress(activeCell) ?? { row, col }; setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, activeCell); } else onSelect(address, { startRow: row, startCol: col, endRow: row, endCol: col }); focusCell(row, col); }} onPointerDown={event => beginRange(row, col, event)} onChange={event => changeCellValue(address, event.target.value)} onKeyDown={event => onKeyDown(event, row, col)} className="cell-input" style={{ textAlign: style.align ?? "left", fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textDecoration: style.doubleUnderline ? "underline double" : style.underline ? "underline" : "none", whiteSpace: style.wrap ? "normal" : "nowrap", writingMode: style.textOrientation === "vertical" ? "vertical-rl" : "horizontal-tb", paddingLeft: 6 + Math.max(0,Math.min(12,style.indent??0))*10, paddingRight: tableHeader && table?.showFilterButtons ? 26 : 6, caretColor: editingAddress === address ? "auto" : "transparent" }} title={cell?.comment ?? ""} />}
               {tableHeader && table?.showFilterButtons && <button type="button" className={table.filters?.[col] ? "table-header-filter is-filtered" : "table-header-filter"} aria-label={`Filter ${table.name} ${columnLabel(col)}`} title={`Filter ${table.name} — ${columnLabel(col)}`} onMouseDown={event => event.preventDefault()} onClick={event => openTableFilter(event, table.id, col)}>▾</button>}
               {cell?.comment && <span className="comment-mark" title={cell.comment} />}
             </td>;
@@ -884,6 +913,8 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       {menu.kind === "row" && <>{menuItem("Hide row", "hide-row")}{menuItem("Unhide all rows", "unhide-rows")}{menuItem("Resize row…", "resize-row")}{menuItem("Fit row to data", "autofit-row")}</>}
       {menu.kind === "column" && <>{menuItem("Hide column", "hide-column")}{menuItem("Unhide all columns", "unhide-columns")}{menuItem("Resize column…", "resize-column")}{menuItem("Fit column to data", "autofit-column")}</>}
     </div>, document.body)}
+    <FormulaAutocomplete open={!formulaBarFocused&&!!cellAutocomplete} query={cellAutocomplete?.query??""} anchorRef={formulaInputRef} activeIndex={cellAutocomplete?.index??0} onActiveIndexChange={index=>setCellAutocomplete(current=>current?{...current,index}:null)} onSelect={acceptCellFunction} onClose={()=>setCellAutocomplete(null)}/>
+    {!formulaBarFocused&&editingAddress&&<FormulaArgumentTooltip raw={sheet.cells[editingAddress]?.raw??""} anchorRef={formulaInputRef}/>}
     {formatDialog}
     {shortcutsDialog}
   </div>;
