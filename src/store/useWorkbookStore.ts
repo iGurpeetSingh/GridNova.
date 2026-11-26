@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CellData, CellMap, CellRange, CellStyle, ClipboardData, FloatingChartData, FloatingElementData, SheetData, TemplateId, WorkbookData } from "../types";
 import { addressOf, columnLabel, emptySheet, emptyWorkbook, parseAddress } from "../types";
+import { recalculateWorkbookIncremental } from "../lib/dependency-graph";
 
 interface Store {
   workbooks: WorkbookData[]; activeWorkbookId: string | null; activeSheetId: string | null; autoSaveEnabled:boolean;
@@ -78,6 +79,14 @@ const mutateActive = (s: Store, updater: (w: WorkbookData, sh: SheetData) => Wor
   const w = activeWorkbook(s), sh = activeSheet(s); if (!w || !sh) return {};
   return { ...snapshot(s), workbooks: s.workbooks.map(item => item.id === w.id ? { ...updater(w, sh), modifiedAt: Date.now() } : item) };
 };
+const recalculateAfterMutation=(state:Store,result:Partial<Store>,sheetId:string,addresses:string[]):Partial<Store>=>{
+  const workbookId=state.activeWorkbookId;
+  if(!workbookId||!addresses.length)return result;
+  const base=(result.workbooks??state.workbooks).find(item=>item.id===workbookId);
+  if(!base||base.calculationMode==="Manual")return result;
+  const recalculated=recalculateWorkbookIncremental(base,addresses.map(address=>({sheetId,address}))).workbook;
+  return {...result,workbooks:(result.workbooks??state.workbooks).map(item=>item.id===workbookId?recalculated:item)};
+};
 export const useWorkbookStore = create<Store>()(persist((set, get) => ({
   workbooks: [], activeWorkbookId: null, activeSheetId: null, activeCell: "A1", selection: null, autoSaveEnabled:true,
   clipboard: null, showFormulas: false, zoom: 100, undoStack: [], redoStack: [],
@@ -124,7 +133,7 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
     const sheets=w.sheets.filter(sh=>sh.id!==id);
     return { ...snapshot(s),workbooks:s.workbooks.map(x=>x.id===w.id?{...x,sheets,modifiedAt:Date.now()}:x),activeSheetId:s.activeSheetId===id?sheets[0].id:s.activeSheetId };
   }),
-  setCell: (address,raw) => set(s => mutateActive(s,(w,sh)=>({...w,sheets:w.sheets.map(x=>x.id===sh.id?{...x,cells:{...x.cells,[address.toUpperCase()]:{...x.cells[address.toUpperCase()],raw}}}:x)}))),
+  setCell: (address,raw) => set(s => {const sh=activeSheet(s);if(!sh)return {};const key=address.toUpperCase();const result=mutateActive(s,(w,ss)=>({...w,sheets:w.sheets.map(x=>x.id===ss.id?{...x,cells:{...x.cells,[key]:{...x.cells[key],raw}}}:x)}));return recalculateAfterMutation(s,result,sh.id,[key]);}),
   setStyle: (style,addresses) => set(s => {
     const sh=activeSheet(s); if(!sh) return {};
     const targets=addresses?.length?addresses:[s.activeCell];
@@ -141,13 +150,21 @@ export const useWorkbookStore = create<Store>()(persist((set, get) => ({
       const position=parseAddress(`${letters}${digits}`);if(!position)return match;
       return `${colLock?"$"+letters:columnLabel(position.col+colDelta)}${rowLock?"$"+digits:position.row+rowDelta+1}`;
     });
-    return mutateActive(s,(w,ss)=>{
+    const result=mutateActive(s,(w,ss)=>{
       const cells={...ss.cells};
       clip.cells.forEach((row,ri)=>row.forEach((item,ci)=>{const addr=addressOf(start.row+ri,start.col+ci),raw=item.raw.startsWith("=")?shiftFormula(item.raw):item.raw;cells[addr]={raw,style:item.style?{...item.style}:undefined};}));
       return {...w,sheets:w.sheets.map(x=>x.id===ss.id?{...x,cells,rowCount:Math.max(x.rowCount,start.row+clip.cells.length),columnCount:Math.max(x.columnCount,start.col+(clip.cells[0]?.length??1))}:x)};
     });
+      const addresses=clip.cells.flatMap((row,ri)=>row.map((_,ci)=>addressOf(start.row+ri,start.col+ci)));
+      return recalculateAfterMutation(s,result,sh.id,addresses);
   }),
-  updateSheet: (id,changes) => set(s=>mutateActive(s,(w,sh)=>({...w,sheets:w.sheets.map(x=>x.id===id?{...x,...changes}:x)}))),
+  updateSheet: (id,changes) => set(s=>{
+    const sh=activeSheet(s);if(!sh)return {};
+    const result=mutateActive(s,(w,active)=>({...w,sheets:w.sheets.map(x=>x.id===id?{...x,...changes}:x)}));
+    const changedAddresses=changes.cells?Array.from(new Set([...Object.keys(sh.cells),...Object.keys(changes.cells)])).filter(address=>sh.cells[address]?.raw!==changes.cells?.[address]?.raw):[];
+    if(changes.tables)changedAddresses.push(...Object.entries(sh.cells).filter(([,cell])=>cell.raw.startsWith("=")).map(([address])=>address));
+    return recalculateAfterMutation(s,result,id,changedAddresses);
+  }),
   addChart: chart => set(s=>mutateActive(s,w=>({...w,charts:[...w.charts,chart]}))),
   updateChart: (id,changes) => set(s=>mutateActive(s,w=>({...w,charts:w.charts.map(c=>c.id===id?{...c,...changes}:c)}))),
   deleteChart: id => set(s=>mutateActive(s,w=>({...w,charts:w.charts.filter(c=>c.id!==id)}))),
