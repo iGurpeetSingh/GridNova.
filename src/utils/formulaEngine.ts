@@ -571,7 +571,7 @@ class Parser {
       case "FV":{const r=number(a[0]),n=number(a[1]),payment=number(a[2]),pv=number(a[3]??0),type=number(a[4]??0);return r===0?-(pv+payment*n):-(pv*(1+r)**n+payment*(1+r*type)*(((1+r)**n-1)/r));}
       case "PV":{const r=number(a[0]),n=number(a[1]),payment=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);return r===0?-(fv+payment*n):-(fv+payment*(1+r*type)*(((1+r)**n-1)/r))/(1+r)**n;}
       case "NPER":{const r=number(a[0]),payment=number(a[1]),pv=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);if(r===0)return -(pv+fv)/payment;const x=(payment*(1+r*type)-fv*r)/(pv*r+payment*(1+r*type));return Math.log(x)/Math.log(1+r);}
-      case "NPV":{const rate=number(a[0]),values=list(1).map(number);if(rate<=-1)return "#NUM!";return values.reduce((total,value,index)=>total+value/Math.pow(1+rate,index+1),0);}
+
       case "NPV":{const rate=number(a[0]),values=list(1).map(number);if(rate<=-1)return "#NUM!";return values.reduce((total,value,index)=>total+value/Math.pow(1+rate,index+1),0);}
       case "RATE":{const n=number(a[0]),payment=number(a[1]),pv=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);let r=number(a[5]??0.1);for(let i=0;i<100;i++){const f=r===0?pv+payment*n+fv:pv*(1+r)**n+payment*(1+r*type)*(((1+r)**n-1)/r)+fv;const h=1e-6,rr=r+h,ff=pv*(1+rr)**n+payment*(1+rr*type)*(((1+rr)**n-1)/rr)+fv;const next=r-f/((ff-f)/h);if(!Number.isFinite(next))break;if(Math.abs(next-r)<1e-9)return next;r=next;}return r;}
       case "EFFECT":{const nominal=number(a[0]),n=number(a[1]);return (1+nominal/n)**n-1;}
