@@ -4,7 +4,7 @@ import type { KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import { ExternalLink, Filter, Plus, Search } from "lucide-react";
 import type { CalculationMode, CellRange, CellStyle, SheetData, TableFilterState } from "../types";
 import { addressOf, columnLabel, parseAddress } from "../types";
-import { formatCellValue } from "../utils/formulaEngine";
+import { formatCellValue, getFormulaSpillValues } from "../utils/formulaEngine";
 import { FormulaAutocomplete, FormulaArgumentTooltip, formulaReferenceAddresses } from "../utils/formulaHelpers";
 import { FORMULA_CATALOG } from "../lib/formula-catalog";
 import { getTableAt, getTablePalette, tableColumnValues, tableFilterPasses } from "../utils/tableUtils";
@@ -38,6 +38,7 @@ const adjustReferences = (raw: string, axis: "row" | "column", index: number, co
 
 export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, namedRanges={}, allSheets=[], calculationMode="Automatic", formulaBarFocused = false, formulaBarDraft="", onSelect }: Props) {
   const formulaSheets=allSheets.length?allSheets:[sheet];
+  const formulaSpillValues=useMemo(()=>getFormulaSpillValues(sheet.cells,sheet.tables??[],namedRanges,formulaSheets,sheet.name),[sheet.cells,sheet.tables,namedRanges,formulaSheets,sheet.name]);
   const setCell = useWorkbookStore(s => s.setCell);
   const updateSheet = useWorkbookStore(s => s.updateSheet);
   const setClipboard = useWorkbookStore(s => s.setClipboard);
@@ -811,10 +812,10 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
           {sheet.showHeadings && <th className={`grid-row-heading ${row >= bounds.startRow && row <= bounds.endRow ? "is-selected" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27 }} onClick={event => { const first = event.shiftKey ? active.row : row; setRange({ startRow: Math.min(first, row), endRow: Math.max(first, row), startCol: 0, endCol: Math.max(25, sheet.columnCount - 1) }, addressOf(row, 0)); focusCell(row, 0); }} onContextMenu={event => showContextMenu(event, "row", row)}>{row + 1}<span className="grid-row-resize" role="separator" aria-label={`Resize row ${row + 1}`} onMouseDown={event => beginResize(event, "row", row)} onDoubleClick={() => autoFitRow(row)} /></th>}
           {columns.map(col => {
             const address = addressOf(row, col), cell = sheet.cells[address];
-             const rawDisplay = formatCellValue(cell?.raw ?? "", sheet.cells, showFormulas, cell?.style, sheet.tables ?? [], address, namedRanges);
-             const display = !showFormulas && calculationMode==="Manual" && cell?.raw.startsWith("=") && cell.cachedValue!==undefined
+             const rawDisplay = formatCellValue(cell?.raw ?? "", sheet.cells, showFormulas, cell?.style, sheet.tables ?? [], address, namedRanges, formulaSheets, sheet.name);
+             const display = formulaSpillValues[address]??(!showFormulas && calculationMode==="Manual" && cell?.raw.startsWith("=") && cell.cachedValue!==undefined
                ? formatCellValue(cell.cachedValue,sheet.cells,false,cell.style,sheet.tables??[],address,namedRanges,formulaSheets,sheet.name)
-               : rawDisplay;
+               : rawDisplay);
              const value = editingAddress === address ? (cell?.raw ?? "") : display;
             const isSelected = selected(row, col), isActive = address === activeCell, style = cell?.style ?? {};
             const table = getTableAt(sheet.tables, row, col), palette = table ? getTablePalette(table.styleId) : null;
