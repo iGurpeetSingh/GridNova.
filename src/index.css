@@ -613,3 +613,5 @@
   .page-layout-command{width:40px}
   .page-layout-group-setup{width:132px;min-width:132px}
 }
+
+.print-only-headings,.print-only-row-heading,.print-only-heading-col{display:none!important}
