@@ -70,6 +70,11 @@ export async function importExcelFile(file:File):Promise<string[][]>{
   const first=book.Sheets[book.SheetNames[0]];
   return XLSX.utils.sheet_to_json<string[]>(first,{header:1,raw:false,defval:""}) as string[][];
 }
+export async function importExcelWorkbook(file:File):Promise<{name:string;rows:string[][]}[]>{
+  const XLSX=await import("xlsx");
+  const buffer=await file.arrayBuffer(),book=XLSX.read(buffer,{type:"array"});
+  return book.SheetNames.map(name=>({name,rows:XLSX.utils.sheet_to_json<string[]>(book.Sheets[name],{header:1,raw:false,defval:""}) as string[][]}));
+}
 export function rowsToCells(rows:string[][]){
   const cells:SheetData["cells"]={};
   rows.forEach((row,r)=>row.forEach((value,c)=>{cells[addressOf(r,c)]={raw:String(value??"")}}));

@@ -18,7 +18,7 @@ import FileToolsDialog, { type FileToolsMode, type FileVersionSnapshot } from ".
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
-import { addressOf, parseAddress } from "../types";
+import { addressOf, emptySheet, parseAddress } from "../types";
 import { numericValue, recalculate } from "../utils/formulaEngine";
 import { getTableAt, getTableHeaderLabel, getTablePalette, normalizeTableName, tableColumnValues } from "../utils/tableUtils";
 
@@ -874,14 +874,24 @@ export default function WorkbookEditor(){
         const importedId=importWorkbook(source);navigate(`/workbook/${importedId}`);setShowSaved();return;
       }
       const tools=await import("../utils/exportUtils");
-      const rows=ext==="csv"?await tools.importCsvText(await file.text()):await tools.importExcelFile(file);
-      const cells=tools.rowsToCells(rows),rowCount=Math.max(100,rows.length),columnCount=Math.max(26,...rows.map(r=>r.length));
       if(openAsWorkbook){
+        const importedSheets=ext==="csv"?[{name:file.name.replace(/\\.[^.]+$/,"")||"Imported CSV",rows:await tools.importCsvText(await file.text())}]:await tools.importExcelWorkbook(file);
         const created=useWorkbookStore.getState().createWorkbook("blank");
-        const newSheetId=useWorkbookStore.getState().activeSheetId;
-        if(newSheetId)useWorkbookStore.getState().updateSheet(newSheetId,{cells,rowCount,columnCount});
+        const current=useWorkbookStore.getState().workbooks.find(item=>item.id===created);
+        if(!current)throw new Error("Unable to create a workbook for this import.");
+        const sheets=importedSheets.map(imported=>{
+          const next=emptySheet(imported.name.slice(0,31)||"Imported Sheet");
+          next.cells=tools.rowsToCells(imported.rows);next.rowCount=Math.max(100,imported.rows.length);next.columnCount=Math.max(26,...imported.rows.map(row=>row.length));
+          return next;
+        });
+        useWorkbookStore.getState().updateWorkbook(created,{title:file.name.replace(/\\.[^.]+$/,"")||"Imported Workbook",sheets});
+        if(sheets[0])useWorkbookStore.getState().setActiveSheet(sheets[0].id);
         navigate(`/workbook/${created}`);
-      }else updateSheet(sheet.id,{cells,rowCount,columnCount});
+      }else{
+        const rows=ext==="csv"?await tools.importCsvText(await file.text()):await tools.importExcelFile(file);
+        const cells=tools.rowsToCells(rows),rowCount=Math.max(100,rows.length),columnCount=Math.max(26,...rows.map(r=>r.length));
+        updateSheet(sheet.id,{cells,rowCount,columnCount});
+      }
       selectCell("A1");setShowSaved();
     }catch(e){window.alert(e instanceof Error?e.message:"Unable to import this file.");}
     finally{if(fileRef.current)fileRef.current.value="";}

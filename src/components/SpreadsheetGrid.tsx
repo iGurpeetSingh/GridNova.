@@ -296,6 +296,7 @@ export default function SpreadsheetGrid({ sheet, pageSetup, isReadOnly=false, ac
   const updateRowHeight = (row: number, height: number) => updateSheet(sheet.id, { rowHeights: { ...(sheet.rowHeights ?? {}), [row]: Math.max(18, Math.min(120, height)) } });
 
   const beginResize = (event: ReactMouseEvent, axis: "row" | "column", index: number) => {
+    if(isReadOnly)return;
     event.preventDefault(); event.stopPropagation();
     const origin = axis === "row" ? event.clientY : event.clientX;
     const measured = (event.currentTarget as HTMLElement).parentElement?.getBoundingClientRect();
@@ -880,13 +881,13 @@ export default function SpreadsheetGrid({ sheet, pageSetup, isReadOnly=false, ac
       <div className="grid-selection-overlay" style={overlayRects.selection ? { left: overlayRects.selection.left, top: overlayRects.selection.top, width: overlayRects.selection.width, height: overlayRects.selection.height } : { display: "none" }} aria-hidden="true" />
       {overlayRects.copy && <div className="grid-range-overlay grid-copy-overlay" style={overlayRects.copy} aria-hidden="true" />}
       {overlayRects.fill && <div className="grid-range-overlay grid-fill-preview-overlay" style={overlayRects.fill} aria-hidden="true" />}
-      {overlayRects.selection && <button type="button" className="grid-fill-handle-overlay" aria-label="Drag to fill cells" title="Drag to fill" style={{ left:pageSetup.isRtl?overlayRects.selection.left-3:overlayRects.selection.left+overlayRects.selection.width-3, top:overlayRects.selection.top+overlayRects.selection.height-3 }} onPointerDown={beginFillDrag} onDoubleClick={() => {
+      {overlayRects.selection && !isReadOnly && <button type="button" className="grid-fill-handle-overlay" aria-label="Drag to fill cells" title="Drag to fill" style={{ left:pageSetup.isRtl?overlayRects.selection.left-3:overlayRects.selection.left+overlayRects.selection.width-3, top:overlayRects.selection.top+overlayRects.selection.height-3 }} onPointerDown={beginFillDrag} onDoubleClick={() => {
         const occupied = rows.filter(candidate => candidate > bounds.endRow && sheet.cells[addressOf(candidate, bounds.endCol + 1)]?.raw);
         const target = { ...bounds, endRow: Math.max(bounds.endRow, occupied.at(-1) ?? bounds.endRow) };
         fillSource.current = bounds; fillAxis.current = "vertical"; fillModifier.current = false; finishFill(target, "vertical");
       }} />}
       {fillDrag && fillDrag.axis && <div className="grid-fill-tooltip" style={{ left: fillDrag.clientX + 12, top: fillDrag.clientY + 12 }}>{fillDrag.previewValue || " "}</div>}
-      <button className="grid-add-rows no-print" onClick={() => updateSheet(sheet.id, { rowCount: sheet.rowCount + 100 })}><Plus size={13} /> Add 100 more rows at bottom</button>
+      <button className="grid-add-rows no-print" disabled={isReadOnly} onClick={() => updateSheet(sheet.id, { rowCount: sheet.rowCount + 100 })}><Plus size={13} /> Add 100 more rows at bottom</button>
       {pageSetup.footer&&<div className="grid-print-footer">{pageSetup.footer}</div>}
     </div>
     {tableFilterMenu && filteringTable && createPortal(<div className="table-filter-scrim" role="presentation" onMouseDown={() => setTableFilterMenu(null)}>
