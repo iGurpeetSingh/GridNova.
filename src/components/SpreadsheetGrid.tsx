@@ -10,7 +10,7 @@ import { useWorkbookStore } from "../store/useWorkbookStore";
 
 interface Props {
   sheet: SheetData; activeCell: string; selection: CellRange | null; showFormulas: boolean; zoom: number;
-  namedRanges?:Record<string,string>; calculationMode?:CalculationMode; formulaBarFocused?: boolean;
+  namedRanges?:Record<string,string>; allSheets?:SheetData[]; calculationMode?:CalculationMode; formulaBarFocused?: boolean;
   onSelect: (address: string, range?: CellRange) => void;
 }
 type ContextMenuState = { x: number; y: number; kind: "cell" | "row" | "column"; index: number; col: number } | null;
@@ -34,7 +34,8 @@ const adjustReferences = (raw: string, axis: "row" | "column", index: number, co
   return axis === "row" ? `${colLock}${letters}${rowLock}${updated + 1}` : `${colLock}${columnLabel(updated)}${rowLock}${digits}`;
 });
 
-export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, namedRanges={}, calculationMode="Automatic", formulaBarFocused = false, onSelect }: Props) {
+export default function SpreadsheetGrid({ sheet, activeCell, selection, showFormulas, zoom, namedRanges={}, allSheets=[], calculationMode="Automatic", formulaBarFocused = false, onSelect }: Props) {
+  const formulaSheets=allSheets.length?allSheets:[sheet];
   const setCell = useWorkbookStore(s => s.setCell);
   const updateSheet = useWorkbookStore(s => s.updateSheet);
   const setClipboard = useWorkbookStore(s => s.setClipboard);
@@ -290,7 +291,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     const canvas = document.createElement("canvas"), context = canvas.getContext("2d");
     const width = Array.from({ length: Math.max(sheet.rowCount, 100) }, (_, row) => row).reduce((max, row) => {
       const cell = sheet.cells[addressOf(row, col)], style = cell?.style ?? {};
-      const display = formatCellValue(cell?.raw ?? "", sheet.cells, false, style, sheet.tables ?? [], addressOf(row, col), namedRanges);
+      const display = formatCellValue(cell?.raw ?? "", sheet.cells, false, style, sheet.tables ?? [], addressOf(row, col), namedRanges, formulaSheets, sheet.name);
       if (context) context.font = `${style.italic ? "italic " : ""}${style.bold ? "700 " : ""}${style.fontSize ?? 11}px ${style.fontFamily ?? "Inter"}`;
       const measured = display.split("\n").reduce((lineMax, line) => Math.max(lineMax, context?.measureText(line).width ?? line.length * 7.2), 0) + 22;
       return Math.max(max, measured);
@@ -300,7 +301,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const autoFitRow = (row: number) => {
     const height = columns.reduce((max, col) => {
       const cell = sheet.cells[addressOf(row, col)], style = cell?.style ?? {};
-      const text = formatCellValue(cell?.raw ?? "", sheet.cells, false, style, sheet.tables ?? [], addressOf(row, col), namedRanges), width = sheet.columnWidths[col] ?? 110;
+      const text = formatCellValue(cell?.raw ?? "", sheet.cells, false, style, sheet.tables ?? [], addressOf(row, col), namedRanges, formulaSheets, sheet.name), width = sheet.columnWidths[col] ?? 110;
       const canvas = document.createElement("canvas"), context = canvas.getContext("2d");
       if (context) context.font = `${style.italic ? "italic " : ""}${style.bold ? "700 " : ""}${style.fontSize ?? 11}px ${style.fontFamily ?? "Inter"}`;
       const lines = text.split("\n").reduce((sum, line) => sum + (style.wrap ? Math.max(1, Math.ceil((context?.measureText(line).width ?? line.length * 7.2) / Math.max(24, width - 12))) : 1), 0);
@@ -422,7 +423,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
       const rowDelta = active.row + row - source.row, colDelta = active.col + col - source.col;
       if (mode === "formats") next[address] = { ...old, style: item.style ? { ...item.style } : {} };
       else if (mode === "formulas") { if (item.raw.startsWith("=")) next[address] = { ...old, raw: shiftFormulaReferences(item.raw, rowDelta, colDelta) }; }
-      else if (mode === "values") next[address] = { ...old, raw: item.raw.startsWith("=") ? String(formatCellValue(item.raw, sheet.cells, false, undefined, sheet.tables ?? [], addressOf(source.row + row, source.col + col), namedRanges)) : item.raw };
+      else if (mode === "values") next[address] = { ...old, raw: item.raw.startsWith("=") ? String(formatCellValue(item.raw, sheet.cells, false, undefined, sheet.tables ?? [], addressOf(source.row + row, source.col + col), namedRanges, formulaSheets, sheet.name)) : item.raw };
       else { const raw = item.raw.startsWith("=") ? shiftFormulaReferences(item.raw, rowDelta, colDelta) : item.raw; next[address] = { raw, style: item.style ? { ...item.style } : undefined }; }
     }));
     updateSheet(sheet.id, { cells: next, rowCount: Math.max(sheet.rowCount, active.row + matrix.length), columnCount: Math.max(sheet.columnCount, active.col + (matrix[0]?.length ?? 1)) });
@@ -783,7 +784,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
             const address = addressOf(row, col), cell = sheet.cells[address];
              const rawDisplay = formatCellValue(cell?.raw ?? "", sheet.cells, showFormulas, cell?.style, sheet.tables ?? [], address, namedRanges);
              const display = !showFormulas && calculationMode==="Manual" && cell?.raw.startsWith("=") && cell.cachedValue!==undefined
-               ? formatCellValue(cell.cachedValue,sheet.cells,false,cell.style,sheet.tables??[],address,namedRanges)
+               ? formatCellValue(cell.cachedValue,sheet.cells,false,cell.style,sheet.tables??[],address,namedRanges,formulaSheets,sheet.name)
                : rawDisplay;
              const value = editingAddress === address ? (cell?.raw ?? "") : display;
             const isSelected = selected(row, col), isActive = address === activeCell, style = cell?.style ?? {};
