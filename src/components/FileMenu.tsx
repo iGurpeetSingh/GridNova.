@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import {
   ArrowLeft, ArrowRightFromLine, CalendarClock, Calculator, ChevronLeft, ChevronRight,
   CircleHelp, Copy, Download, FileClock, FileDown, FileJson, FilePlus2, FileSpreadsheet,
@@ -109,19 +109,22 @@ function PortalPanel({items,parentRef,root=false,mobile=false,depth,title,pathPr
     place();window.addEventListener("resize",place);window.addEventListener("scroll",place,true);
     return()=>{window.removeEventListener("resize",place);window.removeEventListener("scroll",place,true)};
   },[parentRef,root,mobile,items.length]);
-  const handleKeyDown=(event:React.KeyboardEvent<HTMLDivElement>)=>{
+  const handleKeyDown=(event:KeyboardEvent<HTMLDivElement>)=>{
     const buttons=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(".file-menu-item:not(:disabled)"));
     const current=buttons.indexOf(document.activeElement as HTMLButtonElement);
     if(event.key==="ArrowDown"||event.key==="ArrowUp"){
       event.preventDefault();buttons[(current+(event.key==="ArrowDown"?1:-1)+buttons.length)%buttons.length]?.focus();
     }else if(event.key==="Home"||event.key==="End"){
       event.preventDefault();(event.key==="Home"?buttons[0]:buttons.at(-1))?.focus();
+    }else if(event.key==="ArrowRight"){
+      const currentButton=buttons[current],id=currentButton?.dataset.menuId;
+      if(id&&currentButton.dataset.hasChildren==="true"){event.preventDefault();onOpenPath([...pathPrefix,id]);}
     }else if(event.key==="Escape"){event.preventDefault();onClose();}
-    else if(event.key==="ArrowLeft"&&onBack){event.preventDefault();onBack();}
+    else if(event.key==="ArrowLeft"){event.preventDefault();if(onBack)onBack();else onClose();}
   };
   return createPortal(<div ref={panelRef} data-file-menu-surface="true" role="menu" aria-label={root?"File menu":"File submenu"} onMouseEnter={onEnter} onMouseLeave={onLeave} onKeyDown={handleKeyDown} onMouseDown={event=>event.preventDefault()} className={`file-menu-panel ${root?"file-menu-root":""} ${mobile?"file-menu-mobile":""}`} style={{left:position.left,top:position.top}}>
     {mobile&&depth>0&&<div className="file-menu-mobile-header"><button type="button" onMouseDown={event=>event.preventDefault()} onClick={onBack}><ChevronLeft size={17}/> Back</button><strong>{title??"File"}</strong><button type="button" aria-label="Close File menu" onMouseDown={event=>event.preventDefault()} onClick={onClose}><X size={17}/></button></div>}
-    {items.map(item=>item.separator?<div key={item.id} role="separator" className="file-menu-divider"/>:<button key={item.id} ref={element=>registerButton(item.id,element)} type="button" role="menuitem" disabled={item.disabled} data-has-children={!!item.children} title={item.title} aria-haspopup={item.children?"menu":undefined} className="file-menu-item" onFocus={()=>{if(item.children){onEnter();onOpenPath([...pathPrefix,item.id]);}}} onMouseEnter={()=>{if(item.children){onEnter();onOpenPath([...pathPrefix,item.id]);}}} onClick={()=>{if(item.children){onOpenPath([...pathPrefix,item.id]);}else if(item.action){onAction(item.action);onClose();}}}>
+    {items.map(item=>item.separator?<div key={item.id} role="separator" className="file-menu-divider"/>:<button key={item.id} ref={element=>registerButton(item.id,element)} type="button" role="menuitem" disabled={item.disabled} data-has-children={!!item.children} data-menu-id={item.id} title={item.title} aria-haspopup={item.children?"menu":undefined} className="file-menu-item" onMouseEnter={()=>{if(item.children){onEnter();onOpenPath([...pathPrefix,item.id]);}else if(pathPrefix.length===0)onOpenPath([]);}} onClick={()=>{if(item.children){onOpenPath([...pathPrefix,item.id]);}else if(item.action){onAction(item.action);onClose();}}}>
       <span className="file-menu-item-icon">{item.icon??<span/>}</span><span className="file-menu-item-copy"><span>{item.label}</span>{item.meta&&<small>{item.meta}</small>}</span>{item.children&&<ChevronRight size={15} className="file-menu-chevron"/>}
     </button>)}
   </div>,document.body);
