@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, X, Table2 } from "lucide-react";
 import type { PivotAggregation, PivotTableDefinition, SheetData, CellRange } from "../types";
+import { addressOf } from "../types";
 interface Props { open:boolean; source:SheetData; sourceRange:CellRange; activeSheetId:string; onClose:()=>void; onCreate:(definition:PivotTableDefinition)=>void; }
 type Zone="Rows"|"Columns"|"Values"|"Filters";
 export default function PivotTableBuilderDialog({open,source,sourceRange,activeSheetId,onClose,onCreate}:Props){
-  const headers=useMemo(()=>Array.from({length:sourceRange.endCol-sourceRange.startCol+1},(_,index)=>source.cells[`${String.fromCharCode(65+(sourceRange.startCol+index)%26)}${sourceRange.startRow+1}`]?.raw||`Column ${index+1}`),[source,sourceRange]);
+  const headers=useMemo(()=>Array.from({length:sourceRange.endCol-sourceRange.startCol+1},(_,index)=>source.cells[addressOf(sourceRange.startRow,sourceRange.startCol+index)]?.raw||`Column ${index+1}`),[source,sourceRange]);
   const [assigned,setAssigned]=useState<Record<Zone,number[]>>({Rows:[],Columns:[],Values:[],Filters:[]});
   const [aggregation,setAggregation]=useState<PivotAggregation>("Sum"),[showRows,setShowRows]=useState(true),[showColumns,setShowColumns]=useState(true),[destination,setDestination]=useState<"new"|"existing">("new"),[destinationCell,setDestinationCell]=useState("A1"),[name,setName]=useState("PivotTable");
   if(!open)return null;

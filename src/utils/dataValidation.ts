@@ -12,16 +12,23 @@ export function getValidationRule(sheet:SheetData,address:string):DataValidation
   return (sheet.validationRules??[]).filter(rule=>point.row>=rule.range.startRow&&point.row<=rule.range.endRow&&point.col>=rule.range.startCol&&point.col<=rule.range.endCol).sort((a,b)=>b.id.localeCompare(a.id))[0];
 }
 export function getListValidationOptions(rule:DataValidationRule,sheet:SheetData):string[]{
-  const source=rule.listSource??rule.formula1??"";
-  if(source.trim().startsWith("=")){
-    const match=source.trim().slice(1).match(/^(?:'([^']+)'|([^!]+))?!?\$?([A-Z]{1,3})\$?([1-9]\d*)(?::\$?([A-Z]{1,3})\$?([1-9]\d*))?$/i);
+  const source=(rule.listSource??rule.formula1??"").trim();
+  if(source.startsWith("=")){
+    const expression=source.slice(1);
+    const separator=expression.lastIndexOf("!");
+    const sheetName=separator>=0?expression.slice(0,separator).replace(/^'|'$/g,"").replace(/''/g,"'"):undefined;
+    const reference=separator>=0?expression.slice(separator+1):expression;
+    const match=reference.match(/^\$?([A-Z]{1,3})\$?([1-9]\d*)(?::\$?([A-Z]{1,3})\$?([1-9]\d*))?$/i);
     if(!match)return [];
-    const sheetName=match[1]??match[2],target=sheetName?sheetName===sheet.name?sheet:undefined:sheet;
+    const target=sheetName?sheet.name.toLowerCase()===sheetName.toLowerCase()?sheet:undefined:sheet;
     if(!target)return [];
-    const start=parseAddress(match[3]+match[4]),end=parseAddress((match[5]??match[3])+(match[6]??match[4]));
+    const start=parseAddress(match[1]+match[2]),end=parseAddress((match[3]??match[1])+(match[4]??match[2]));
     if(!start||!end)return [];
     const values:string[]=[];
-    for(let row=start.row;row<=end.row;row++)for(let col=start.col;col<=end.col;col++){const value=target.cells[addressOf(row,col)]?.raw??"";if(value!==""&&!values.includes(value))values.push(value);}
+    for(let row=Math.min(start.row,end.row);row<=Math.max(start.row,end.row);row++)for(let col=Math.min(start.col,end.col);col<=Math.max(start.col,end.col);col++){
+      const value=target.cells[addressOf(row,col)]?.raw??"";
+      if(value!==""&&!values.includes(value))values.push(value);
+    }
     return values;
   }
   return source.split(",").map(value=>value.trim()).filter(Boolean);
@@ -45,18 +52,64 @@ export interface ValidationResult { valid:boolean; message:string; }
 export function validateCellValue(rule:DataValidationRule,value:string,sheet:SheetData,address:string):ValidationResult{
   if(value===""&&rule.allowBlank!==false)return {valid:true,message:""};
   let valid=true;
+  const operator=rule.operator??"greater than or equal to";
   switch(rule.type){
     case "List":valid=getListValidationOptions(rule,sheet).some(option=>option.toLowerCase()===value.toLowerCase());break;
-    case "Whole Number":valid=/^-?\d+$/.test(value)&&compare(value,rule.formula1??"0",rule.operator??"greater than or equal to");if(valid&&["between","not between"].includes(rule.operator??""))valid=compare(value,rule.formula2??rule.formula1??"0",rule.operator==="between"?"less than or equal to":"greater than");break;
-    case "Decimal":valid=value.trim()!==""&&Number.isFinite(Number(value))&&compare(value,rule.formula1??"0",rule.operator??"greater than or equal to");if(valid&&["between","not between"].includes(rule.operator??""))valid=compare(value,rule.formula2??rule.formula1??"0",rule.operator==="between"?"less than or equal to":"greater than");break;
-    case "Date":{const parsed=Date.parse(value),min=Date.parse(rule.formula1??"1900-01-01"),max=Date.parse(rule.formula2??rule.formula1??"9999-12-31");valid=Number.isFinite(parsed)&&compare(String(parsed),String(min),rule.operator??"greater than or equal to");if(valid&&rule.operator==="between")valid=parsed<=max;break;}
-    case "Text Length":valid=compare(String(value.length),rule.formula1??"0",rule.operator??"greater than or equal to");if(rule.operator==="between")valid=value.length<=Number(rule.formula2);break;
+    case "Whole Number":case "Decimal":{
+      const numeric=Number(value),min=Number(rule.formula1??0),max=Number(rule.formula2??rule.formula1??0);
+      valid=value.trim()!==""&&Number.isFinite(numeric)&&(rule.type==="Decimal"||Number.isInteger(numeric));
+      if(valid){
+        switch(operator){
+          case "between":valid=numeric>=min&&numeric<=max;break;
+          case "not between":valid=numeric<min||numeric>max;break;
+          case "equal to":valid=numeric===min;break;
+          case "not equal to":valid=numeric!==min;break;
+          case "greater than":valid=numeric>min;break;
+          case "less than":valid=numeric<min;break;
+          case "greater than or equal to":valid=numeric>=min;break;
+          case "less than or equal to":valid=numeric<=min;break;
+        }
+      }
+      break;
+    }
+    case "Date":{
+      const date=Date.parse(value),min=Date.parse(rule.formula1??"1900-01-01"),max=Date.parse(rule.formula2??rule.formula1??"9999-12-31");
+      valid=Number.isFinite(date);
+      if(valid){
+        switch(operator){
+          case "between":valid=date>=min&&date<=max;break;
+          case "not between":valid=date<min||date>max;break;
+          case "equal to":valid=date===min;break;
+          case "not equal to":valid=date!==min;break;
+          case "greater than":valid=date>min;break;
+          case "less than":valid=date<min;break;
+          case "greater than or equal to":valid=date>=min;break;
+          case "less than or equal to":valid=date<=min;break;
+        }
+      }
+      break;
+    }
+    case "Text Length":{
+      const length=value.length,min=Number(rule.formula1??0),max=Number(rule.formula2??rule.formula1??0);
+      switch(operator){
+        case "between":valid=length>=min&&length<=max;break;
+        case "not between":valid=length<min||length>max;break;
+        case "equal to":valid=length===min;break;
+        case "not equal to":valid=length!==min;break;
+        case "greater than":valid=length>min;break;
+        case "less than":valid=length<min;break;
+        case "greater than or equal to":valid=length>=min;break;
+        case "less than or equal to":valid=length<=min;break;
+      }
+      break;
+    }
     case "Custom Formula":{
       const base=parseAddress(address),origin={row:rule.range.startRow,col:rule.range.startCol};
       const dr=(base?.row??origin.row)-origin.row,dc=(base?.col??origin.col)-origin.col;
       const formula=(rule.formula1??"=TRUE").replace(/(\$?)([A-Z]{1,3})(\$?)([1-9]\d*)/g,(match,colLock,letters,rowLock,digits)=>{
-        const p=parseAddress(letters+digits);if(!p)return match;
-        return (colLock?"$"+letters:addressOf(0,p.col+dc).replace(/[0-9]/g,""))+(rowLock?"$"+digits:String(p.row+dr+1));
+        const point=parseAddress(letters+digits);if(!point)return match;
+        const column=colLock?letters:addressOf(0,point.col+dc).replace(/[0-9]/g,"");
+        return (colLock?"$"+column:column)+(rowLock?"$"+digits:String(point.row+dr+1));
       });
       const result=evaluate(formula,sheet.cells,new Set(),sheet.tables??[],address);
       valid=result===true||result===1||String(result).toUpperCase()==="TRUE";break;
@@ -64,7 +117,6 @@ export function validateCellValue(rule:DataValidationRule,value:string,sheet:She
   }
   return {valid,message:valid?"":rule.errorMessage||"The value you entered doesn't meet this cell's data validation rules."};
 }
-
 export interface CellValidationState { rule:DataValidationRule; options:string[]; }
 export function buildValidationMap(sheet:SheetData):Record<string,CellValidationState>{
   const result:Record<string,CellValidationState>={};
