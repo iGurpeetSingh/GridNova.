@@ -674,7 +674,9 @@ export default function SpreadsheetGrid({ sheet, pageSetup, isReadOnly=false, ac
     setMenu(null); if (action !== "format-cells" && action !== "show-shortcuts") focusCell(active.row, active.col);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>, row: number, col: number) => {
-    const mod = event.ctrlKey || event.metaKey, address = addressOf(row, col), isEditing = editingAddress === address;
+    const mod = event.ctrlKey || event.metaKey;
+    if(isReadOnly&&!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Tab","Enter","Escape","Home","End","PageUp","PageDown"].includes(event.key)){event.preventDefault();return;}
+    const address = addressOf(row, col), isEditing = editingAddress === address;
     const hasMultiCellSelection = bounds.startRow !== bounds.endRow || bounds.startCol !== bounds.endCol;
     if(cellAutocomplete?.address===address){
       if(event.key==="ArrowDown"||event.key==="ArrowUp"){

@@ -26,6 +26,7 @@ export default function FileToolsDialog({mode,workbook,history,showFormulaBar,au
   const [currency,setCurrency]=useState<"INR"|"USD"|"EUR">(workbook.regionalSettings?.currency??defaultRegional.currency);
   const [dateFormat,setDateFormat]=useState<"DD/MM/YYYY"|"MM/DD/YYYY"|"YYYY-MM-DD">(workbook.regionalSettings?.dateFormat??defaultRegional.dateFormat);
   const [copied,setCopied]=useState(false);
+  const [shortcutQuery,setShortcutQuery]=useState("");
   useEffect(()=>{setCurrency(workbook.regionalSettings?.currency??"INR");setDateFormat(workbook.regionalSettings?.dateFormat??"DD/MM/YYYY");setCopied(false)},[workbook.id,mode]);
   if(!mode)return null;
   const embed=`<iframe src="${window.location.origin}/workbook/${workbook.id}?embed=1" title="${workbook.title.replace(/["<>]/g,"")}" width="100%" height="600" frameborder="0"></iframe>`;
@@ -54,7 +55,7 @@ export default function FileToolsDialog({mode,workbook,history,showFormulaBar,au
         <label className="file-tools-toggle"><span><strong>Auto-Save</strong><small>Persist workbook changes in this browser's local storage.</small></span><input type="checkbox" checked={autoSaveEnabled} onChange={onAutoSaveChange}/></label>
         {!autoSaveEnabled&&<p className="file-tools-warning">Auto-Save is off. Changes remain in this browser session but will not be restored after a refresh.</p>}
       </div>}
-      {mode==="shortcuts"&&<div className="file-tools-body file-tools-shortcuts">{shortcutRows.map(([keys,description])=><div key={keys}><kbd>{keys}</kbd><span>{description}</span></div>)}</div>}
+      {mode==="shortcuts"&&<div className="file-tools-body"><input className="file-tools-search" value={shortcutQuery} onChange={event=>setShortcutQuery(event.target.value)} placeholder="Search keyboard shortcuts…"/><div className="file-tools-shortcuts">{shortcutRows.filter(([keys,description])=>(keys+" "+description).toLowerCase().includes(shortcutQuery.toLowerCase())).map(([keys,description])=><div key={keys}><kbd>{keys}</kbd><span>{description}</span></div>)}</div></div>}
       {mode!=="regional"&&<footer className="file-tools-footer"><button type="button" onMouseDown={event=>event.preventDefault()} onClick={onClose}>Close</button></footer>}
     </section>
   </div>,document.body);

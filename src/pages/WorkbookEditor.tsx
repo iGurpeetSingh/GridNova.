@@ -487,27 +487,28 @@ export default function WorkbookEditor(){
   };
   const action=(name:string)=>{
     if(isReadOnly&&!name.startsWith("file-")){window.alert("This worksheet or workbook is protected. Unprotect it from File → Info to edit.");return;}
+    if(name.startsWith("file-template:")){
+      const template=name.slice("file-template:".length) as TemplateId;
+      const created=useWorkbookStore.getState().createWorkbook(template);navigate(`/workbook/${created}`);return;
+    }
+    if(name.startsWith("file-open-workbook:")){
+      const workbookId=name.slice("file-open-workbook:".length);
+      if(workbooks.some(item=>item.id===workbookId)){setActiveWorkbook(workbookId);navigate(`/workbook/${workbookId}`);}
+      return;
+    }
     switch(name){
       case "file-new-blank":{
         if(!window.confirm("Create a new blank workbook? Your current workbook will remain saved in Recent Workbooks."))break;
         const created=useWorkbookStore.getState().createWorkbook("blank");navigate(`/workbook/${created}`);break;
       }
-      case "file-template":{
-        const template=name.slice("file-template:".length) as TemplateId;
-        const created=useWorkbookStore.getState().createWorkbook(template);navigate(`/workbook/${created}`);break;
-      }
       case "file-open-device":openFileAsWorkbookRef.current=true;fileRef.current?.click();break;
-      case "file-open-workbook":{
-        const workbookId=name.slice("file-open-workbook:".length);
-        if(workbooks.some(item=>item.id===workbookId)){setActiveWorkbook(workbookId);navigate(`/workbook/${workbookId}`);}
-        break;
-      }
       case "file-share-open":setShareOpen(true);break;
       case "file-share-copy-link":void copyShareLink("workbook");break;
       case "file-embed-open":setFileToolsMode("embed");break;
       case "file-save-copy":{
         const copyId=duplicateWorkbook(workbook.id);
-        if(copyId){updateWorkbook(copyId,{title:workbook.title+" copy"});navigate(`/workbook/${copyId}`);window.alert("A local copy was created in Recent Workbooks.");}
+        const stamp=new Date().toLocaleString().replace(/[/:,]/g,"-");
+        if(copyId){updateWorkbook(copyId,{title:`${workbook.title} copy ${stamp}`});navigate(`/workbook/${copyId}`);window.alert("A timestamped local copy was created in Recent Workbooks.");}
         break;
       }
       case "file-copy-xlsx":void exportFile("xlsx");break;
@@ -831,7 +832,7 @@ export default function WorkbookEditor(){
       }
       case "freeze":updateSheet(sheet.id,{freezeTopRow:!sheet.freezeTopRow});break;
       case "zoom-in":useWorkbookStore.getState().setZoom(zoom+10);break;case "zoom-out":useWorkbookStore.getState().setZoom(zoom-10);break;
-      case "import":fileRef.current?.click();break;
+      case "import":openFileAsWorkbookRef.current=false;fileRef.current?.click();break;
       default:
         if(name.startsWith("formula-insert:"))insertFormula(name.slice("formula-insert:".length));
         else if(name.startsWith("table-style-")&&activeTable)updateActiveTable({styleId:name.slice("table-style-".length)});
