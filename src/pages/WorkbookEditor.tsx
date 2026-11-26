@@ -607,6 +607,57 @@ export default function WorkbookEditor(){
       case "gridlines":updateSheet(sheet.id,{showGridlines:!sheet.showGridlines});break;case "headings":updateSheet(sheet.id,{showHeadings:!sheet.showHeadings});break;
       case "toggle-formulas":setShowFormulas(!showFormulas);break;
       case "filters":updateSheet(sheet.id,{filters:!sheet.filters});break;
+      case "text-to-columns":{
+        const selectedRows=selection?{start:Math.min(selection.startRow,selection.endRow),end:Math.max(selection.startRow,selection.endRow)}:{start:parseAddress(activeCell)?.row??0,end:parseAddress(activeCell)?.row??0};
+        const sourceCol=selection?Math.min(selection.startCol,selection.endCol):(parseAddress(activeCell)?.col??0);
+        const delimiterInput=window.prompt("Delimiter: enter comma, semicolon, tab, space, or a custom character","comma");
+        if(delimiterInput===null)break;
+        const key=delimiterInput.trim().toLowerCase();
+        const delimiter=key==="comma"?",":key==="semicolon"?";":key==="tab"?"\t":key==="space"?" ":delimiterInput;
+        if(!delimiter){window.alert("Enter a non-empty delimiter.");break;}
+        const parseDelimited=(input:string):string[]=>{
+          const values:string[]=[];let value="",quoted=false;
+          for(let i=0;i<input.length;i++){
+            const char=input[i];
+            if(char==='"'){if(quoted&&input[i+1]==='"'){value+='"';i++;}else quoted=!quoted;continue;}
+            if(!quoted&&input.startsWith(delimiter,i)){values.push(value);value="";i+=delimiter.length-1;continue;}
+            value+=char;
+          }
+          values.push(value);return values;
+        };
+        const cells={...sheet.cells};let maxColumns=sheet.columnCount,changed=false,overwrite=false;
+        for(let row=selectedRows.start;row<=selectedRows.end;row++){
+          const sourceAddress=addressOf(row,sourceCol),source=cells[sourceAddress];if(!source?.raw)continue;
+          const pieces=parseDelimited(source.raw);if(pieces.length<=1)continue;
+          if(pieces.slice(1).some((_,index)=>!!cells[addressOf(row,sourceCol+index+1)]?.raw))overwrite=true;
+          maxColumns=Math.max(maxColumns,sourceCol+pieces.length);changed=true;
+        }
+        if(!changed){window.alert("No selected cells contain the delimiter.");break;}
+        if(overwrite&&!window.confirm("Text to Columns will overwrite cells to the right of the selected column. Continue?"))break;
+        for(let row=selectedRows.start;row<=selectedRows.end;row++){
+          const sourceAddress=addressOf(row,sourceCol),source=cells[sourceAddress];if(!source?.raw)continue;
+          const pieces=parseDelimited(source.raw);if(pieces.length<=1)continue;
+          pieces.forEach((piece,index)=>{
+            const target=addressOf(row,sourceCol+index),existing=cells[target]??{raw:""};
+            cells[target]={...existing,raw:piece};
+          });
+        }
+        updateSheet(sheet.id,{cells,columnCount:maxColumns});setShowSaved();break;
+      }
+      case "data-validation":{
+        const input=window.prompt("Enter dropdown choices separated by commas","Yes,No");
+        if(input===null)break;
+        const options=[...new Set(input.split(",").map(item=>item.trim()).filter(Boolean))];
+        if(options.length<1){window.alert("Enter at least one dropdown choice.");break;}
+        const cells={...sheet.cells};
+        selectedAddresses.forEach(address=>{const previous=cells[address]??{raw:""};cells[address]={...previous,validationOptions:options};});
+        updateCells(cells);break;
+      }
+      case "clear-validation":{
+        const cells={...sheet.cells};
+        selectedAddresses.forEach(address=>{const previous=cells[address];if(previous){const nextCell={...previous};delete nextCell.validationOptions;cells[address]=nextCell;}});
+        updateCells(cells);break;
+      }
       case "duplicates":{
         const p=parseAddress(activeCell);if(!p)break;
         const seen=new Set<string>(),cells={...sheet.cells};let writeRow=1;

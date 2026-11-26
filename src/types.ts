@@ -8,7 +8,7 @@ export interface CellStyle {
   border?: "all" | "outer" | "none"; borderColor?: string;
   borderTop?: string; borderRight?: string; borderBottom?: string; borderLeft?: string;
 }
-export interface CellData { raw: string; cachedValue?: string; style?: CellStyle; comment?: string; hyperlink?: string; image?: string; checkbox?: boolean; datePicker?: boolean; mergeRows?: number; mergeCols?: number; mergedInto?: string; mergeBackup?: Record<string, CellData>; }
+export interface CellData { raw: string; cachedValue?: string; style?: CellStyle; validationOptions?: string[]; comment?: string; hyperlink?: string; image?: string; checkbox?: boolean; datePicker?: boolean; mergeRows?: number; mergeCols?: number; mergedInto?: string; mergeBackup?: Record<string, CellData>; }
 export type CellMap = Record<string, CellData>;
 export interface TableFilterState {
   selectedValues?: string[];
