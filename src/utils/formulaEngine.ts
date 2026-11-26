@@ -637,8 +637,7 @@ class Parser {
           for(const index of indices){
             const left=Number(scalar(values[index])),right=Number(scalar(look));
             if(!Number.isFinite(left)||!Number.isFinite(right))continue;
-            const valid=wantSmaller?left<=right:left>=right;
-            const distance=Math.abs(right-left);
+            const valid=wantSmaller?left<=right:left>=right,distance=Math.abs(right-left);
             if(valid&&distance<bestDistance){best=index;bestDistance=distance;}
           }
           return best;
@@ -647,30 +646,9 @@ class Parser {
         if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";
         if(idx<0)return a[3]??"#N/A";
         const result=matrix(2);
-        if(horizontal){
-          if(result.length>1)return {__gridArray:true,values:result.map(row=>[row[idx]??""])};
-          return result[0]?.[idx]??"#N/A";
-        }
+        if(horizontal){if(result.length>1)return {__gridArray:true,values:result.map(row=>[row[idx]??""])};return result[0]?.[idx]??"#N/A";}
         const row=result[idx]??[];
         return result[0]?.length>1?{__gridArray:true,values:[row]}:(row[0]??"#N/A");
-      }
-      case "INDEX":{const data=matrix(0),row=Math.max(1,number(a[1]))-1,col=Math.max(1,number(a[2]??1))-1;return data[row]?.[col]??"#REF!";}");}else if(ch==="*")expression+=".*";else if(ch==="?")expression+=".";else expression+=ch.replace(/[.*+?^${}()|[\]\\]/g,"\\case "XLOOKUP":case "XMATCH":case "MATCH":{const look=a[0],source=list(1),idx=source.findIndex(v=>String(v).toLowerCase()===String(look).toLowerCase());if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";const ret=list(2);if(idx>=0)return ret[idx]??"#N/A";return a[3]??"#N/A";}
-      case "INDEX":{const data=matrix(0),row=Math.max(1,number(a[1]))-1,col=Math.max(1,number(a[2]??1))-1;return data[row]?.[col]??"#REF!";}");}return new RegExp("^"+expression+"$","i").test(value);};
-        const find=(values:Value[])=>{
-          const indices=Array.from({length:values.length},(_,index)=>index);if(searchMode===-1||searchMode===-2)indices.reverse();
-          if(matchMode===2){const idx=indices.find(index=>wildcard(String(look??""),String(values[index]??"")));return idx??-1;}
-          if(matchMode===0){const idx=indices.find(index=>equals(values[index],look));return idx??-1;}
-          let best=-1,bestDistance=Infinity;
-          for(const index of indices){const value=values[index],ln=Number(scalar(look)),vn=Number(scalar(value));if(!Number.isFinite(ln)||!Number.isFinite(vn))continue;
-            if(matchMode===-1&&vn<=ln&&ln-vn<bestDistance){best=index;bestDistance=ln-vn;}
-            if(matchMode===1&&vn>=ln&&vn-ln<bestDistance){best=index;bestDistance=vn-ln;}
-          }
-          return best;
-        };
-        const idx=find(source);
-        if(fn==="XMATCH"||fn==="MATCH")return idx>=0?idx+1:"#N/A";
-        const result=matrix(2),returnValue=idx<0?(a[3]??"#N/A"):(result.length&&result[0].length>1?result[Math.min(idx,result.length-1)]?.[0]??"#N/A":result[idx]?.[0]??list(2)[idx]??"#N/A");
-        return returnValue;
       }
       case "INDEX":{
         const data=matrix(0),row=Math.trunc(number(a[1]??0)),col=Math.trunc(number(a[2]??0));
