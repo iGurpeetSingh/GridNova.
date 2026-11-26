@@ -9,6 +9,7 @@ export const IMPLEMENTED_FORMULA_NAMES = new Set([
  "VLOOKUP","HLOOKUP","XLOOKUP","XMATCH","INDEX","MATCH","LOOKUP","CHOOSE","INDIRECT","ROW","ROWS","COLUMN","COLUMNS","ADDRESS","HYPERLINK",
  "SUMIF","SUMIFS","SUMPRODUCT","SUMSQ","PRODUCT","ABS","ROUND","ROUNDUP","ROUNDDOWN","MROUND","CEILING","FLOOR","INT","TRUNC","MOD","QUOTIENT","POWER","SQRT","EXP","LN","LOG","LOG10","PI","SIN","COS","TAN","ASIN","ACOS","ATAN","DEGREES","RADIANS","SIGN","RAND","RANDBETWEEN","FACT","GCD","LCM","ROMAN","ARABIC","SUBTOTAL","AGGREGATE",
  "AVERAGEA","AVERAGEIF","AVERAGEIFS","COUNTA","COUNTBLANK","COUNTIF","COUNTIFS","MAXA","MAXIFS","MINA","MINIFS","MEDIAN","MODE","LARGE","SMALL","RANK","PERCENTILE","QUARTILE","STDEV.S","STDEV.P","VAR.S","VAR.P","CORREL","FORECAST","GEOMEAN","HARMEAN",
+ "OFFSET","ISFORMULA","ISREF","CELL","TEXTSPLIT","TRANSPOSE","UNIQUE","FILTER","SORT",
  "DEC2BIN","DEC2HEX","DEC2OCT","BIN2DEC","HEX2DEC","OCT2DEC","CONVERT","DELTA","GESTEP","COMPLEX","IMABS","IMSUM","ISBLANK","ISERR","ISERROR","ISEVEN","ISLOGICAL","ISNA","ISNONTEXT","ISNUMBER","ISODD","ISTEXT","N","NA","TYPE","ERROR.TYPE","ENCODEURL"
 ]);
 const definitions:Record<string,{category:string;syntax:string;description:string}> = {
@@ -225,7 +226,7 @@ const definitions:Record<string,{category:string;syntax:string;description:strin
 };
 export const FORMULA_GROUPS:Record<string,FormulaEntry[]> = Object.fromEntries(FORMULA_CATEGORIES.map(category=>[category,Object.entries(definitions).filter(([,entry])=>entry.category===category).map(([name,entry])=>({...entry,name,example:`=${name}()`,implemented:IMPLEMENTED_FORMULA_NAMES.has(name)}))]));
 export const FORMULA_CATALOG:FormulaEntry[] = Object.entries(definitions).map(([name,entry])=>({...entry,name,example:`=${name}()`,implemented:IMPLEMENTED_FORMULA_NAMES.has(name)}));
-export const getFormula=(name:string)=>definitions[name.toUpperCase()]?{...definitions[name.toUpperCase()],name:name.toUpperCase(),example:`=${name.toUpperCase()}()`,implemented:IMPLEMENTED_FORMULA_NAMES.has(name)}:undefined;
+export const getFormula=(name:string)=>definitions[name.toUpperCase()]?{...definitions[name.toUpperCase()],name:name.toUpperCase(),example:`=${name.toUpperCase()}()`,implemented:IMPLEMENTED_FORMULA_NAMES.has(name.toUpperCase())}:undefined;
 export const FORMULA_CATALOG_COUNT=FORMULA_CATALOG.length;
 export const IMPLEMENTED_FORMULA_COUNT=IMPLEMENTED_FORMULA_NAMES.size;
 export const FORMULA_NAMES=FORMULA_CATALOG.map(entry=>entry.name);
