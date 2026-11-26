@@ -23,7 +23,7 @@ export default function FormulaFunctionDropdown({label,category,icon,caption,onS
   <FloatingPortal open={open} anchorRef={anchor} onClose={close} role="menu" ariaLabel={`${label} functions`} className="formula-function-menu">
    {moreMenu&&!activeCategory?<div className="formula-function-category-list">
      <div className="formula-function-menu-title">More Functions</div>
-     {categories.map(item=><button key={item} type="button" onMouseDown={event=>event.preventDefault()} onMouseEnter={()=>setActiveCategory(item)} onClick={()=>{setActiveCategory(item);setQuery("");}}><span><b>{item}</b><small>{FORMULA_GROUPS[item]?.length??0} functions</small></span><ChevronRight size={14}/></button>)}
+     {categories.map(item=><button key={item} type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{setActiveCategory(item);setQuery("");}}><span><b>{item}</b><small>{FORMULA_GROUPS[item]?.length??0} functions</small></span><ChevronRight size={14}/></button>)}
      <button type="button" className="formula-function-open-library" onMouseDown={event=>event.preventDefault()} onClick={()=>{close();onMore?.();}}>More Functions...</button>
    </div>:<>
     {moreMenu&&<div className="formula-function-submenu-heading"><button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{setActiveCategory("");setQuery("");}}>‹ All categories</button><strong>{activeCategory}</strong></div>}
