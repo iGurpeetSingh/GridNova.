@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { WorkbookData, SheetData } from "../types";
 import { parseAddress, addressOf } from "../types";
-import { buildDependencyGraph, cellNodeId, type CellNodeId, type DependencyGraph, type RangeDependency } from "../lib/dependency-graph";
+import { buildDependencyGraph, cellNodeId, extractFormulaReferences, type CellNodeId, type RangeDependency } from "../lib/dependency-graph";
 
 type AuditMode="precedents"|"dependents";
 interface Props { workbook:WorkbookData; sheet:SheetData; activeCell:string; mode:AuditMode|null; }
