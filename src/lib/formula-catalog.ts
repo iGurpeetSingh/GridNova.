@@ -9,7 +9,7 @@ export const IMPLEMENTED_FORMULA_NAMES = new Set([
  "VLOOKUP","HLOOKUP","XLOOKUP","XMATCH","INDEX","MATCH","LOOKUP","CHOOSE","INDIRECT","ROW","ROWS","COLUMN","COLUMNS","ADDRESS","HYPERLINK",
  "SUMIF","SUMIFS","SUMPRODUCT","SUMSQ","PRODUCT","ABS","ROUND","ROUNDUP","ROUNDDOWN","MROUND","CEILING","FLOOR","INT","TRUNC","MOD","QUOTIENT","POWER","SQRT","EXP","LN","LOG","LOG10","PI","SIN","COS","TAN","ASIN","ACOS","ATAN","DEGREES","RADIANS","SIGN","RAND","RANDBETWEEN","FACT","GCD","LCM","ROMAN","ARABIC","SUBTOTAL","AGGREGATE",
  "AVERAGEA","AVERAGEIF","AVERAGEIFS","COUNTA","COUNTBLANK","COUNTIF","COUNTIFS","MAXA","MAXIFS","MINA","MINIFS","MEDIAN","MODE","LARGE","SMALL","RANK","PERCENTILE","QUARTILE","STDEV.S","STDEV.P","VAR.S","VAR.P","CORREL","FORECAST","GEOMEAN","HARMEAN",
- "OFFSET","ISFORMULA","ISREF","CELL","TEXTSPLIT","TRANSPOSE","UNIQUE","FILTER","SORT",
+ "OFFSET","ISFORMULA","ISREF","CELL","TEXTSPLIT","TRANSPOSE","UNIQUE","FILTER","SORT","SORTBY","SEQUENCE","TAKE","DROP","HSTACK","VSTACK",
  "DEC2BIN","DEC2HEX","DEC2OCT","BIN2DEC","HEX2DEC","OCT2DEC","CONVERT","DELTA","GESTEP","COMPLEX","IMABS","IMSUM","ISBLANK","ISERR","ISERROR","ISEVEN","ISLOGICAL","ISNA","ISNONTEXT","ISNUMBER","ISODD","ISTEXT","N","NA","TYPE","ERROR.TYPE","ENCODEURL"
 ]);
 const definitions:Record<string,{category:string;syntax:string;description:string}> = {
@@ -222,6 +222,12 @@ const definitions:Record<string,{category:string;syntax:string;description:strin
   "TYPE":{category:"Information",syntax:"TYPE(value)",description:"Returns a number identifying a value's data type."},
   "ERROR.TYPE":{category:"Information",syntax:"ERROR.TYPE(error_val)",description:"Returns a number identifying an Excel error."},
   "CELL":{category:"Information",syntax:"CELL(info_type, [reference])",description:"Returns information about a cell."},
+  "SORTBY":{category:"Lookup & Reference",syntax:"SORTBY(array, by_array1, [sort_order1], [by_array2], ...)",description:"Sorts a range or array based on corresponding values in one or more arrays."},
+  "SEQUENCE":{category:"Math & Trig",syntax:"SEQUENCE(rows, [columns], [start], [step])",description:"Generates a sequential array of numbers."},
+  "TAKE":{category:"Lookup & Reference",syntax:"TAKE(array, rows, [columns])",description:"Returns the requested leading or trailing rows and columns from an array."},
+  "DROP":{category:"Lookup & Reference",syntax:"DROP(array, rows, [columns])",description:"Excludes the requested leading or trailing rows and columns from an array."},
+  "HSTACK":{category:"Lookup & Reference",syntax:"HSTACK(array1, [array2], ...)",description:"Appends arrays horizontally to create one wider array."},
+  "VSTACK":{category:"Lookup & Reference",syntax:"VSTACK(array1, [array2], ...)",description:"Appends arrays vertically to create one taller array."},
   "ENCODEURL":{category:"Web",syntax:"ENCODEURL(text)",description:"Encodes text for use in a URL."},
 };
 export const FORMULA_GROUPS:Record<string,FormulaEntry[]> = Object.fromEntries(FORMULA_CATEGORIES.map(category=>[category,Object.entries(definitions).filter(([,entry])=>entry.category===category).map(([name,entry])=>({...entry,name,example:`=${name}()`,implemented:IMPLEMENTED_FORMULA_NAMES.has(name)}))]));
