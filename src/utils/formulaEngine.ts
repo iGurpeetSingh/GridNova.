@@ -1,9 +1,17 @@
-import type { CellMap, CellStyle, ExcelTableData } from "../types";
+import type { CellMap, CellStyle, ExcelTableData, SheetData } from "../types";
 import { addressOf, parseAddress } from "../types";
 import { getTableAt, getTableColumnIndex, tableFilterPasses, tableReferenceRange } from "./tableUtils";
 
-type Value = string | number | boolean;
-const refPattern = /^[A-Z]{1,3}[1-9]\d*$/;
+type Scalar = string | number | boolean;
+interface ArrayValue { __gridArray:true; values:Scalar[][]; }
+type Value = Scalar | ArrayValue;
+const refPattern = /^\$?[A-Z]{1,3}\$?[1-9]\d*$/i;
+const columnPattern = /^\$?[A-Z]{1,3}$/i;
+const rowPattern = /^\$?[1-9]\d*$/;
+const isArrayValue=(value:Value):value is ArrayValue=>typeof value==="object"&&value!==null&&"__gridArray" in value;
+const scalar=(value:Value|undefined):Scalar=>isArrayValue(value)?(value.values[0]?.[0]??""):value??"";
+const flatValues=(values:Value[])=>values.flatMap(value=>isArrayValue(value)?value.values.flat():[value]);
+
 const tableNamePattern = /^[A-Za-z_][A-Za-z0-9_.]*/;
 
 function resolveStructuredReference(name: string | null, inner: string, cells: CellMap, tables: ExcelTableData[], currentAddress?: string): string {
@@ -142,19 +150,62 @@ const isError = (value: Value | undefined) => typeof value === "string" && value
 const number = (value: Value | undefined) => value === undefined || value === "" ? 0 : Number(value);
 const numeric = (values: Value[]) => values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
 const text = (value: Value | undefined) => value === undefined ? "" : String(value);
-const criteriaMatches = (value: Value, criteria: Value): boolean => {
-  const condition = String(criteria), operator = condition.match(/^(>=|<=|<>|>|<|=)/)?.[0] ?? "=";
-  const expected = condition.slice(operator === "=" && !/^(>=|<=|<>|>|<|=)/.test(condition) ? 0 : operator.length);
-  const leftNumber = Number(value), rightNumber = Number(expected);
-  const bothNumeric = String(value).trim() !== "" && expected.trim() !== "" && Number.isFinite(leftNumber) && Number.isFinite(rightNumber);
-  const left = bothNumeric ? leftNumber : String(value).toLowerCase(), right = bothNumeric ? rightNumber : expected.toLowerCase();
-  if (operator === ">=") return left >= right;
-  if (operator === "<=") return left <= right;
-  if (operator === ">") return left > right;
-  if (operator === "<") return left < right;
-  if (operator === "<>") return left !== right;
-  return left === right || String(value).toLowerCase() === expected.toLowerCase();
+const EXCEL_EPOCH_UTC=Date.UTC(1899,11,30);
+const toDate=(value:Value|undefined):Date|null=>{
+ const v=scalar(value);
+ if(typeof v==="number"&&Number.isFinite(v))return new Date(EXCEL_EPOCH_UTC+Math.round(v*86400000));
+ if(typeof v==="string"){
+  if(!v.trim())return null;
+  const parsed=new Date(v);
+  return Number.isNaN(parsed.getTime())?null:parsed;
+ }
+ return null;
 };
+const toSerial=(value:Value|undefined):number=>{
+ const v=scalar(value);
+ if(typeof v==="number")return v;
+ const date=toDate(v);return date?((Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate())-EXCEL_EPOCH_UTC)/86400000):NaN;
+};
+const serialFromDate=(date:Date)=>((Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate())-EXCEL_EPOCH_UTC)/86400000);
+const dateFromSerial=(serial:number)=>new Date(EXCEL_EPOCH_UTC+Math.round(serial*86400000));
+const dateOnly=(date:Date)=>new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate()));
+const excelWeekday=(date:Date,returnType=1)=>{
+ const day=date.getUTCDay();
+ if(returnType===2)return day===0?7:day;
+ if(returnType===3)return day===0?6:day-1;
+ if(returnType>=11&&returnType<=17){const first=(returnType-11+1)%7;return ((day-first+7)%7)+1;}
+ return day+1;
+};
+const addMonths=(date:Date,months:number)=>{
+ const day=date.getUTCDate(),out=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+months,1));
+ const last=new Date(Date.UTC(out.getUTCFullYear(),out.getUTCMonth()+1,0)).getUTCDate();
+ out.setUTCDate(Math.min(day,last));return out;
+};
+const average=(values:number[])=>values.length?values.reduce((s,v)=>s+v,0)/values.length:NaN;
+const variance=(values:number[],sample:boolean)=>{
+ if(values.length<(sample?2:1))return NaN;
+ const mean=average(values),sum=values.reduce((acc,v)=>acc+(v-mean)**2,0);
+ return sum/(values.length-(sample?1:0));
+};
+const percentile=(values:number[],k:number)=>{
+ const sorted=[...values].sort((a,b)=>a-b);if(!sorted.length||k<0||k>1)return NaN;
+ const pos=(sorted.length-1)*k,lo=Math.floor(pos),hi=Math.ceil(pos);
+ return sorted[lo]+(sorted[hi]-sorted[lo])*(pos-lo);
+};
+const criteriaMatches=(value:Value,criteria:Value):boolean=>{
+ const condition=String(scalar(criteria)),op=condition.match(/^(>=|<=|<>|>|<|=)/)?.[0]??"=";
+ const expected=condition.slice(op==="="&&!/^(>=|<=|<>|>|<|=)/.test(condition)?0:op.length);
+ const actual=scalar(value);
+ if(/[*?]/.test(expected)){
+  const pattern=expected.split("").map(char=>"\\\\^$.*+?()[]{}|".includes(char)?"\\\\"+char:char).join("").replace(/\\\\~/g,"~").replace(/\\*/g,".*").replace(/\\?/g,".");
+  const match=new RegExp("^"+pattern+"$","i").test(String(actual));
+  return op==="<>"?!match:match;
+ }
+ const leftNum=Number(actual),rightNum=Number(expected),both=String(actual).trim()!==""&&expected.trim()!==""&&Number.isFinite(leftNum)&&Number.isFinite(rightNum);
+ const left: string|number=both?leftNum:String(actual).toLowerCase(),right: string|number=both?rightNum:expected.toLowerCase();
+ switch(op){case ">=":return left>=right;case "<=":return left<=right;case ">":return left>right;case "<":return left<right;case "<>":return left!==right;default:return left===right;}
+};
+
 
 class Parser {
   private i = 0;
