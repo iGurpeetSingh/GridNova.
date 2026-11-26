@@ -28,11 +28,37 @@ export interface ExcelTableData {
   styleId: string;
   filters: Record<number, TableFilterState>;
 }
+export type PagePaperSize = "A4" | "Letter" | "Legal" | "A3";
+export type PageScalingMode = "none" | "fit-sheet" | "fit-columns" | "fit-rows" | "custom";
+export interface PageMargins { top:number; bottom:number; left:number; right:number; }
+export interface SheetPageSetup {
+  orientation:"portrait"|"landscape";
+  paperSize:PagePaperSize;
+  marginUnit:"in"|"cm";
+  margins:PageMargins;
+  scalingMode:PageScalingMode;
+  scalingPercent:number;
+  printGridlines:boolean;
+  printHeadings:boolean;
+  header:string;
+  footer:string;
+  printArea:CellRange|null;
+  rowBreaks:number[];
+  columnBreaks:number[];
+  isRtl:boolean;
+}
+export const DEFAULT_PAGE_SETUP:SheetPageSetup = {
+  orientation:"portrait",paperSize:"A4",marginUnit:"in",
+  margins:{top:0.75,bottom:0.75,left:0.7,right:0.7},
+  scalingMode:"none",scalingPercent:100,printGridlines:false,printHeadings:false,
+  header:"",footer:"",printArea:null,rowBreaks:[],columnBreaks:[],isRtl:false
+};
 export interface SheetData {
   id: string; name: string; cells: CellMap; rowCount: number; columnCount: number;
   columnWidths: Record<number, number>; rowHeights?: Record<number, number>; showGridlines: boolean; showHeadings: boolean;
   freezeTopRow: boolean; filters: boolean; hiddenRows?: number[]; hiddenColumns?: number[];
   tables?: ExcelTableData[];
+  pageSetup?: SheetPageSetup;
 }
 export type ChartType = "column" | "line" | "scatter" | "pie" | "bar" | "statistical" | "combo" | "treemap";
 export interface FloatingChartData {
@@ -86,7 +112,7 @@ export const parseAddress = (address: string): { row: number; col: number } | nu
 export const emptySheet = (name = "Sheet 1"): SheetData => ({
   id: crypto.randomUUID(), name, cells: {}, rowCount: DEFAULT_ROWS,
   columnCount: DEFAULT_COLUMNS, columnWidths: {}, showGridlines: true,
-  showHeadings: true, freezeTopRow: false, filters: false, tables: [],
+  showHeadings: true, freezeTopRow: false, filters: false, tables: [], pageSetup: { ...DEFAULT_PAGE_SETUP, margins: { ...DEFAULT_PAGE_SETUP.margins }, rowBreaks: [], columnBreaks: [] },
 });
 export const emptyWorkbook = (title = "Untitled Workbook"): WorkbookData => ({
   id: crypto.randomUUID(), title, sheets: [emptySheet()], charts: [], elements: [],
