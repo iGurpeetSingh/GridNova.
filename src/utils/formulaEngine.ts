@@ -107,18 +107,33 @@ function expandNamedRanges(source:string,namedRanges:Record<string,string>={}):s
   return output;
 }
 
-function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string, ignoreFiltered = false, namedRanges:Record<string,string>={}): Value[] {
-  const a = parseAddress(start), b = parseAddress(end);
-  if (!a || !b) throw new Error("#REF!");
-  const values: Value[] = [];
-  for (let r = Math.min(a.row, b.row); r <= Math.max(a.row, b.row); r++) {
-    for (let c = Math.min(a.col, b.col); c <= Math.max(a.col, b.col); c++) {
-      const table = ignoreFiltered ? getTableAt(tables, r, c) : undefined;
-      if (table && !tableFilterPasses(table, r, cells)) continue;
-      values.push(resolve(addressOf(r, c), cells, seen, tables, namedRanges));
+function rangeValues(start: string, end: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], currentAddress?: string, ignoreFiltered = false, namedRanges:Record<string,string>={}): ArrayValue {
+  const clean=(value:string)=>value.replace(/\$/g,"").toUpperCase();
+  const parseAxis=(value:string,other:string)=>{
+    const p=parseAddress(clean(value));
+    if(p)return p;
+    if(columnPattern.test(value)){const col=clean(value).split("").reduce((n,ch)=>n*26+ch.charCodeAt(0)-64,0)-1;return {row:0,col};}
+    if(rowPattern.test(value))return {row:Number(clean(value))-1,col:0};
+    return null;
+  };
+  const a=parseAxis(start,end),b=parseAxis(end,start);
+  if(!a||!b)throw new Error("#REF!");
+  const maxUsed=Object.keys(cells).map(parseAddress).filter((p):p is {row:number;col:number}=>!!p);
+  const maxRow=Math.max(99,...maxUsed.map(p=>p.row)),maxCol=Math.max(25,...maxUsed.map(p=>p.col));
+  const colOnly=columnPattern.test(start)&&columnPattern.test(end);
+  const rowOnly=rowPattern.test(start)&&rowPattern.test(end);
+  const startRow=colOnly?0:Math.min(a.row,b.row),endRow=colOnly?maxRow:Math.max(a.row,b.row);
+  const startCol=rowOnly?0:Math.min(a.col,b.col),endCol=rowOnly?maxCol:Math.max(a.col,b.col);
+  const matrix:Scalar[][]=[];
+  for(let r=startRow;r<=endRow;r++){
+    const row:Scalar[]=[];
+    for(let col=startCol;col<=endCol;col++){
+      const table=ignoreFiltered?getTableAt(tables,r,col):undefined;
+      row.push(table&&!tableFilterPasses(table,r,cells)?"":scalar(resolve(addressOf(r,col),cells,seen,tables,namedRanges)));
     }
+    matrix.push(row);
   }
-  return values;
+  return {__gridArray:true,values:matrix};
 }
 
 function resolve(address: string, cells: CellMap, seen: Set<string>, tables: ExcelTableData[], namedRanges:Record<string,string>={}): Value {
@@ -135,7 +150,7 @@ function resolve(address: string, cells: CellMap, seen: Set<string>, tables: Exc
 
 function tokenize(source: string): string[] {
   const result: string[] = [];
-  const re = /\s*(>=|<=|<>|[()+*/^=<>,:-]|"(?:[^"]|"")*"|(?:\d+\.?\d*|\.\d+)|[A-Za-z_][A-Za-z0-9_.]*)/gy;
+  const re = /\s*(>=|<=|<>|[()+*/^%=<>:&!,\-]|"(?:[^"]|"")*"|'(?:[^']|'')+'|(?:\d+\.?\d*|\.\d+)|\$?[A-Za-z_][A-Za-z0-9_.]*|\$?\d+)/gy;
   let pos = 0;
   while (pos < source.length) {
     re.lastIndex = pos;
@@ -146,10 +161,10 @@ function tokenize(source: string): string[] {
   return result;
 }
 
-const isError = (value: Value | undefined) => typeof value === "string" && value.startsWith("#");
-const number = (value: Value | undefined) => value === undefined || value === "" ? 0 : Number(value);
-const numeric = (values: Value[]) => values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-const text = (value: Value | undefined) => value === undefined ? "" : String(value);
+const isError = (value: Value | undefined) => typeof scalar(value) === "string" && String(scalar(value)).startsWith("#");
+const number = (value: Value | undefined) => value === undefined || scalar(value) === "" ? 0 : Number(scalar(value));
+const numeric = (values: Value[]) => flatValues(values).filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+const text = (value: Value | undefined) => value === undefined ? "" : String(scalar(value));
 const EXCEL_EPOCH_UTC=Date.UTC(1899,11,30);
 const toDate=(value:Value|undefined):Date|null=>{
  const v=scalar(value);
