@@ -603,7 +603,6 @@
 .sheet-scroll:has(.grid-print-area-member:hover) .grid-print-area-badge{opacity:1}
 .grid-page-break-row>td{border-top:2px dashed #0F6CBD!important}
 .grid-cell[data-page-break-column-before="true"],.grid-column-heading[data-page-break-column-before="true"]{border-left:2px dashed #0F6CBD!important;position:relative}
-.print-excluded-row,.print-excluded-column,.print-excluded-cell{display:table-cell}
 @media(max-width:560px){
   .page-setup-dialog{max-height:calc(100dvh - 20px)}
   .page-setup-content{padding:13px;gap:12px}

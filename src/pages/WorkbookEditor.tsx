@@ -681,7 +681,7 @@ export default function WorkbookEditor(){
         updateSheet(sheet.id,{cells});break;
       }
       case "date":updateSheet(sheet.id,{cells:{...sheet.cells,[activeCell]:{...(sheet.cells[activeCell]??{raw:""}),raw:new Date().toISOString().slice(0,10),datePicker:true,style:{...(sheet.cells[activeCell]?.style??{}),numberFormat:"Date"}}}});break;
-      case "orientation-portrait":setOrientation("portrait");break;case "orientation-landscape":setOrientation("landscape");break;
+      case "orientation-portrait":updateSheet(sheet.id,{pageSetup:{...pageSetup,orientation:"portrait"}});break;case "orientation-landscape":updateSheet(sheet.id,{pageSetup:{...pageSetup,orientation:"landscape"}});break;
       case "gridlines":updateSheet(sheet.id,{showGridlines:!sheet.showGridlines});break;case "headings":updateSheet(sheet.id,{showHeadings:!sheet.showHeadings});break;
       case "toggle-formulas":setShowFormulas(!showFormulas);break;
       case "filters":updateSheet(sheet.id,{filters:!sheet.filters});break;
