@@ -16,13 +16,13 @@ export function getFormulaArgumentInfo(raw:string):ArgumentInfo|null {
   else if(ch===","&&stack.length)stack[stack.length-1].commas++;
  }
  const current=stack.at(-1);if(!current)return null;
- const before=raw.slice(0,current.index).match(/([A-Za-z_][A-Za-z0-9_.]*)\\s*$/);
+ const before=raw.slice(0,current.index).match(/([A-Za-z_][A-Za-z0-9_.]*)\s*$/);
  if(!before)return null;
  const entry=getFormula(before[1]);if(!entry)return null;
  const inside=entry.syntax.slice(entry.syntax.indexOf("(")+1,-1);
  const parameters=inside.split(",").map(item=>item.trim()).filter(Boolean);
  const activeParameter=parameters[Math.min(current.commas,parameters.length-1)]??"argument";
- return {functionName:entry.name,syntax:entry.syntax,parameters,activeIndex:current.commas,activeParameter:activeParameter.replace(/^\\[|\\]$/g,"")};
+ return {functionName:entry.name,syntax:entry.syntax,parameters,activeIndex:current.commas,activeParameter:activeParameter.replace(/^\[|\]$/g,"")};
 }
 interface AutoProps {
  open:boolean;query:string;anchorRef:RefObject<HTMLElement|null>;activeIndex:number;
