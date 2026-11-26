@@ -45,6 +45,9 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const resizeValue = useRef<{ axis: "row" | "column"; index: number; value: number } | null>(null);
   const fillSource = useRef<CellRange | null>(null);
   const fillModifier = useRef(false);
+  const selectionGesture = useRef(false);
+  const suppressHeaderClick = useRef(false);
+  const finishFillRef = useRef<(preview?: CellRange) => void>(() => {});
   const gridRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const editOriginal = useRef("");
@@ -68,6 +71,14 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const columns = useMemo(() => Array.from({ length: Math.max(sheet.columnCount, 26) }, (_, i) => i), [sheet.columnCount]);
   const rows = useMemo(() => Array.from({ length: Math.max(sheet.rowCount, 100) }, (_, i) => i).filter(row => row === 0 || Object.entries(columnFilters).every(([col, value]) => !value || (sheet.cells[addressOf(row, Number(col))]?.raw ?? "") === value)), [sheet.rowCount, sheet.cells, columnFilters]);
   const bounds = selection ? clampRange(selection) : { startRow: active.row, endRow: active.row, startCol: active.col, endCol: active.col };
+  // While filling, header indicators follow the live preview rather than flashing
+  // between the original source range and the destination range.
+  const headerBounds = fillSource.current && fillPreview ? clampRange(fillPreview) : bounds;
+  const isFullRowSelection = headerBounds.startCol === 0 && headerBounds.endCol >= columns.length - 1;
+  const isFullColumnSelection = headerBounds.startRow === 0 && headerBounds.endRow >= Math.max(99, sheet.rowCount - 1);
+  const isEntireSheetSelection = isFullRowSelection && isFullColumnSelection;
+  const showColumnHeaderSelection = !isFullRowSelection || isEntireSheetSelection;
+  const showRowHeaderSelection = !isFullColumnSelection || isEntireSheetSelection;
   const selected = (row: number, col: number) => row >= bounds.startRow && row <= bounds.endRow && col >= bounds.startCol && col <= bounds.endCol;
   const setRange = (range: CellRange, address = addressOf(range.endRow, range.endCol)) => onSelect(address, range);
   const finishFill = (preview?: CellRange) => {
@@ -109,6 +120,35 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
     updateSheet(sheet.id, { cells: next, rowCount: Math.max(sheet.rowCount, destination.endRow + 1), columnCount: Math.max(sheet.columnCount, destination.endCol + 1) });
     setRange(destination, addressOf(destination.endRow, destination.endCol));
   };
+  useLayoutEffect(() => {
+    finishFillRef.current = finishFill;
+  }, [finishFill]);
+
+  useEffect(() => {
+    const releasePointerGesture = () => {
+      if (!selectionGesture.current) return;
+      selectionGesture.current = false;
+      setDragging(false);
+      setDragStart(null);
+      finishFillRef.current();
+      // Keep the guard through the synthetic click that follows pointerup/mouseup.
+      window.requestAnimationFrame(() => {
+        suppressHeaderClick.current = false;
+      });
+    };
+
+    window.addEventListener("pointerup", releasePointerGesture, true);
+    window.addEventListener("pointercancel", releasePointerGesture, true);
+    window.addEventListener("mouseup", releasePointerGesture, true);
+    window.addEventListener("blur", releasePointerGesture);
+    return () => {
+      window.removeEventListener("pointerup", releasePointerGesture, true);
+      window.removeEventListener("pointercancel", releasePointerGesture, true);
+      window.removeEventListener("mouseup", releasePointerGesture, true);
+      window.removeEventListener("blur", releasePointerGesture);
+    };
+  }, []);
+
   const focusCell = (row: number, col: number) => requestAnimationFrame(() => gridRef.current?.querySelector<HTMLInputElement>(`[data-cell="${addressOf(row, col)}"]`)?.focus());
   const updateDimensions = (row: number, col: number) => updateSheet(sheet.id, { rowCount: Math.max(sheet.rowCount, row + 1), columnCount: Math.max(sheet.columnCount, col + 1) });
   const updateRowHeight = (row: number, height: number) => updateSheet(sheet.id, { rowHeights: { ...(sheet.rowHeights ?? {}), [row]: Math.max(18, Math.min(120, height)) } });
@@ -146,6 +186,8 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   };
   const beginRange = (row: number, col: number, event: ReactMouseEvent) => {
     const anchor = event.shiftKey ? active : { row, col };
+    selectionGesture.current = true;
+    suppressHeaderClick.current = true;
     setDragStart(anchor); setDragging(true);
     setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, addressOf(row, col));
   };
@@ -336,26 +378,26 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   };
   const menuItem = (label: string, action: string, shortcut?: string) => <button key={action} role="menuitem" onClick={() => menuAction(action)} className="grid-context-item"><span>{label}</span>{shortcut && <span className="grid-context-shortcut">{shortcut}</span>}</button>;
 
-  return <div ref={gridRef} className="sheet-scroll relative" onMouseUp={() => { setDragging(false); finishFill(); }} onContextMenu={event => showContextMenu(event, "cell", active.row)} onClick={() => menu && setMenu(null)}>
+  return <div ref={gridRef} className="sheet-scroll relative" onContextMenu={event => showContextMenu(event, "cell", active.row)} onClick={() => menu && setMenu(null)}>
     <div style={{ zoom: zoom / 100, minWidth: "max-content" }}>
       <table className="border-collapse table-fixed" style={{ minWidth: "100%" }}>
         <colgroup>{sheet.showHeadings && <col style={{ width: 48 }} />}{columns.map(col => <col key={col} style={{ width: resizePreview?.axis === "column" && resizePreview.index === col ? resizePreview.value : sheet.columnWidths[col] ?? 110 }} />)}</colgroup>
         {sheet.showHeadings && <thead className="sticky top-0 z-20"><tr>
           <th className="grid-corner sticky left-0 z-20" title="Select all cells"><button aria-label="Select all cells" onClick={() => { setRange({ startRow: 0, startCol: 0, endRow: Math.max(99, sheet.rowCount - 1), endCol: Math.max(25, sheet.columnCount - 1) }, "A1"); focusCell(0, 0); }}>◢</button></th>
-          {columns.map(col => <th key={col} className={`grid-column-heading ${col >= bounds.startCol && col <= bounds.endCol ? "is-selected" : ""}`} onClick={event => { const first = event.shiftKey ? active.col : col; setRange({ startRow: 0, endRow: Math.max(99, sheet.rowCount - 1), startCol: Math.min(first, col), endCol: Math.max(first, col) }, addressOf(0, col)); focusCell(0, col); }} onContextMenu={event => showContextMenu(event, "column", col)}>
+          {columns.map(col => <th key={col} className={`grid-column-heading ${col >= headerBounds.startCol && col <= headerBounds.endCol && showColumnHeaderSelection ? (isFullColumnSelection ? "is-full-selected" : "is-range-active") : ""}`} onClick={event => { if (suppressHeaderClick.current) { event.preventDefault(); event.stopPropagation(); return; } const first = event.shiftKey ? active.col : col; setRange({ startRow: 0, endRow: Math.max(99, sheet.rowCount - 1), startCol: Math.min(first, col), endCol: Math.max(first, col) }, addressOf(0, col)); focusCell(0, col); }} onContextMenu={event => showContextMenu(event, "column", col)}>
             {sheet.filters ? <div className="grid-filter-heading"><span>{columnLabel(col)}</span><select aria-label={`Filter ${columnLabel(col)}`} value={columnFilters[col] ?? ""} onChange={event => setColumnFilters(value => ({ ...value, [col]: event.target.value }))}><option value="">All</option>{Array.from(new Set(rows.map(row => sheet.cells[addressOf(row, col)]?.raw ?? "").filter(Boolean))).sort().map(value => <option key={value} value={value}>{value}</option>)}</select><Filter size={10}/></div> : columnLabel(col)}
             <span className="grid-column-resize" role="separator" aria-label={`Resize column ${columnLabel(col)}`} onMouseDown={event => beginResize(event, "column", col)} onDoubleClick={() => autoFitColumn(col)} />
           </th>)}
         </tr></thead>}
         <tbody>{rows.map(row => <tr key={row}>
-          {sheet.showHeadings && <th className={`grid-row-heading ${row >= bounds.startRow && row <= bounds.endRow ? "is-selected" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27 }} onClick={event => { const first = event.shiftKey ? active.row : row; setRange({ startRow: Math.min(first, row), endRow: Math.max(first, row), startCol: 0, endCol: Math.max(25, sheet.columnCount - 1) }, addressOf(row, 0)); focusCell(row, 0); }} onContextMenu={event => showContextMenu(event, "row", row)}>{row + 1}<span className="grid-row-resize" role="separator" aria-label={`Resize row ${row + 1}`} onMouseDown={event => beginResize(event, "row", row)} onDoubleClick={() => autoFitRow(row)} /></th>}
+          {sheet.showHeadings && <th className={`grid-row-heading ${row >= headerBounds.startRow && row <= headerBounds.endRow && showRowHeaderSelection ? (isFullRowSelection ? "is-full-selected" : "is-range-active") : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27 }} onClick={event => { if (suppressHeaderClick.current) { event.preventDefault(); event.stopPropagation(); return; } const first = event.shiftKey ? active.row : row; setRange({ startRow: Math.min(first, row), endRow: Math.max(first, row), startCol: 0, endCol: Math.max(25, sheet.columnCount - 1) }, addressOf(row, 0)); focusCell(row, 0); }} onContextMenu={event => showContextMenu(event, "row", row)}>{row + 1}<span className="grid-row-resize" role="separator" aria-label={`Resize row ${row + 1}`} onMouseDown={event => beginResize(event, "row", row)} onDoubleClick={() => autoFitRow(row)} /></th>}
           {columns.map(col => {
             const address = addressOf(row, col), cell = sheet.cells[address], display = formatCellValue(cell?.raw ?? "", sheet.cells, showFormulas, cell?.style), value = editingAddress === address ? (cell?.raw ?? "") : display;
             const isSelected = selected(row, col), isActive = address === activeCell, style = cell?.style ?? {};
             if (cell?.mergedInto) return null;
-            return <td key={col} colSpan={cell?.mergeCols ?? 1} rowSpan={cell?.mergeRows ?? 1} className={`grid-cell ${isSelected ? "selected" : ""} ${isActive ? "active-cell" : ""} ${isSelected && row === bounds.startRow ? "range-top" : ""} ${isSelected && row === bounds.endRow ? "range-bottom" : ""} ${isSelected && col === bounds.startCol ? "range-left" : ""} ${isSelected && col === bounds.endCol ? "range-right" : ""} ${copyRange && row >= copyRange.startRow && row <= copyRange.endRow && col >= copyRange.startCol && col <= copyRange.endCol ? "copy-outline" : ""} ${fillPreview && row >= fillPreview.startRow && row <= fillPreview.endRow && col >= fillPreview.startCol && col <= fillPreview.endCol ? "fill-preview" : ""} ${sheet.freezeTopRow && row === 0 ? "sticky top-7 z-10" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27, borderColor: sheet.showGridlines ? "#e8ece9" : "transparent", borderWidth: style.border === "none" ? 0 : 1, borderStyle: "solid", background: style.backgroundColor ?? (isActive ? "#f0faf3" : isSelected ? "rgba(16,124,65,.08)" : "#fff"), fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textAlign: style.align ?? "left", textDecoration: [style.underline ? "underline" : "", style.strike ? "line-through" : ""].filter(Boolean).join(" "), whiteSpace: style.wrap ? "normal" : "nowrap", overflow: "visible" }} onContextMenu={event => showContextMenu(event, "cell", row, col)}>
+            return <td key={col} colSpan={cell?.mergeCols ?? 1} rowSpan={cell?.mergeRows ?? 1} className={`grid-cell ${isSelected ? "selected" : ""} ${isActive ? "active-cell" : ""} ${isSelected && row === bounds.startRow ? "range-top" : ""} ${isSelected && row === bounds.endRow ? "range-bottom" : ""} ${isSelected && col === bounds.startCol ? "range-left" : ""} ${isSelected && col === bounds.endCol ? "range-right" : ""} ${copyRange && row >= copyRange.startRow && row <= copyRange.endRow && col >= copyRange.startCol && col <= copyRange.endCol ? "copy-outline" : ""} ${fillPreview && row >= fillPreview.startRow && row <= fillPreview.endRow && col >= fillPreview.startCol && col <= fillPreview.endCol ? "fill-preview" : ""} ${sheet.freezeTopRow && row === 0 ? "sticky top-7 z-10" : ""}`} style={{ height: resizePreview?.axis === "row" && resizePreview.index === row ? resizePreview.value : rowHeights[row] ?? 27, borderColor: sheet.showGridlines ? "#e8ece9" : "transparent", borderWidth: style.border === "none" ? 0 : 1, borderStyle: "solid", background: style.backgroundColor ?? (isActive ? "#fff" : isSelected ? "rgba(16,124,65,.08)" : "#fff"), fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textAlign: style.align ?? "left", textDecoration: [style.underline ? "underline" : "", style.strike ? "line-through" : ""].filter(Boolean).join(" "), whiteSpace: style.wrap ? "normal" : "nowrap", overflow: "visible" }} onContextMenu={event => showContextMenu(event, "cell", row, col)}>
               {cell?.checkbox ? <div className="grid h-full place-items-center"><input type="checkbox" checked={cell.raw === "TRUE"} onChange={event => setCell(address, event.target.checked ? "TRUE" : "FALSE")} aria-label={`Checkbox ${address}`} className="h-4 w-4 accent-[#107c41]" /></div> : cell?.hyperlink ? <a href={cell.hyperlink} target="_blank" rel="noreferrer" className="flex h-full items-center gap-1 px-2 text-[#2778cb] underline"><span className="truncate">{value || cell.hyperlink}</span><ExternalLink size={10} /></a> : <input data-cell={address} aria-label={`Cell ${address}`} onFocus={() => { editOriginal.current = cell?.raw ?? ""; setEditingAddress(address); }} onBlur={() => setEditingAddress(current => current === address ? null : current)} type={cell?.datePicker ? "date" : "text"} value={cell?.datePicker ? (cell.raw || "") : value} onClick={event => { if (event.shiftKey) { const anchor = parseAddress(activeCell) ?? { row, col }; setRange({ startRow: anchor.row, startCol: anchor.col, endRow: row, endCol: col }, address); } else onSelect(address, { startRow: row, startCol: col, endRow: row, endCol: col }); }} onMouseDown={event => beginRange(row, col, event)} onMouseEnter={() => { if (fillSource.current) { const source = clampRange(fillSource.current); setFillPreview({ startRow: Math.min(source.startRow, row), startCol: Math.min(source.startCol, col), endRow: Math.max(source.endRow, row), endCol: Math.max(source.endCol, col) }); } else if (dragging && dragStart) setRange({ startRow: dragStart.row, startCol: dragStart.col, endRow: row, endCol: col }, address); }} onChange={event => setCell(address, event.target.value)} onKeyDown={event => onKeyDown(event, row, col)} className="cell-input" style={{ textAlign: style.align ?? "left", fontFamily: style.fontFamily ?? "Inter", fontSize: style.fontSize ?? 11, fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? "italic" : "normal", color: style.color ?? "#26382d", textDecoration: style.underline ? "underline" : "none", whiteSpace: style.wrap ? "normal" : "nowrap" }} title={cell?.comment ?? ""} />}
-              {row === bounds.endRow && col === bounds.endCol && <button type="button" className="grid-fill-handle" aria-label="Drag to fill cells" title="Drag to fill" onMouseDown={event => { event.preventDefault(); event.stopPropagation(); fillSource.current = bounds; fillModifier.current = event.ctrlKey || event.altKey; setFillPreview(null); }} onDoubleClick={() => { const occupied = rows.filter(candidate => candidate > row && sheet.cells[addressOf(candidate, col + 1)]?.raw); const last = occupied.at(-1) ?? row; const target = { ...bounds, endRow: Math.max(row, last) }; fillSource.current = bounds; setFillPreview(target); requestAnimationFrame(() => finishFill(target)); }} />}
+              {row === bounds.endRow && col === bounds.endCol && <button type="button" className="grid-fill-handle" aria-label="Drag to fill cells" title="Drag to fill" onMouseDown={event => { event.preventDefault(); event.stopPropagation(); selectionGesture.current = true; suppressHeaderClick.current = true; fillSource.current = bounds; fillModifier.current = event.ctrlKey || event.altKey; setFillPreview(null); }} onDoubleClick={() => { const occupied = rows.filter(candidate => candidate > row && sheet.cells[addressOf(candidate, col + 1)]?.raw); const last = occupied.at(-1) ?? row; const target = { ...bounds, endRow: Math.max(row, last) }; fillSource.current = bounds; setFillPreview(target); requestAnimationFrame(() => finishFill(target)); }} />}
               {cell?.comment && <span className="comment-mark" title={cell.comment} />}
             </td>;
           })}
