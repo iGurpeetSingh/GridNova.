@@ -738,8 +738,17 @@ class Parser {
         return {__gridArray:true,values:result};
       }
       case "FILTER":{
-        const data=matrix(0),include=list(1),filtered=data.filter((_,index)=>Boolean(include[index]));
-        if(!filtered.length)return a[2]??"#CALC!";
+        const data=matrix(0),includeMatrix=matrix(1),height=data.length,width=Math.max(0,...data.map(row=>row.length));
+        const include=includeMatrix.flat();
+        const includeByRow=includeMatrix.length===height&&includeMatrix.every(row=>row.length===1);
+        const includeByColumn=includeMatrix.length===1&&includeMatrix[0].length===width;
+        let filtered:Scalar[][];
+        if(includeByRow||(!includeByColumn&&include.length===height)){
+          filtered=data.filter((_,index)=>Boolean(include[index]));
+        }else if(includeByColumn){
+          filtered=data.map(row=>row.filter((_,index)=>Boolean(include[index])));
+        }else return "#VALUE!";
+        if(!filtered.length||!filtered[0]?.length)return a[2]??"#CALC!";
         return {__gridArray:true,values:filtered};
       }
       case "SORT":{
