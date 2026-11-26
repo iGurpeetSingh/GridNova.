@@ -11,6 +11,7 @@ export default function SlicerCard({sheet,slicer}:Props){
   const table=sheet.tables?.find(item=>item.id===slicer.tableId);
   const values=useMemo(()=>table?tableColumnValues(table,slicer.columnIndex,sheet.cells):[],[table,slicer.columnIndex,sheet.cells]);
   const active=table?.filters?.[slicer.columnIndex]?.selectedValues??values;
+  const label=table?sheet.cells[addressOf(table.range.startRow,slicer.columnIndex)]?.raw??"Field":"Field";
   const [box,setBox]=useState({x:slicer.x,y:slicer.y,width:slicer.width,height:slicer.height});
   const drag=useRef<DragState|null>(null);
   const currentRef=useRef(box);currentRef.current=box;
