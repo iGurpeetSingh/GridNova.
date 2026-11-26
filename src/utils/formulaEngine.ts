@@ -598,8 +598,27 @@ class Parser {
       case "YEARFRAC":{const x=toSerial(a[0]),y=toSerial(a[1]),basis=number(a[2]??0);if(!Number.isFinite(x)||!Number.isFinite(y))return "#VALUE!";const days=y-x;if(basis===2)return days/360;if(basis===3)return days/365;if(basis===1){const d1=toDate(a[0])!,d2=toDate(a[1])!;return days/((d1.getUTCFullYear()+d2.getUTCFullYear())/2%4===0?366:365);}return days/360;}
       case "NETWORKDAYS":case "NETWORKDAYS.INTL":case "WORKDAY":case "WORKDAY.INTL":{const start=toDate(a[0]);if(!start)return "#VALUE!";const intl=fn.endsWith(".INTL"),isWork=fn.startsWith("WORKDAY"),weekend=intl?(a[2]??1):1,holidayIdx=isWork?(intl?3:2):(intl?3:2),holidays=new Set(list(holidayIdx).map(toSerial).filter(Number.isFinite));if(isWork){const date=dateOnly(start),days=number(a[1]),step=days<0?-1:1;let remaining=Math.abs(Math.trunc(days));while(remaining>0){date.setUTCDate(date.getUTCDate()+step);if(!isWeekend(date,weekend)&&!holidays.has(serialFromDate(date)))remaining--;}return serialFromDate(date);}const end=toDate(a[1]);if(!end)return "#VALUE!";const step=end>=start?1:-1;let count=0,date=dateOnly(start),last=dateOnly(end);while((step>0&&date<=last)||(step<0&&date>=last)){if(!isWeekend(date,weekend)&&!holidays.has(serialFromDate(date)))count+=step;date.setUTCDate(date.getUTCDate()+step);}return count;}
       case "SUMIF":case "COUNTIF":case "AVERAGEIF":{const range=list(0),criteria=a[1]??"",target=list(2).length?list(2):range;const matched=range.map((value,index)=>({value,result:target[index]??""})).filter(item=>criteriaMatches(item.value,criteria));const values=numeric(matched.map(item=>item.result));return fn==="COUNTIF"?matched.length:fn==="SUMIF"?sum(values):values.length?average(values):"#DIV/0!";}
-      case "SUMIFS":case "COUNTIFS":case "AVERAGEIFS":{const target=list(0),pairs:{range:Value[];criteria:Value}[]=[];const offset=fn==="COUNTIFS"?0:1;for(let i=offset;i+1<args.length;i+=2)pairs.push({range:list(i),criteria:a[i+1]??""});const matched=target.filter((_,index)=>pairs.every(pair=>criteriaMatches(pair.range[index]??"",pair.criteria)));const values=numeric(matched);return fn==="COUNTIFS"?matched.length:fn==="SUMIFS"?sum(values):values.length?average(values):"#DIV/0!";}
-      case "MAXIFS":case "MINIFS":{const target=list(0),pairs:{range:Value[];criteria:Value}[]=[];for(let i=1;i+1<args.length;i+=2)pairs.push({range:list(i),criteria:a[i+1]??""});const matched=target.filter((_,index)=>pairs.every(pair=>criteriaMatches(pair.range[index]??"",pair.criteria)));const values=numeric(matched);return values.length?(fn==="MAXIFS"?Math.max(...values):Math.min(...values)):"#N/A";}
+      case "SUMIFS":case "COUNTIFS":case "AVERAGEIFS":{
+        const target=list(0),pairs:{range:Value[];criteria:Value;argumentIndex:number}[]=[],offset=fn==="COUNTIFS"?0:1;
+        for(let index=offset;index+1<args.length;index+=2)pairs.push({range:list(index),criteria:a[index+1]??"",argumentIndex:index});
+        const sameShape=(leftIndex:number,rightIndex:number)=>{
+          const left=matrix(leftIndex),right=matrix(rightIndex);
+          return left.length===right.length&&left.every((row,index)=>row.length===right[index]?.length);
+        };
+        if(pairs.some(pair=>!sameShape(0,pair.argumentIndex)))return "#VALUE!";
+        const matched=target.filter((_,index)=>pairs.every(pair=>criteriaMatches(pair.range[index]??"",pair.criteria)));
+        const values=numeric(matched);
+        return fn==="COUNTIFS"?matched.length:fn==="SUMIFS"?sum(values):values.length?average(values):"#DIV/0!";
+      }
+      case "MAXIFS":case "MINIFS":{
+        const target=list(0),pairs:{range:Value[];criteria:Value;argumentIndex:number}[]=[];
+        for(let index=1;index+1<args.length;index+=2)pairs.push({range:list(index),criteria:a[index+1]??"",argumentIndex:index});
+        const baseMatrix=matrix(0);
+        if(pairs.some(pair=>{const candidate=matrix(pair.argumentIndex);return baseMatrix.length!==candidate.length||!baseMatrix.every((row,index)=>row.length===candidate[index]?.length);}))return "#VALUE!";
+        const matched=target.filter((_,index)=>pairs.every(pair=>criteriaMatches(pair.range[index]??"",pair.criteria)));
+        const values=numeric(matched);
+        return values.length?(fn==="MAXIFS"?Math.max(...values):Math.min(...values)):0;
+      }
       case "PMT":return pmt(number(a[0]),number(a[1]),number(a[2]),number(a[3]??0),number(a[4]??0));
       case "IPMT":return ipmt(number(a[0]),number(a[1]),number(a[2]),number(a[3]),number(a[4]??0),number(a[5]??0));
       case "PPMT":return pmt(number(a[0]),number(a[2]),number(a[3]),number(a[4]??0),number(a[5]??0))-ipmt(number(a[0]),number(a[1]),number(a[2]),number(a[3]),number(a[4]??0),number(a[5]??0));
