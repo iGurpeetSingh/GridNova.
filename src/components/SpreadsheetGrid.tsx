@@ -53,7 +53,7 @@ export default function SpreadsheetGrid({ sheet, activeCell, selection, showForm
   const formulaInputRef=useRef<HTMLInputElement|null>(null);
   const changeCellValue=(address:string,next:string)=>{
     setCell(address,next);
-    const match=next.match(/(?:^|[=(,+\\-*/^&\\s])([A-Za-z][A-Za-z0-9.]*)$/);
+    const match=next.match(/(?:^|[=(,+\-*/^&\s])([A-Za-z][A-Za-z0-9.]*)$/);
     if(next.startsWith("=")&&match)setCellAutocomplete({address,query:match[1],index:0});
     else setCellAutocomplete(null);
   };
