@@ -14,7 +14,7 @@ export default function FormulaBar({address,value,onChange,onCommit,onFocus,onBl
  useEffect(()=>{if(focusInput)inputRef.current?.focus();},[focusInput]);
  const changeValue=(next:string)=>{
   onChange(next);
-  const match=next.match(/(?:^|[=(,+\\-*/^&\\s])([A-Za-z][A-Za-z0-9.]*)$/);
+  const match=next.match(/(?:^|[=(,+\-*/^&\s])([A-Za-z][A-Za-z0-9.]*)$/);
   if(next.startsWith("=")&&match)setAutocomplete({query:match[1],index:0});else setAutocomplete(null);
  };
  const acceptFunction=(name:string)=>{
