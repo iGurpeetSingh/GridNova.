@@ -127,7 +127,7 @@ export default function WorkbookEditor(){
   const spillOrigin=formulaSpillState.origins[activeCell];
   const formulaBarReadOnly=isReadOnly||!!spillOrigin;
   const formulaBarRaw=spillOrigin?(sheet?.cells[spillOrigin]?.raw??""):activeRaw;
-  const circularReferences=useMemo(()=>sheet?getSheetCircularReferences(workbook,sheet.id):[],[workbook,sheet?.id]);
+  const circularReferences=useMemo(()=>workbook&&sheet?getSheetCircularReferences(workbook,sheet.id):[],[workbook,sheet?.id]);
   const calculationMode:CalculationMode=workbook?.calculationMode??"Automatic";
   useEffect(()=>{setFormulaValue(formulaBarRaw)},[formulaBarRaw,activeCell,activeSheetId]);
   const activeStyle=sheet?.cells[activeCell]?.style??{};
