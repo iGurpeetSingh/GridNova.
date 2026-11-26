@@ -779,3 +779,17 @@
 .floating-slicer-values button{min-height:28px;overflow:hidden;padding:4px 6px;border:1px solid #CCD7E2;border-radius:5px;background:#F8FAFC;color:#34444F;text-overflow:ellipsis;white-space:nowrap;font-size:9px}
 .floating-slicer-values button.is-selected{border-color:#0F6CBD;background:#E8F2FC;color:#075A9C;font-weight:650}
 .floating-slicer-resize{position:absolute;right:2px;bottom:2px;width:18px;height:18px;display:grid;place-items:center;border:0;border-radius:4px;background:#fff;color:#0F6CBD;cursor:nwse-resize;touch-action:none}
+
+.validation-cell-trigger{width:100%;height:100%;min-height:24px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 6px;border:0;border-radius:2px;background:transparent;color:#26382d;text-align:left;font:inherit;cursor:pointer}
+.validation-cell-trigger:hover,.validation-cell-trigger:focus-visible{outline:1px solid #0F6CBD;outline-offset:-1px;background:#F7FBFF}
+.validation-cell-trigger:disabled{cursor:not-allowed;opacity:.55}
+.validation-cell-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.validation-cell-trigger>svg{flex:0 0 auto;color:#605E5C}
+.validation-portal-menu{position:fixed;z-index:9999;max-height:min(248px,calc(100dvh - 16px));overflow:auto;padding:5px;border:1px solid #C8C6C4;border-radius:7px;background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.2);font-family:"Segoe UI Variable","Segoe UI",sans-serif}
+.validation-portal-menu button{width:100%;min-height:30px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;border:0;border-radius:4px;background:#fff;color:#323130;text-align:left;font-size:11px}
+.validation-portal-menu button:hover,.validation-portal-menu button:focus-visible{outline:none;background:#F3F2F1}
+.validation-portal-menu button.is-selected{font-weight:650;color:#0F6CBD}
+.validation-portal-menu button svg{flex:0 0 auto;color:#107C41}
+.validation-portal-empty{display:block;padding:10px;color:#797775;font-size:10px}
+.validation-input-tip{position:fixed;z-index:9999;width:min(240px,calc(100vw - 16px));display:flex;flex-direction:column;gap:3px;padding:9px 11px;border:1px solid #E2C77A;border-radius:6px;background:#FFF8DB;color:#4A3B16;box-shadow:0 3px 14px rgba(0,0,0,.12);font-family:"Segoe UI Variable","Segoe UI",sans-serif}
+.validation-input-tip strong{font-size:10px}.validation-input-tip span{font-size:10px;line-height:14px}
