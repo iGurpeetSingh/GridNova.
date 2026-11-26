@@ -95,7 +95,7 @@ function expandRange(startToken: string, endToken: string, currentSheetId: strin
   const result: DependencyNode[] = [];
   for (let row = rowStart; row <= rowEnd; row++) {
     for (let column = colStart; column <= colEnd; column++) {
-      result.push(nodeKey(start.sheetId, columnName(column) + String(row + 1)));
+      result.push(nodeKey(normalizeSheetId(start.sheetId, options), columnName(column) + String(row + 1)));
     }
   }
   return result;
@@ -150,9 +150,7 @@ export function extractFormulaDependencies(
       const start = splitSheetReference(first.token, currentSheetId);
       const end = splitSheetReference(last.token, start?.sheetId ?? currentSheetId);
       if (start && end) {
-        const startReference = normalizeSheetId(start.sheetId, options) === currentSheetId ? first.token : first.token.replace(start.sheetId + '!', normalizeSheetId(start.sheetId, options) + '!');
-        const endReference = normalizeSheetId(end.sheetId, options) === currentSheetId ? last.token : last.token.replace(end.sheetId + '!', normalizeSheetId(end.sheetId, options) + '!');
-        const rangeNodes = expandRange(startReference, endReference, normalizeSheetId(currentSheetId, options), options);
+        const rangeNodes = expandRange(first.token, last.token, currentSheetId, options);
         rangeNodes.forEach(node => dependencies.add(node));
       }
       consumed.add(index);
