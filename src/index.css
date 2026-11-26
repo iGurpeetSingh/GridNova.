@@ -404,3 +404,43 @@
 .name-manager-dialog>footer span{color:#797775;font-size:10px}
 .formula-calculation-toast{position:fixed;right:18px;bottom:45px;z-index:12050;padding:8px 12px;border:1px solid #CDE4D5;border-radius:6px;background:#F0F7F2;color:#107C41;font-size:11px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.12)}
 @media(max-width:740px){.formula-function-group{min-width:450px}.formula-calculation-group{min-width:228px}.formula-calculation-group .formula-large-menu-trigger{width:70px;min-width:70px}.formula-calculate-actions{min-width:136px}.name-manager-editor{grid-template-columns:1fr}}
+
+
+/* Searchable, compact Excel function galleries and formula guidance */
+.formula-function-menu{z-index:9999!important;width:min(330px,calc(100vw - 16px));max-height:min(420px,calc(100dvh - 16px));display:flex;flex-direction:column;overflow:hidden;padding:0;border:1px solid #E1DFDD;border-radius:8px;background:#fff;box-shadow:0 10px 28px rgba(0,0,0,.18);color:#323130}
+.formula-function-menu-title{padding:10px 12px 8px;border-bottom:1px solid #E5E5E5;color:#605E5C;font-size:11px;font-weight:700}
+.formula-function-search{position:sticky;top:0;z-index:2;min-height:36px;display:flex;align-items:center;gap:7px;padding:5px 10px;border-bottom:1px solid #E5E5E5;background:#fff;color:#797775}
+.formula-function-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#323130;font-size:11px}
+.formula-function-list{min-height:80px;max-height:340px;flex:1;overflow-y:auto;overscroll-behavior:contain;padding:3px 0}
+.formula-function-list>button{width:100%;min-height:36px;display:flex;align-items:center;gap:9px;padding:5px 11px;border:0;border-radius:0;background:#fff;color:#323130;text-align:left}
+.formula-function-list>button:hover,.formula-function-list>button:focus-visible{outline:0;background:#EBF3FC}
+.formula-function-row-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.formula-function-row-copy b{font-size:11px;font-weight:700;line-height:13px}
+.formula-function-row-copy small{overflow:hidden;color:#797775;font-size:9px;line-height:12px;text-overflow:ellipsis;white-space:nowrap}
+.formula-function-description{min-height:39px;display:flex;align-items:center;padding:7px 11px;border-top:1px solid #E5E5E5;background:#F7F7F7;color:#605E5C;font-size:10px;line-height:14px}
+.formula-function-empty{padding:20px 12px;color:#797775;text-align:center;font-size:10px}
+.formula-function-open-library{min-height:33px;display:flex;align-items:center;padding:6px 12px;border:0;border-top:1px solid #E5E5E5;background:#fff;color:#0F6CBD;text-align:left;font-size:10px;font-weight:650}
+.formula-function-open-library:hover{background:#EBF3FC}
+.formula-function-category-list{display:flex;flex-direction:column;padding:2px 0}
+.formula-function-category-list>button:not(.formula-function-open-library){min-height:43px;display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border:0;background:#fff;color:#323130;text-align:left}
+.formula-function-category-list>button:not(.formula-function-open-library):hover{background:#EBF3FC}
+.formula-function-category-list>button>span{display:flex;flex-direction:column;gap:2px}
+.formula-function-category-list b{font-size:11px}.formula-function-category-list small{color:#797775;font-size:9px}
+.formula-function-submenu-heading{min-height:34px;display:flex;align-items:center;gap:12px;padding:5px 10px;border-bottom:1px solid #E5E5E5;background:#F8F8F8}
+.formula-function-submenu-heading button{border:0;background:transparent;color:#0F6CBD;font-size:10px}
+.formula-function-submenu-heading strong{color:#323130;font-size:11px}
+.formula-autocomplete-menu{z-index:10020!important;width:min(330px,calc(100vw - 16px));max-height:280px;display:flex;flex-direction:column;overflow:hidden;border:1px solid #D2D0CE;border-radius:7px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.formula-autocomplete-heading{display:flex;align-items:center;gap:7px;padding:7px 10px;border-bottom:1px solid #E5E5E5;background:#F7F7F7;color:#605E5C;font-size:10px;font-weight:700}
+.formula-autocomplete-results{max-height:220px;overflow:auto;padding:3px 0}
+.formula-autocomplete-results>button{width:100%;min-height:37px;display:flex;align-items:center;gap:8px;padding:5px 9px;border:0;background:#fff;color:#323130;text-align:left}
+.formula-autocomplete-results>button[aria-selected="true"],.formula-autocomplete-results>button:hover{background:#EBF3FC}
+.formula-autocomplete-results>button>span:nth-child(2){min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.formula-autocomplete-results b{font-size:11px}.formula-autocomplete-results small{overflow:hidden;color:#797775;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.formula-autocomplete-footer{padding:6px 9px;border-top:1px solid #E5E5E5;color:#797775;font-size:9px}
+.formula-argument-tooltip{z-index:10025!important;width:min(340px,calc(100vw - 16px));padding:8px 10px;border:1px solid #D2D0CE;border-radius:6px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.15);color:#323130}
+.formula-argument-tooltip>div{display:flex;align-items:center;gap:9px;font-size:10px}
+.formula-argument-tooltip code{color:#0F6CBD;font-family:Consolas,monospace;font-size:9px}
+.formula-argument-tooltip p{margin:5px 0 0;color:#605E5C;font-size:10px}
+.formula-argument-tooltip p strong{color:#107C41;font-weight:750}
+.formula-reference-cell{box-shadow:inset 0 0 0 2px #0F6CBD!important;background-color:rgba(15,108,189,.055)!important}
+.formula-reference-cell .cell-input{color:#0F6CBD!important}
