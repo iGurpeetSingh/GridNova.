@@ -96,8 +96,12 @@ function expandNamedRanges(source:string,namedRanges:Record<string,string>={}):s
     if(match){
       const replacement=lookup.get(match[0].toUpperCase());
       if(replacement){
-        const localRef=replacement.trim().replace(/^=/,"").split("!").pop()?.replace(/\$/g,"")??"";
-        output+=/^[A-Z]{1,3}[1-9]\d*(?::[A-Z]{1,3}[1-9]\d*)?$/i.test(localRef)?localRef.toUpperCase():match[0];
+        const value=replacement.trim().replace(/^=/,"").replace(/\$/g,"");
+        const parts=value.split("!");
+        const localRef=parts.pop()??"";
+        const validRange=/^(?:[A-Z]{1,3}[1-9]\d*|[A-Z]{1,3}|[1-9]\d*)(?::(?:[A-Z]{1,3}[1-9]\d*|[A-Z]{1,3}|[1-9]\d*))?$/i.test(localRef);
+        if(validRange){const sheet=parts.length?parts.join("!")+"!":"";output+=sheet+localRef.toUpperCase();}
+        else output+=match[0];
       }else output+=match[0];
       i+=match[0].length;
       continue;
@@ -211,8 +215,23 @@ const criteriaMatches=(value:Value,criteria:Value):boolean=>{
  const condition=String(scalar(criteria)),op=condition.match(/^(>=|<=|<>|>|<|=)/)?.[0]??"=";
  const expected=condition.slice(op==="="&&!/^(>=|<=|<>|>|<|=)/.test(condition)?0:op.length);
  const actual=scalar(value);
- if(/[*?]/.test(expected)){
+ if(/[*?~]/.test(expected)){
+  let pattern="";
+  for(let index=0;index<expected.length;index++){
+   const ch=expected[index];
+   if(ch==="~"&&index+1<expected.length){const next=expected[++index];pattern+=next.replace(/[.*+?^\${}()|[\\]\\\\]/g,"\\\\ if(/[*?]/.test(expected)){
   const pattern=expected.split("").map(char=>"\\\\^$.*+?()[]{}|".includes(char)?"\\\\"+char:char).join("").replace(/\\\\~/g,"~").replace(/\\*/g,".*").replace(/\\?/g,".");
+  const match=new RegExp("^"+pattern+"$","i").test(String(actual));
+  return op==="<>"?!match:match;
+ }");}
+   else if(ch==="*")pattern+=".*";
+   else if(ch==="?")pattern+=".";
+   else pattern+=ch.replace(/[.*+?^\${}()|[\\]\\\\]/g,"\\\\ if(/[*?]/.test(expected)){
+  const pattern=expected.split("").map(char=>"\\\\^$.*+?()[]{}|".includes(char)?"\\\\"+char:char).join("").replace(/\\\\~/g,"~").replace(/\\*/g,".*").replace(/\\?/g,".");
+  const match=new RegExp("^"+pattern+"$","i").test(String(actual));
+  return op==="<>"?!match:match;
+ }");
+  }
   const match=new RegExp("^"+pattern+"$","i").test(String(actual));
   return op==="<>"?!match:match;
  }
@@ -559,6 +578,7 @@ class Parser {
       case "PV":{const r=number(a[0]),n=number(a[1]),payment=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);return r===0?-(fv+payment*n):-(fv+payment*(1+r*type)*(((1+r)**n-1)/r))/(1+r)**n;}
       case "NPER":{const r=number(a[0]),payment=number(a[1]),pv=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);if(r===0)return -(pv+fv)/payment;const x=(payment*(1+r*type)-fv*r)/(pv*r+payment*(1+r*type));return Math.log(x)/Math.log(1+r);}
       case "NPV":{const rate=number(a[0]),values=list(1).map(number);if(rate<=-1)return "#NUM!";return values.reduce((total,value,index)=>total+value/Math.pow(1+rate,index+1),0);}
+      case "NPV":{const rate=number(a[0]),values=list(1).map(number);if(rate<=-1)return "#NUM!";return values.reduce((total,value,index)=>total+value/Math.pow(1+rate,index+1),0);}
       case "RATE":{const n=number(a[0]),payment=number(a[1]),pv=number(a[2]),fv=number(a[3]??0),type=number(a[4]??0);let r=number(a[5]??0.1);for(let i=0;i<100;i++){const f=r===0?pv+payment*n+fv:pv*(1+r)**n+payment*(1+r*type)*(((1+r)**n-1)/r)+fv;const h=1e-6,rr=r+h,ff=pv*(1+rr)**n+payment*(1+rr*type)*(((1+rr)**n-1)/rr)+fv;const next=r-f/((ff-f)/h);if(!Number.isFinite(next))break;if(Math.abs(next-r)<1e-9)return next;r=next;}return r;}
       case "EFFECT":{const nominal=number(a[0]),n=number(a[1]);return (1+nominal/n)**n-1;}
       case "NOMINAL":{const effect=number(a[0]),n=number(a[1]);return n*((1+effect)**(1/n)-1);}
@@ -647,7 +667,7 @@ function formatText(value:number,format:string,original?:Value):string{
   });
  }
  if(format.includes("%"))return new Intl.NumberFormat("en-US",{style:"percent",maximumFractionDigits:(format.split(".")[1]??"").replace(/[^0]/g,"").length}).format(value);
- const decimals=format.match(/\\.([0#]+)/)?.[1].length??0;
+ const decimals=format.match(/\.([0#]+)/)?.[1].length??0;
  const grouped=format.includes(",");
  if(/^[\$₹€£]/.test(format)){const currency=format[0];return currency+new Intl.NumberFormat("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals,useGrouping:grouped}).format(value);}
  return new Intl.NumberFormat("en-US",{minimumFractionDigits:format.includes(".")?decimals:0,maximumFractionDigits:decimals,useGrouping:grouped}).format(value);
