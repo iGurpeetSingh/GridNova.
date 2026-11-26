@@ -5,6 +5,7 @@ import InsertRibbonIcon from "./InsertRibbonIcon";
 import { ChartGalleryButton, EditingModeDropdown, InsertIconDropdown, ShapeGalleryButton } from "./InsertDropdownGallery";
 import HomeRibbon from "./HomeRibbon";
 import FormulaRibbon from "./FormulaRibbon";
+import FileMenu from "./FileMenu";
 import PageLayoutRibbon from "./PageLayoutRibbon";
 import type { CalculationMode } from "../types";
 import {
@@ -20,7 +21,7 @@ import {
   AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
   Replace, Paintbrush2, Share2, Link2, Users, ShieldCheck, TableProperties, FilterX, ListChecks,
 } from "lucide-react";
-import type { CellStyle, ExcelTableData, SheetData, SheetPageSetup } from "../types";
+import type { CellStyle, ExcelTableData, SheetData, SheetPageSetup, WorkbookData } from "../types";
 import { parseAddress } from "../types";
 import { TABLE_STYLES } from "../utils/tableUtils";
 
@@ -29,7 +30,7 @@ interface Props {
   activeTab:Tab; setActiveTab:(t:Tab)=>void; onAction:(action:string)=>void;
   onFormat:(style:Partial<CellStyle>)=>void; style:CellStyle; sheet:SheetData;
   showFormulas:boolean; setShowFormulas:(v:boolean)=>void; zoom:number; setZoom:(v:number)=>void;
-  pageSetup:SheetPageSetup; activeCell:string;
+  pageSetup:SheetPageSetup; activeCell:string; workbooks:WorkbookData[]; currentWorkbookId:string;
   activeTable?: ExcelTableData | null;
   calculationMode?:CalculationMode;onCalculationModeChange:(mode:CalculationMode)=>void;
   onOpenNameManager:()=>void;onOpenFunctionLibrary:()=>void;
@@ -66,7 +67,7 @@ function Group({label,children}:{label:string;children:ReactNode}){
 function InsertGroup({label,children}:{label:string;children:ReactNode}){
   return <section aria-label={label} className="insert-ribbon-group"><div className="insert-ribbon-group-content">{children}</div><div className="insert-ribbon-caption">{label}</div></section>;
 }
-export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,pageSetup,activeCell,activeTable=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager,onOpenFunctionLibrary}:Props){
+export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,sheet,showFormulas,setShowFormulas,zoom,setZoom,pageSetup,activeCell,workbooks,currentWorkbookId,activeTable=null,calculationMode="Automatic",onCalculationModeChange,onOpenNameManager,onOpenFunctionLibrary}:Props){
   const tabs = activeTable ? [...baseTabs, "Table Design" as Tab] : baseTabs;
   const [openMenu,setOpenMenu]=useState<string|null>(null);
   const [collapsed,setCollapsed]=useState(false);
@@ -79,10 +80,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
   const drop=(id:string,props:{label:string;value:string;options:string[];onPick:(v:string)=>void})=><Drop key={id} {...props} open={openMenu===id} onToggle={()=>toggleMenu(id)} onClose={closeMenu}/>;
   const content=()=>{
     switch(activeTab){
-      case "File":return <>
-        <Group label="Workbook">{button("New workbook",FilePlus2,"new","green")}{button("Dashboard",ArrowLeft,"back","blue")}{button("Save status",Save,"save","green")}</Group>
-        <Group label="Export">{button("Excel (.xlsx)",FileSpreadsheet,"export-xlsx","green")}{button("CSV",FileDown,"export-csv","blue")}{button("PDF",FileText,"export-pdf","rose")}{button("Print",Printer,"print","rose")}</Group>
-      </>;
+      case "File":return null;
       case "Home":return <HomeRibbon onAction={onAction} onFormat={onFormat} style={style} sheet={sheet}/>;
       case "Insert":return <>
         <InsertGroup label="Tables">
@@ -168,7 +166,7 @@ export default function Ribbon({activeTab,setActiveTab,onAction,onFormat,style,s
   return <div className="no-print ribbon-shell relative z-40 shrink-0 bg-[#F5F5F5] px-2 pt-1" onMouseDown={event=>{if((event.target as HTMLElement).closest("button"))event.preventDefault();}}>
     <div className="ribbon-card overflow-visible">
       <div className="ribbon-tabbar">
-        <nav className="ribbon-tabs" aria-label="Workbook tabs">{tabs.map(tab=><button key={tab} onMouseDown={e=>e.preventDefault()} onClick={()=>setActiveTab(tab)} className={`ribbon-tab ${activeTab===tab?"is-active":""}`}>{tab}{activeTab===tab&&<span className="ribbon-tab-indicator"/>}</button>)}</nav>
+        <nav className="ribbon-tabs" aria-label="Workbook tabs">{tabs.map(tab=>tab==="File"?<FileMenu key="File" workbooks={workbooks} currentWorkbookId={currentWorkbookId} onAction={onAction}/>:<button key={tab} onMouseDown={e=>e.preventDefault()} onClick={()=>setActiveTab(tab)} className={`ribbon-tab ${activeTab===tab?"is-active":""}`}>{tab}{activeTab===tab&&<span className="ribbon-tab-indicator"/>}</button>)}</nav>
         <div className="ribbon-utilities">
           <button type="button" className="ribbon-utility-button" onMouseDown={e=>e.preventDefault()} onClick={()=>onAction("comments-panel")}><MessageSquare size={15}/>Comments</button>
           <EditingModeDropdown open={openMenu==="editing-mode"} onToggle={()=>toggleMenu("editing-mode")} onClose={closeMenu} mode={editingMode} onModeChange={setEditingMode}><Pencil size={14}/>{editingMode}<ChevronDown size={12}/></EditingModeDropdown>

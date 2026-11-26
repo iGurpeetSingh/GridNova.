@@ -11,6 +11,7 @@ import type { WorkbookData } from "../types";
 
 type MenuNode = {
   id:string;
+  separator?:boolean;
   label:string;
   action?:string;
   children?:MenuNode[];
@@ -41,6 +42,7 @@ function makeGroups(workbooks:WorkbookData[],currentId:string):MenuGroup[]{
       {id:"recent",label:"Recent Workbooks",icon:icon(FileClock,"#605E5C"),children:recent.length?recent.map(book=>({id:"recent-"+book.id,label:book.title,meta:new Date(book.modifiedAt).toLocaleString(),action:"file-open-workbook:"+book.id,icon:icon(FileSpreadsheet,book.id===currentId?"#107C41":"#605E5C")})):[{id:"recent-empty",label:"No recent workbooks",disabled:true}]}
     ]},
     {id:"share-copy-export",items:[
+      {id:"divider-before-share",label:"",separator:true},
       {id:"share",label:"Share",icon:icon(Share2,"#0F6CBD"),children:[
         {id:"share-dialog",label:"Share & Permissions",action:"file-share-open",icon:icon(Users,"#0F6CBD")},
         {id:"share-copy-link",label:"Copy Link",action:"file-share-copy-link",icon:icon(Link2,"#0F6CBD")},
@@ -60,6 +62,7 @@ function makeGroups(workbooks:WorkbookData[],currentId:string):MenuGroup[]{
       {id:"print",label:"Print",action:"file-print",icon:icon(Printer,"#0F6CBD")}
     ]},
     {id:"file-settings",items:[
+      {id:"divider-before-settings",label:"",separator:true},
       {id:"move",label:"Move File",disabled:true,title:"Available for cloud-synced workbooks",icon:icon(FolderInput,"#A19F9D")},
       {id:"info",label:"Info",icon:icon(Info,"#323130"),children:[
         {id:"history",label:"Version History",action:"file-history-open",icon:icon(FileClock,"#605E5C")},
@@ -89,7 +92,7 @@ function findNode(groups:MenuGroup[],path:string[]):MenuNode|undefined{
   }
   return current;
 }
-function PortalPanel({items,parentRef,root=false,mobile=false,depth,onBack,onAction,onClose,onEnter,onLeave,registerButton}:{items:MenuNode[];parentRef:RefObject<HTMLElement|null>;root?:boolean;mobile?:boolean;depth:number;onBack?:()=>void;onAction:(action:string)=>void;onClose:()=>void;onEnter:()=>void;onLeave:()=>void;registerButton:(id:string,element:HTMLButtonElement|null)=>void}){
+function PortalPanel({items,parentRef,root=false,mobile=false,depth,title,pathPrefix=[],onBack,onAction,onClose,onOpenPath,onEnter,onLeave,registerButton}:{items:MenuNode[];parentRef:RefObject<HTMLElement|null>;root?:boolean;mobile?:boolean;depth:number;title?:string;pathPrefix?:string[];onBack?:()=>void;onAction:(action:string)=>void;onClose:()=>void;onOpenPath:(path:string[])=>void;onEnter:()=>void;onLeave:()=>void;registerButton:(id:string,element:HTMLButtonElement|null)=>void}){
   const panelRef=useRef<HTMLDivElement>(null);
   const [position,setPosition]=useState({left:8,top:8});
   useLayoutEffect(()=>{
@@ -117,8 +120,8 @@ function PortalPanel({items,parentRef,root=false,mobile=false,depth,onBack,onAct
     else if(event.key==="ArrowLeft"&&onBack){event.preventDefault();onBack();}
   };
   return createPortal(<div ref={panelRef} data-file-menu-surface="true" role="menu" aria-label={root?"File menu":"File submenu"} onMouseEnter={onEnter} onMouseLeave={onLeave} onKeyDown={handleKeyDown} onMouseDown={event=>event.preventDefault()} className={`file-menu-panel ${root?"file-menu-root":""} ${mobile?"file-menu-mobile":""}`} style={{left:position.left,top:position.top}}>
-    {mobile&&depth>0&&<div className="file-menu-mobile-header"><button type="button" onMouseDown={event=>event.preventDefault()} onClick={onBack}><ChevronLeft size={17}/> Back</button><strong>{items[0]?.id==="recent-empty"?"Recent Workbooks": "File"}</strong><button type="button" aria-label="Close File menu" onMouseDown={event=>event.preventDefault()} onClick={onClose}><X size={17}/></button></div>}
-    {items.map(item=><button key={item.id} ref={element=>registerButton(item.id,element)} type="button" role="menuitem" disabled={item.disabled} data-has-children={!!item.children} title={item.title} aria-haspopup={item.children?"menu":undefined} className="file-menu-item" onFocus={()=>{if(item.children)onEnter();}} onMouseEnter={()=>{if(item.children)onEnter();}} onClick={()=>{if(item.children){onEnter();}else if(item.action){onAction(item.action);onClose();}}}>
+    {mobile&&depth>0&&<div className="file-menu-mobile-header"><button type="button" onMouseDown={event=>event.preventDefault()} onClick={onBack}><ChevronLeft size={17}/> Back</button><strong>{title??"File"}</strong><button type="button" aria-label="Close File menu" onMouseDown={event=>event.preventDefault()} onClick={onClose}><X size={17}/></button></div>}
+    {items.map(item=>item.separator?<div key={item.id} role="separator" className="file-menu-divider"/>:<button key={item.id} ref={element=>registerButton(item.id,element)} type="button" role="menuitem" disabled={item.disabled} data-has-children={!!item.children} title={item.title} aria-haspopup={item.children?"menu":undefined} className="file-menu-item" onFocus={()=>{if(item.children){onEnter();onOpenPath([...pathPrefix,item.id]);}}} onMouseEnter={()=>{if(item.children){onEnter();onOpenPath([...pathPrefix,item.id]);}}} onClick={()=>{if(item.children){onOpenPath([...pathPrefix,item.id]);}else if(item.action){onAction(item.action);onClose();}}}>
       <span className="file-menu-item-icon">{item.icon??<span/>}</span><span className="file-menu-item-copy"><span>{item.label}</span>{item.meta&&<small>{item.meta}</small>}</span>{item.children&&<ChevronRight size={15} className="file-menu-chevron"/>}
     </button>)}
   </div>,document.body);
@@ -160,22 +163,15 @@ export default function FileMenu({workbooks,currentWorkbookId,onAction}:Props){
   },[open]);
   const panels:ReactNode[]=[];
   if(open){
-    panels.push(<PortalPanel key="root" items={rootItems} parentRef={triggerRef} root mobile={mobile&&activePath.length===0} depth={0} onAction={runAction} onClose={close} onEnter={()=>openPath(["open"])} onLeave={scheduleClose} registerButton={registerRoot}/>);
+    if(!mobile||activePath.length===0)panels.push(<PortalPanel key="root" items={rootItems} parentRef={triggerRef} root mobile={mobile&&activePath.length===0} depth={0} pathPrefix={[]} onAction={runAction} onClose={close} onOpenPath={openPath} onEnter={cancelClose} onLeave={scheduleClose} registerButton={registerRoot}/>);
     if(activePath.length){
-      const parentPath:string[]=[];
-      activePath.forEach((segment,index)=>{
-        parentPath.push(segment);
-        const node=findNode(groups,parentPath);
-        if(!node?.children)return;
-        const parentKey=parentPath.slice(0,-1).join("/");
-        const parentRef:RefObject<HTMLElement|null>={current:parentKey?anchors.current.get(parentKey+"/"+segment)??null:anchors.current.get(segment)??null};
-        const childItems=node.children;
-        const pathSnapshot=[...parentPath];
-        const next=()=>openPath(pathSnapshot);
-        const back=()=>openPath(pathSnapshot.slice(0,-1));
-        const mobileDepth=index+1;
-        panels.push(<PortalPanel key={"submenu-"+parentPath.join("-")} items={childItems} parentRef={parentRef} mobile={mobile&&activePath.length===parentPath.length} depth={mobileDepth} onBack={back} onAction={runAction} onClose={close} onEnter={cancelClose} onLeave={scheduleClose} registerButton={registerSub(parentPath.join("/"))}/>);
-      });
+      const node=findNode(groups,activePath);
+      if(node?.children){
+        const parentKey=activePath.join("/");
+        const parentRef:RefObject<HTMLElement|null>={current:anchors.current.get(parentKey)??null};
+        const title=node.label;
+        panels.push(<PortalPanel key={"submenu-"+parentKey} items={node.children} parentRef={parentRef} mobile={mobile} depth={activePath.length} title={title} pathPrefix={activePath} onBack={()=>openPath(activePath.slice(0,-1))} onAction={runAction} onClose={close} onOpenPath={openPath} onEnter={cancelClose} onLeave={scheduleClose} registerButton={registerSub(parentKey)}/>);
+      }
     }
   }
   return <div ref={rootRef} className="file-menu-trigger-wrap">
