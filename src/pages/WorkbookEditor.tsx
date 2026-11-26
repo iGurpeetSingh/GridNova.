@@ -15,6 +15,8 @@ import FloatingElement from "../components/FloatingElement";
 import CellImageOverlays from "../components/CellImageOverlays";
 import PageSetupDialog from "../components/PageSetupDialog";
 import FileToolsDialog, { type FileToolsMode, type FileVersionSnapshot } from "../components/FileToolsDialog";
+import FormulaAuditOverlay from "../components/FormulaAuditOverlay";
+import FormulaDebuggerDialog from "../components/FormulaDebuggerDialog";
 import { useWorkbookStore } from "../store/useWorkbookStore";
 import type { CalculationMode, CellData, CellRange, CellStyle, ExcelTableData, FloatingChartData, FloatingElementData, SheetPageSetup, TemplateId, WorkbookData } from "../types";
 import { DEFAULT_PAGE_SETUP } from "../types";
@@ -86,6 +88,8 @@ export default function WorkbookEditor(){
   const [pageSetupOpen,setPageSetupOpen]=useState(false);
   const [fileToolsMode,setFileToolsMode]=useState<FileToolsMode|null>(null);
   const [fileHistory,setFileHistory]=useState<FileVersionSnapshot[]>([]);
+  const [auditMode,setAuditMode]=useState<"precedents"|"dependents"|null>(null);
+  const [formulaDebuggerOpen,setFormulaDebuggerOpen]=useState(false);
   const [showFormulaBar,setShowFormulaBar]=useState(true);
   const openFileAsWorkbookRef=useRef(false);
   const [slicerOpen,setSlicerOpen]=useState(false);
@@ -712,6 +716,10 @@ export default function WorkbookEditor(){
       case "table-remove-duplicates":removeActiveTableDuplicates();break;
       case "table-convert-range":convertActiveTableToRange();break;
       case "insert-function":setFormulaLibraryCategory("All");setFormulaLibraryOpen(true);break;
+      case "trace-precedents":setAuditMode("precedents");break;
+      case "trace-dependents":setAuditMode("dependents");break;
+      case "remove-audit-arrows":setAuditMode(null);break;
+      case "evaluate-formula":setFormulaDebuggerOpen(true);break;
       case "calculate-workbook":calculateWorkbook();break;
       case "calculate-sheet":calculateActiveSheet();break;
       case "formula-category:Statistical":case "formula-category:Engineering":case "formula-category:Information":
@@ -915,6 +923,7 @@ export default function WorkbookEditor(){
     {showFormulaBar&&<FormulaBar readOnly={formulaBarReadOnly} spillGhost={!!spillOrigin} address={activeCell} value={formulaValue} onChange={setFormulaValue} onCommit={()=>{if(!formulaBarReadOnly){setCell(activeCell,formulaValue);setShowSaved();}}} onCancel={()=>setFormulaValue(formulaBarRaw)} onInsertFunction={()=>{setFormulaLibraryCategory("All");setFormulaLibraryOpen(true)}} onNavigate={address=>selectCell(address)} focusInput={formulaBarFocused} onFocus={()=>setFormulaBarFocused(true)} onBlur={()=>setFormulaBarFocused(false)}/>}
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
       <SpreadsheetGrid sheet={sheet} allSheets={workbook.sheets} isReadOnly={isReadOnly} pageSetup={pageSetup} activeCell={activeCell} selection={selection} showFormulas={showFormulas} zoom={zoom} namedRanges={namedRanges} calculationMode={calculationMode} formulaBarFocused={formulaBarFocused} formulaBarDraft={formulaValue} onSelect={selectCell}/>
+      <FormulaAuditOverlay workbook={workbook} sheet={sheet} activeCell={spillOrigin??activeCell} mode={auditMode}/>
       <CellImageOverlays sheet={sheet}/>
       {workbook.charts.map(chart=><Suspense key={chart.id} fallback={null}><FloatingChart chart={chart} sheet={sheet} onUpdate={updateChart} onDelete={deleteChart}/></Suspense>)}
       {(workbook.elements??[]).map(element=><FloatingElement key={element.id} element={element} onUpdate={updateElement} onDelete={deleteElement}/>)}
@@ -928,6 +937,7 @@ export default function WorkbookEditor(){
       ["Worksheets",workbookStats.worksheets],["Used cells",workbookStats.usedCells],["Formulas",workbookStats.formulas],["Comments",workbookStats.comments],["Tables",workbookStats.tables],["Charts",workbookStats.charts],["Drawings",workbookStats.drawings],["Named ranges",workbookStats.namedRanges]
     ].map(([label,value])=><div key={label}><strong>{Number(value).toLocaleString()}</strong><span>{label}</span></div>)}</div><footer><button type="button" onClick={()=>setWorkbookStatsOpen(false)}>Close</button></footer></section></div>}
     <PageSetupDialog open={pageSetupOpen} settings={pageSetup} onClose={()=>setPageSetupOpen(false)} onSave={savePageSetup} onPrint={printPageSetup}/>
+    <FormulaDebuggerDialog open={formulaDebuggerOpen} formula={sheet.cells[spillOrigin??activeCell]?.raw??""} cells={sheet.cells} tables={sheet.tables??[]} namedRanges={namedRanges} sheets={workbook.sheets} sheetName={sheet.name} address={spillOrigin??activeCell} onClose={()=>setFormulaDebuggerOpen(false)}/>
     <FileToolsDialog mode={fileToolsMode} workbook={workbook} history={fileHistory} showFormulaBar={showFormulaBar} autoSaveEnabled={autoSaveEnabled} gridlines={sheet.showGridlines} onClose={()=>setFileToolsMode(null)} onRestore={snapshot=>{
       const restored=snapshot.workbook;
       updateWorkbook(workbook.id,{title:restored.title,sheets:structuredClone(restored.sheets),charts:structuredClone(restored.charts??[]),elements:structuredClone(restored.elements??[]),namedRanges:structuredClone(restored.namedRanges??{}),calculationMode:restored.calculationMode,isProtected:restored.isProtected,regionalSettings:restored.regionalSettings,orientation:restored.orientation});

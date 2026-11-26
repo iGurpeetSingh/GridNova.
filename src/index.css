@@ -696,3 +696,34 @@
 .formula-audit-actions button{display:flex;align-items:center;gap:5px;min-height:28px;padding:3px 4px;border:0;border-radius:4px;background:transparent;color:#34444f;text-align:left;font-size:9px;line-height:11px}
 .formula-audit-actions button:hover{background:#eef5fb;color:#0F6CBD}
 .formula-audit-actions button svg{flex:0 0 auto;color:#0F6CBD}
+
+.formula-audit-overlay{position:fixed;inset:0;z-index:25;width:100vw;height:100vh;pointer-events:none;overflow:visible}
+.formula-debug-backdrop{position:fixed;inset:0;z-index:13010;display:grid;place-items:center;padding:18px;background:rgba(32,33,36,.28);backdrop-filter:blur(2px)}
+.formula-debug-dialog{width:min(620px,100%);max-height:min(88dvh,760px);display:flex;flex-direction:column;overflow:hidden;border:1px solid #E1DFDD;border-radius:12px;background:#fff;color:#242424;box-shadow:0 20px 58px rgba(0,0,0,.24);font-family:"Segoe UI Variable","Segoe UI",sans-serif}
+.formula-debug-dialog>header{display:flex;justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid #EBEBEB}
+.formula-debug-dialog>header span{color:#0F6CBD;font-size:9px;font-weight:700;letter-spacing:.08em}
+.formula-debug-dialog>header h2{margin:3px 0;font-size:17px;font-weight:650}
+.formula-debug-dialog>header p{margin:0;color:#797775;font-size:11px}
+.formula-debug-dialog>header button{width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:5px;background:#fff;color:#605E5C}
+.formula-debug-expression{display:flex;flex-direction:column;gap:6px;padding:14px 18px;background:#F8FAFC}
+.formula-debug-expression label{font-size:10px;color:#605E5C;font-weight:650}
+.formula-debug-expression code{overflow-wrap:anywhere;font-size:11px;color:#323130}
+.formula-debug-steps{display:flex;flex-direction:column;gap:6px;overflow:auto;padding:14px 18px;min-height:80px}
+.formula-debug-steps>div{display:flex;align-items:flex-start;gap:10px;padding:9px;border:1px solid #E5E5E5;border-radius:7px}
+.formula-debug-steps>div.is-current{border-color:#0F6CBD;background:#EFF6FC}
+.formula-debug-steps>div.is-complete{border-color:#C6E6D0;background:#F5FBF7}
+.formula-debug-steps>div>span{width:21px;height:21px;display:grid;place-items:center;flex:0 0 21px;border-radius:50%;background:#E8F1F8;color:#0F6CBD;font-size:10px;font-weight:700}
+.formula-debug-steps>div>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.formula-debug-steps strong{font-size:11px}
+.formula-debug-steps code{overflow-wrap:anywhere;color:#605E5C;font-size:10px}
+.formula-debug-steps small{color:#107C41;font-size:10px}
+.formula-debug-steps>div>svg{color:#107C41}
+.formula-debug-steps>p{color:#797775;font-size:11px}
+.formula-debug-result{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-top:1px solid #EBEBEB}
+.formula-debug-result span{color:#605E5C;font-size:11px}
+.formula-debug-result strong{font-size:13px;color:#107C41;overflow-wrap:anywhere}
+.formula-debug-dialog>footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid #EBEBEB}
+.formula-debug-dialog>footer button{height:34px;display:inline-flex;align-items:center;gap:5px;padding:0 12px;border:1px solid #0F6CBD;border-radius:5px;background:#0F6CBD;color:#fff;font-size:10px;font-weight:650}
+.formula-debug-dialog>footer button:disabled{opacity:.45;cursor:not-allowed}
+.formula-debug-dialog>footer .formula-debug-secondary{border-color:#C8C6C4;background:#fff;color:#323130}
+@media(max-width:560px){.formula-debug-backdrop{padding:8px}.formula-debug-dialog{max-height:calc(100dvh - 16px)}.formula-debug-dialog>footer{flex-wrap:wrap}}
