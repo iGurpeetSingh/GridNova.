@@ -297,7 +297,8 @@ function sheetMap(context: FormulaContext, sheetName?: string): { map: CellMap; 
 }
 
 function parseNamedReference(name: string, context: FormulaContext): { sheetName?: string; start: string; end: string } | null {
-  const definition = context.namedRanges?.[name] ?? context.namedRanges?.[name.toLowerCase()];
+  const definition = context.namedRanges?.[name] ??
+    Object.entries(context.namedRanges ?? {}).find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1];
   if (!definition) return null;
   const reference = typeof definition === "string" ? definition : definition.reference;
   const explicitSheet = typeof definition === "string" ? undefined : definition.sheetId;
